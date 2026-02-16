@@ -1,0 +1,82 @@
+-- Migration: Seed Data for Development
+-- Description: Sample data for testing and development
+-- NOTE: This migration should NOT be run in production
+
+-- Create test users
+-- Password for all test users: "password123" (bcrypt hash with 12 rounds)
+INSERT INTO users (id, username, email, password_hash, status) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'alice', 'alice@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'online'),
+    ('00000000-0000-0000-0000-000000000002', 'bob', 'bob@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'online'),
+    ('00000000-0000-0000-0000-000000000003', 'charlie', 'charlie@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'away'),
+    ('00000000-0000-0000-0000-000000000004', 'diana', 'diana@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'dnd'),
+    ('00000000-0000-0000-0000-000000000005', 'eve', 'eve@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'offline');
+
+-- Create test server
+INSERT INTO servers (id, name, owner_id) VALUES
+    ('00000000-0000-0000-0000-000000000100', 'Gaming Squad', '00000000-0000-0000-0000-000000000001');
+
+-- Add members to server
+INSERT INTO server_members (user_id, server_id, nickname) VALUES
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000100', NULL),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000100', 'Bobby'),
+    ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000100', NULL),
+    ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000100', NULL);
+
+-- Create roles
+INSERT INTO roles (id, server_id, name, permissions, color, position) VALUES
+    ('00000000-0000-0000-0000-000000000200', '00000000-0000-0000-0000-000000000100', 'Admin', 8192, '#FF5733', 2),
+    ('00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000100', 'Moderator', 3967, '#33C4FF', 1),
+    ('00000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000100', 'Member', 103, '#75FB4C', 0);
+
+-- Assign roles to members
+INSERT INTO member_roles (user_id, server_id, role_id) VALUES
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000100', '00000000-0000-0000-0000-000000000200'),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000100', '00000000-0000-0000-0000-000000000201'),
+    ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000100', '00000000-0000-0000-0000-000000000202'),
+    ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000100', '00000000-0000-0000-0000-000000000202');
+
+-- Create channels
+INSERT INTO channels (id, server_id, name, type, category, position) VALUES
+    -- Text channels
+    ('00000000-0000-0000-0000-000000000300', '00000000-0000-0000-0000-000000000100', 'general', 'text', 'GENERAL', 0),
+    ('00000000-0000-0000-0000-000000000301', '00000000-0000-0000-0000-000000000100', 'random', 'text', 'GENERAL', 1),
+    ('00000000-0000-0000-0000-000000000302', '00000000-0000-0000-0000-000000000100', 'game-chat', 'text', 'GAMING', 2),
+    ('00000000-0000-0000-0000-000000000303', '00000000-0000-0000-0000-000000000100', 'strategy', 'text', 'GAMING', 3),
+    -- Voice channels
+    ('00000000-0000-0000-0000-000000000400', '00000000-0000-0000-0000-000000000100', 'Voice Lobby', 'voice', 'VOICE', 4),
+    ('00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000100', 'Game Room 1', 'voice', 'VOICE', 5),
+    ('00000000-0000-0000-0000-000000000402', '00000000-0000-0000-0000-000000000100', 'Game Room 2', 'voice', 'VOICE', 6);
+
+-- Create sample messages
+INSERT INTO messages (id, channel_id, author_id, content, created_at) VALUES
+    ('00000000-0000-0000-0000-000000000500', '00000000-0000-0000-0000-000000000300', '00000000-0000-0000-0000-000000000001', 'Welcome to Together! 🎮', NOW() - INTERVAL '2 hours'),
+    ('00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000300', '00000000-0000-0000-0000-000000000002', 'Thanks Alice! This looks great!', NOW() - INTERVAL '1 hour 50 minutes'),
+    ('00000000-0000-0000-0000-000000000502', '00000000-0000-0000-0000-000000000300', '00000000-0000-0000-0000-000000000003', 'Anyone up for a game tonight?', NOW() - INTERVAL '1 hour 30 minutes'),
+    ('00000000-0000-0000-0000-000000000503', '00000000-0000-0000-0000-000000000302', '00000000-0000-0000-0000-000000000001', 'Lets play at 8pm!', NOW() - INTERVAL '1 hour'),
+    ('00000000-0000-0000-0000-000000000504', '00000000-0000-0000-0000-000000000302', '00000000-0000-0000-0000-000000000002', 'Im in!', NOW() - INTERVAL '45 minutes'),
+    ('00000000-0000-0000-0000-000000000505', '00000000-0000-0000-0000-000000000302', '00000000-0000-0000-0000-000000000003', 'Same here', NOW() - INTERVAL '30 minutes');
+
+-- Add some reactions
+INSERT INTO reactions (message_id, user_id, emoji) VALUES
+    ('00000000-0000-0000-0000-000000000500', '00000000-0000-0000-0000-000000000002', '👍'),
+    ('00000000-0000-0000-0000-000000000500', '00000000-0000-0000-0000-000000000003', '👍'),
+    ('00000000-0000-0000-0000-000000000500', '00000000-0000-0000-0000-000000000004', '🎉'),
+    ('00000000-0000-0000-0000-000000000503', '00000000-0000-0000-0000-000000000002', '✅'),
+    ('00000000-0000-0000-0000-000000000503', '00000000-0000-0000-0000-000000000003', '✅');
+
+-- Seed data summary
+DO $$
+BEGIN
+    RAISE NOTICE '✅ Seed data created successfully';
+    RAISE NOTICE '📊 Summary:';
+    RAISE NOTICE '   - 5 test users (password: "password123")';
+    RAISE NOTICE '   - 1 test server: "Gaming Squad"';
+    RAISE NOTICE '   - 7 channels (4 text, 3 voice)';
+    RAISE NOTICE '   - 6 sample messages';
+    RAISE NOTICE '   - 3 roles with permissions';
+    RAISE NOTICE '';
+    RAISE NOTICE '🔐 Test Credentials:';
+    RAISE NOTICE '   alice@together.local / password123 (Admin)';
+    RAISE NOTICE '   bob@together.local / password123 (Moderator)';
+    RAISE NOTICE '   charlie@together.local / password123 (Member)';
+END $$;

@@ -105,41 +105,73 @@ Together/
 
 ## 🚀 Getting Started
 
-### Self-Hosting (5 minutes)
+> **Current Status**: Phase 1 (Database Foundation) complete. Backend server and UI clients are planned for future phases.
+
+### Prerequisites
+
+Install Rust (required for database migrations):
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+Install sqlx-cli (Rails-like migration tool):
+```bash
+cargo install sqlx-cli --no-default-features --features postgres
+```
+
+### Phase 1: Database Setup (Available Now)
 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/together.git
 cd together
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your settings (JWT_SECRET, etc.)
+# Start PostgreSQL database
+docker-compose -f docker-compose.dev.yml up -d
 
-# Start server and database
-docker-compose up -d
+# Wait for database to be ready (2-3 seconds)
+sleep 3
 
-# Create first admin user
-docker-compose exec server together-cli create-admin
+# Run database migrations (like Rails db:migrate)
+cd server && sqlx migrate run
 
-# Access at http://localhost:8080
+# Verify setup
+sqlx database create  # Creates DB if needed
+sqlx migrate info     # Show migration status
 ```
 
-### Desktop Client Development
+**Rails-like migration commands:**
+```bash
+cd server
+sqlx migrate run      # Run pending migrations
+sqlx migrate revert   # Rollback last migration
+sqlx migrate info     # Show migration status
+sqlx migrate add name # Create new migration
+```
 
+**Test credentials** (seed data included):
+- alice@together.local / password123 (Admin)
+- bob@together.local / password123 (Moderator)
+- charlie@together.local / password123 (Member)
+
+### Future Phases (Not Yet Implemented)
+
+**Phase 2: Backend Server** (Planned)
+```bash
+cd server
+cargo run
+# Server will run on http://localhost:8080
+```
+
+**Phase 5: Desktop Client** (Planned)
 ```bash
 cd clients/desktop
 npm install
 npm run tauri dev
 ```
 
-### Server Development
-
-```bash
-cd server
-cargo run
-# Server runs on http://localhost:8080
-```
+See [ROADMAP.md](docs/roadmap.md) for full development timeline.
 
 ## 🛠️ Tech Stack
 
