@@ -5,7 +5,7 @@
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-    author_id UUID NOT NULL REFERENCES users(id),
+    author_id UUID REFERENCES users(id) ON DELETE SET NULL,
     content TEXT NOT NULL,
     reply_to UUID REFERENCES messages(id) ON DELETE SET NULL,
     edited_at TIMESTAMPTZ,

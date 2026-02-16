@@ -5,11 +5,11 @@
 -- Create test users
 -- Password for all test users: "password123" (bcrypt hash with 12 rounds)
 INSERT INTO users (id, username, email, password_hash, status) VALUES
-    ('00000000-0000-0000-0000-000000000001', 'alice', 'alice@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'online'),
-    ('00000000-0000-0000-0000-000000000002', 'bob', 'bob@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'online'),
-    ('00000000-0000-0000-0000-000000000003', 'charlie', 'charlie@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'away'),
-    ('00000000-0000-0000-0000-000000000004', 'diana', 'diana@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'dnd'),
-    ('00000000-0000-0000-0000-000000000005', 'eve', 'eve@together.local', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6', 'offline');
+    ('00000000-0000-0000-0000-000000000001', 'alice', 'alice@together.local', '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6', 'online'),
+    ('00000000-0000-0000-0000-000000000002', 'bob', 'bob@together.local', '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6', 'online'),
+    ('00000000-0000-0000-0000-000000000003', 'charlie', 'charlie@together.local', '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6', 'away'),
+    ('00000000-0000-0000-0000-000000000004', 'diana', 'diana@together.local', '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6', 'dnd'),
+    ('00000000-0000-0000-0000-000000000005', 'eve', 'eve@together.local', '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6', 'offline');
 
 -- Create test server
 INSERT INTO servers (id, name, owner_id) VALUES
@@ -23,10 +23,13 @@ INSERT INTO server_members (user_id, server_id, nickname) VALUES
     ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000100', NULL);
 
 -- Create roles
+-- Permission bits: VIEW_CHANNEL=1, SEND_MESSAGES=2, MANAGE_MESSAGES=4, ATTACH_FILES=8,
+--   ADD_REACTIONS=16, CONNECT_VOICE=32, SPEAK=64, MUTE_MEMBERS=128, KICK_MEMBERS=256,
+--   BAN_MEMBERS=512, MANAGE_CHANNELS=1024, MANAGE_ROLES=2048, MANAGE_SERVER=4096, ADMINISTRATOR=8192
 INSERT INTO roles (id, server_id, name, permissions, color, position) VALUES
     ('00000000-0000-0000-0000-000000000200', '00000000-0000-0000-0000-000000000100', 'Admin', 8192, '#FF5733', 2),
-    ('00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000100', 'Moderator', 3967, '#33C4FF', 1),
-    ('00000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000100', 'Member', 103, '#75FB4C', 0);
+    ('00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000100', 'Moderator', 4095, '#33C4FF', 1),
+    ('00000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000100', 'Member', 123, '#75FB4C', 0);
 
 -- Assign roles to members
 INSERT INTO member_roles (user_id, server_id, role_id) VALUES
