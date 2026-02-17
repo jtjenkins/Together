@@ -1,6 +1,18 @@
 -- Migration: Seed Data for Development
 -- Description: Sample data for testing and development
--- NOTE: This migration should NOT be run in production
+--
+-- ⚠️  CRITICAL WARNING - DO NOT RUN IN PRODUCTION ⚠️
+-- This migration contains:
+--   - Test users with KNOWN passwords (password123)
+--   - Hardcoded UUIDs for development
+--   - Sample data for testing purposes only
+--
+-- PRODUCTION DEPLOYMENTS:
+--   - EXCLUDE this file when deploying to production
+--   - Do NOT run: sqlx migrate run (if this file is present)
+--   - Consider: Run only migrations 1-5, skip migration 6
+--
+-- This is DEVELOPMENT SEED DATA ONLY
 
 -- Create test users
 -- Password for all test users: "password123" (bcrypt hash with 12 rounds)

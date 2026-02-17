@@ -159,10 +159,12 @@ Phase 2 will implement the core backend REST API:
 ## Notes
 
 - PostgreSQL 16 Alpine image is lightweight and sufficient for development
-- The `version` attribute warning in docker-compose is cosmetic (can be removed)
 - Database is configured for 20-500 user target scale
 - All performance targets met in testing (<50ms queries)
 - Migration system ready for production deployment tracking
+- Rollback support: All migrations have .down.sql files for `sqlx migrate revert`
+- Dependencies optimized: Heavy Phase 2+ dependencies removed for faster builds
+- Production safety: Seed data migration has prominent warnings against production use
 
 ---
 

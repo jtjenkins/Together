@@ -65,10 +65,12 @@ sqlx migrate run
 **Rolling back a mistake:**
 ```bash
 cd server
-sqlx migrate revert  # Undoes last migration
+sqlx migrate revert  # Undoes last migration using .down.sql file
 # Fix your SQL file
 sqlx migrate run     # Re-apply the fixed migration
 ```
+
+**Note**: All migrations have corresponding `.down.sql` files for safe rollback.
 
 **Checking migration status:**
 ```bash
