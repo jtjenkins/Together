@@ -26,16 +26,8 @@ sqlx = { version = "0.7", features = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Authentication
-jsonwebtoken = "9"
-bcrypt = "0.15"
-
-# WebSocket
+# Async utilities
 futures = "0.3"
-tokio-tungstenite = "0.21"
-
-# WebRTC (for voice)
-webrtc = "0.9"
 
 # Utilities
 uuid = { version = "1", features = ["v4", "serde"] }
@@ -47,11 +39,13 @@ thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Validation
-validator = { version = "0.16", features = ["derive"] }
-
-# Rate limiting
-governor = "0.6"
+# Phase 2+ dependencies (add as needed):
+# jsonwebtoken = "9"           # JWT auth (Phase 2)
+# bcrypt = "0.15"              # Password hashing (Phase 2)
+# tokio-tungstenite = "0.21"   # WebSocket (Phase 3)
+# governor = "0.6"             # Rate limiting (Phase 2-3)
+# validator = { version = "0.16", features = ["derive"] }  # Input validation (Phase 2)
+# webrtc = "0.9"               # Voice/video (Phase 4) - VERY HEAVY
 
 [dev-dependencies]
 # Testing
