@@ -39,12 +39,15 @@ thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Phase 2+ dependencies (add as needed):
-# jsonwebtoken = "9"           # JWT auth (Phase 2)
-# bcrypt = "0.15"              # Password hashing (Phase 2)
+# Phase 2: Authentication and API
+jsonwebtoken = "9"           # JWT auth
+bcrypt = "0.15"              # Password hashing
+validator = { version = "0.16", features = ["derive"] }  # Input validation
+axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers for auth
+
+# Phase 3+ dependencies (add as needed):
 # tokio-tungstenite = "0.21"   # WebSocket (Phase 3)
 # governor = "0.6"             # Rate limiting (Phase 2-3)
-# validator = { version = "0.16", features = ["derive"] }  # Input validation (Phase 2)
 # webrtc = "0.9"               # Voice/video (Phase 4) - VERY HEAVY
 
 [dev-dependencies]
