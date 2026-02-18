@@ -1,11 +1,3 @@
-mod auth;
-mod config;
-mod db;
-mod error;
-mod handlers;
-mod models;
-mod state;
-
 use axum::{
     routing::{get, patch, post},
     Router,
@@ -13,8 +5,9 @@ use axum::{
 use tower_http::cors::CorsLayer;
 use tracing::info;
 
-use config::Config;
-use state::AppState;
+use together_server::config::Config;
+use together_server::state::AppState;
+use together_server::{db, handlers};
 
 #[tokio::main]
 async fn main() {
@@ -75,6 +68,8 @@ async fn main() {
         // Middleware
         .layer(cors)
         .with_state(app_state);
+
+    // Start server
     info!("🎧 Server listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr)

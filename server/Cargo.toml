@@ -6,6 +6,10 @@ authors = ["Together Contributors"]
 license = "AGPL-3.0"
 description = "Backend server for Together - a private Discord alternative"
 
+[lib]
+name = "together_server"
+path = "src/lib.rs"
+
 [dependencies]
 # Web framework
 axum = { version = "0.7", features = ["ws", "macros"] }
@@ -52,9 +56,9 @@ axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers f
 # webrtc = "0.9"               # Voice/video (Phase 4) - VERY HEAVY
 
 [dev-dependencies]
-# Testing
 tokio-test = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
+http-body-util = "0.1"   # BodyExt::collect() for reading response bodies in tests
 
 [[bin]]
 name = "together-server"

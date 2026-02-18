@@ -200,3 +200,193 @@ impl FromRequestParts<AppState> for AuthUser {
         })
     }
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEST_SECRET: &str = "test-secret-min-32-characters-long!!";
+
+    // ------------------------------------------------------------------------
+    // hash_refresh_token
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn hash_refresh_token_is_64_char_hex() {
+        let hash = hash_refresh_token("some-random-token");
+        assert_eq!(hash.len(), 64, "SHA-256 hex output must be 64 characters");
+        assert!(
+            hash.chars().all(|c| c.is_ascii_hexdigit()),
+            "Output must be lowercase hex"
+        );
+    }
+
+    #[test]
+    fn hash_refresh_token_is_deterministic() {
+        let token = "deterministic-test-token";
+        let h1 = hash_refresh_token(token);
+        let h2 = hash_refresh_token(token);
+        assert_eq!(h1, h2, "Same input must always produce the same hash");
+    }
+
+    #[test]
+    fn hash_refresh_token_differs_on_different_inputs() {
+        let h1 = hash_refresh_token("token-alpha");
+        let h2 = hash_refresh_token("token-beta");
+        assert_ne!(h1, h2, "Different inputs must produce different hashes");
+    }
+
+    // ------------------------------------------------------------------------
+    // create_access_token / validate_token
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn access_token_roundtrip_happy_path() {
+        let user_id = Uuid::new_v4();
+        let username = "alice".to_string();
+
+        let token = create_access_token(user_id, username.clone(), TEST_SECRET)
+            .expect("create_access_token should succeed");
+
+        let claims = validate_token(&token, TEST_SECRET)
+            .expect("validate_token should succeed for a fresh access token");
+
+        assert_eq!(claims.sub, user_id.to_string());
+        assert_eq!(claims.username, username);
+        assert_eq!(claims.token_type, TokenType::Access);
+    }
+
+    // ------------------------------------------------------------------------
+    // create_refresh_token
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn refresh_token_roundtrip_happy_path() {
+        let user_id = Uuid::new_v4();
+        let username = "bob".to_string();
+
+        let token = create_refresh_token(user_id, username.clone(), TEST_SECRET)
+            .expect("create_refresh_token should succeed");
+
+        let claims = validate_token(&token, TEST_SECRET)
+            .expect("validate_token should succeed for a fresh refresh token");
+
+        assert_eq!(claims.sub, user_id.to_string());
+        assert_eq!(claims.username, username);
+        assert_eq!(claims.token_type, TokenType::Refresh);
+    }
+
+    // ------------------------------------------------------------------------
+    // Access vs Refresh tokens are distinguishable by token_type
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn access_and_refresh_tokens_are_distinguishable() {
+        let user_id = Uuid::new_v4();
+        let username = "carol".to_string();
+
+        let access_token = create_access_token(user_id, username.clone(), TEST_SECRET)
+            .expect("create_access_token should succeed");
+        let refresh_token = create_refresh_token(user_id, username, TEST_SECRET)
+            .expect("create_refresh_token should succeed");
+
+        let access_claims = validate_token(&access_token, TEST_SECRET)
+            .expect("access token validation should succeed");
+        let refresh_claims = validate_token(&refresh_token, TEST_SECRET)
+            .expect("refresh token validation should succeed");
+
+        assert_eq!(access_claims.token_type, TokenType::Access);
+        assert_eq!(refresh_claims.token_type, TokenType::Refresh);
+        assert_ne!(access_claims.token_type, refresh_claims.token_type);
+    }
+
+    // ------------------------------------------------------------------------
+    // validate_token rejects wrong secret
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn validate_token_rejects_wrong_secret() {
+        let user_id = Uuid::new_v4();
+        let token = create_access_token(user_id, "dave".to_string(), TEST_SECRET)
+            .expect("create_access_token should succeed");
+
+        let result = validate_token(&token, "completely-different-secret-value!!");
+        assert!(result.is_err(), "validate_token must reject a token signed with a different secret");
+    }
+
+    // ------------------------------------------------------------------------
+    // validate_token rejects malformed string
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn validate_token_rejects_malformed_string() {
+        let result = validate_token("this.is.not.a.valid.jwt", TEST_SECRET);
+        assert!(result.is_err(), "validate_token must reject a malformed token string");
+    }
+
+    #[test]
+    fn validate_token_rejects_empty_string() {
+        let result = validate_token("", TEST_SECRET);
+        assert!(result.is_err(), "validate_token must reject an empty string");
+    }
+
+    // ------------------------------------------------------------------------
+    // hash_password + verify_password roundtrip
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn password_hash_verify_roundtrip_correct_password() {
+        let password = "super-secure-password-123!";
+        let hash = hash_password(password).expect("hash_password should succeed");
+
+        let is_valid = verify_password(password, &hash)
+            .expect("verify_password should not error on a valid hash");
+        assert!(is_valid, "Correct password must verify against its hash");
+    }
+
+    #[test]
+    fn password_hash_verify_roundtrip_wrong_password() {
+        let password = "correct-password";
+        let hash = hash_password(password).expect("hash_password should succeed");
+
+        let is_valid = verify_password("wrong-password", &hash)
+            .expect("verify_password should not error on a valid hash");
+        assert!(!is_valid, "Wrong password must not verify against a different password's hash");
+    }
+
+    // ------------------------------------------------------------------------
+    // Claims::user_id() parses UUID correctly
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn claims_user_id_parses_valid_uuid() {
+        let expected_id = Uuid::new_v4();
+        let token = create_access_token(expected_id, "eve".to_string(), TEST_SECRET)
+            .expect("create_access_token should succeed");
+
+        let claims = validate_token(&token, TEST_SECRET)
+            .expect("validate_token should succeed");
+
+        let parsed_id = claims.user_id().expect("user_id() should parse the UUID without error");
+        assert_eq!(parsed_id, expected_id, "Parsed UUID must match the original user ID");
+    }
+
+    #[test]
+    fn claims_user_id_rejects_invalid_sub() {
+        // Manually construct a Claims with a non-UUID sub to test the error path.
+        let claims = Claims {
+            sub: "not-a-uuid".to_string(),
+            exp: 9999999999,
+            iat: 0,
+            username: "frank".to_string(),
+            token_type: TokenType::Access,
+        };
+
+        let result = claims.user_id();
+        assert!(result.is_err(), "user_id() must return an error when sub is not a valid UUID");
+    }
+}
