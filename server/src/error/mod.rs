@@ -9,7 +9,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("Database error: {0}")]
-    Database(#[from] sqlx::Error),
+    Database(sqlx::Error),
 
     #[error("Authentication error: {0}")]
     Auth(String),
@@ -27,28 +27,43 @@ pub enum AppError {
     Internal,
 }
 
+/// Map sqlx errors to AppError, with special handling for unique-constraint
+/// violations (PG error code 23505) so they surface as 409 Conflict rather
+/// than 500 Internal Server Error.
+impl From<sqlx::Error> for AppError {
+    fn from(e: sqlx::Error) -> Self {
+        if let sqlx::Error::Database(ref db_err) = e {
+            if db_err.code().as_deref() == Some("23505") {
+                let message = match db_err.constraint() {
+                    Some(c) if c.contains("username") => "Username already taken",
+                    Some(c) if c.contains("email") => "Email already registered",
+                    _ => "Resource already exists",
+                };
+                return AppError::Conflict(message.into());
+            }
+        }
+        AppError::Database(e)
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            AppError::Database(ref e) => {
+        let (status, message): (StatusCode, String) = match self {
+            AppError::Database(e) => {
                 tracing::error!("Database error: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+                (StatusCode::INTERNAL_SERVER_ERROR, "Database error".into())
             }
-            AppError::Auth(ref msg) => (StatusCode::UNAUTHORIZED, msg.as_str()),
-            AppError::Validation(ref msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
-            AppError::NotFound(ref msg) => (StatusCode::NOT_FOUND, msg.as_str()),
-            AppError::Conflict(ref msg) => (StatusCode::CONFLICT, msg.as_str()),
+            AppError::Auth(msg) => (StatusCode::UNAUTHORIZED, msg),
+            AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
             AppError::Internal => {
                 tracing::error!("Internal server error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
             }
         };
 
-        let body = Json(json!({
-            "error": error_message,
-        }));
-
-        (status, body).into_response()
+        (status, Json(json!({ "error": message }))).into_response()
     }
 }
 

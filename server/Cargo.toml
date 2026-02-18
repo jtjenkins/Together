@@ -42,6 +42,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Phase 2: Authentication and API
 jsonwebtoken = "9"           # JWT auth
 bcrypt = "0.15"              # Password hashing
+sha2 = "0.10"                # SHA-256 for refresh token hashing (deterministic)
 validator = { version = "0.16", features = ["derive"] }  # Input validation
 axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers for auth
 

@@ -4,6 +4,7 @@ mod db;
 mod error;
 mod handlers;
 mod models;
+mod state;
 
 use axum::{
     routing::{get, patch, post},
@@ -13,6 +14,7 @@ use tower_http::cors::CorsLayer;
 use tracing::info;
 
 use config::Config;
+use state::AppState;
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +25,7 @@ async fn main() {
 
     info!("🚀 Together Server starting...");
 
-    // Load configuration
+    // Load configuration — fatal if JWT_SECRET is missing or too short.
     let config = Config::from_env().expect("Failed to load configuration");
     info!("📝 Configuration loaded");
 
@@ -38,6 +40,28 @@ async fn main() {
         .expect("Database health check failed");
     info!("✅ Database health check passed");
 
+    // CORS: permissive in dev, restrictive in production.
+    // Set APP_ENV=production to switch modes; configure ALLOWED_ORIGINS for
+    // cross-origin access in production (see .env.example).
+    let cors = if config.is_dev {
+        info!("🔓 CORS: permissive (dev mode)");
+        CorsLayer::permissive()
+    } else {
+        tracing::warn!(
+            "🔒 CORS: restrictive (production mode). \
+             Cross-origin requests will be denied. \
+             Set ALLOWED_ORIGINS to allow specific origins."
+        );
+        CorsLayer::new()
+    };
+
+    let addr = config.server_addr();
+
+    let app_state = AppState {
+        pool,
+        jwt_secret: config.jwt_secret,
+    };
+
     // Build router
     let app = Router::new()
         // Health check
@@ -48,13 +72,9 @@ async fn main() {
         // User routes (protected)
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
-        // Add CORS middleware
-        .layer(CorsLayer::permissive())
-        // Add database pool to state
-        .with_state(pool);
-
-    // Start server
-    let addr = config.server_addr();
+        // Middleware
+        .layer(cors)
+        .with_state(app_state);
     info!("🎧 Server listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr)

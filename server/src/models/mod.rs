@@ -7,13 +7,13 @@ use uuid::Uuid;
 // User Models
 // ============================================================================
 
-#[derive(Debug, Clone, FromRow, Serialize)]
+/// Internal database row. Not serializable — use UserDto for API responses
+/// to avoid accidentally exposing password_hash.
+#[derive(Debug, Clone, FromRow)]
 pub struct User {
     pub id: Uuid,
     pub username: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
-    #[serde(skip)]
     pub password_hash: String,
     pub avatar_url: Option<String>,
     pub status: String,
@@ -29,6 +29,7 @@ pub struct CreateUserDto {
     pub password: String,
 }
 
+/// Public user shape returned by all API responses.
 #[derive(Debug, Serialize)]
 pub struct UserDto {
     pub id: Uuid,
