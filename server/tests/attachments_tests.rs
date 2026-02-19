@@ -333,3 +333,113 @@ async fn list_attachments_member_can_view() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body.as_array().unwrap().len(), 1);
 }
+
+// ── GET /files/:message_id/*filepath ─────────────────────────────────────────
+
+/// Upload a file, then fetch it back and verify the body matches.
+#[tokio::test]
+async fn serve_file_returns_file_contents() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    let content = b"Hello from serve_file test!";
+    let uri = format!("/messages/{}/attachments", f.message_id);
+    let (status, body) = post_multipart_authed(
+        app.clone(),
+        &uri,
+        &f.owner_token,
+        &[txt_file("serve.txt", content)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+
+    // The URL is returned in the attachment JSON.
+    let url = body[0]["url"].as_str().unwrap().to_owned();
+
+    let (status, bytes) = get_raw_authed(app, &url, &f.owner_token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bytes, content);
+}
+
+/// A server member who did NOT author the message can still download files.
+#[tokio::test]
+async fn serve_file_member_can_download() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    let content = b"member download test";
+    let uri = format!("/messages/{}/attachments", f.message_id);
+    let (status, body) = post_multipart_authed(
+        app.clone(),
+        &uri,
+        &f.owner_token,
+        &[txt_file("member.txt", content)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let url = body[0]["url"].as_str().unwrap().to_owned();
+    let (status, bytes) = get_raw_authed(app, &url, &f.member_token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bytes, content);
+}
+
+/// An unauthenticated request to /files must be rejected.
+#[tokio::test]
+async fn serve_file_requires_auth() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    // Upload a file so we have a real URL to attempt.
+    let uri = format!("/messages/{}/attachments", f.message_id);
+    let (status, body) = post_multipart_authed(
+        app.clone(),
+        &uri,
+        &f.owner_token,
+        &[txt_file("auth_check.txt", b"data")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let url = body[0]["url"].as_str().unwrap().to_owned();
+    let (status, _) = get_raw_no_auth(app, &url).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// A non-member cannot download files even with a valid token.
+#[tokio::test]
+async fn serve_file_requires_server_membership() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    let uri = format!("/messages/{}/attachments", f.message_id);
+    let (status, body) = post_multipart_authed(
+        app.clone(),
+        &uri,
+        &f.owner_token,
+        &[txt_file("secret.txt", b"data")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let url = body[0]["url"].as_str().unwrap().to_owned();
+    let (status, _) = get_raw_authed(app, &url, &f.outsider_token).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// A URL that has no matching DB record returns 404.
+#[tokio::test]
+async fn serve_file_not_in_db_returns_404() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    // Construct a plausible but non-existent file URL.
+    let fake_url = format!("/files/{}/00000000doesnotexist.txt", f.message_id);
+    let (status, _) = get_raw_authed(app, &fake_url, &f.owner_token).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

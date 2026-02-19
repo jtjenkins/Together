@@ -3,7 +3,7 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
-use tower_http::{cors::CorsLayer, services::ServeDir};
+use tower_http::cors::CorsLayer;
 use tracing::info;
 
 use together_server::config::Config;
@@ -135,8 +135,11 @@ async fn main() {
             "/messages/:message_id/attachments",
             get(handlers::attachments::list_attachments),
         )
-        // Static file serving for uploaded files
-        .nest_service("/files", ServeDir::new(&config.upload_dir))
+        // Authenticated file serving (auth + membership checked before serving)
+        .route(
+            "/files/:message_id/*filepath",
+            get(handlers::attachments::serve_file),
+        )
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
         // Middleware

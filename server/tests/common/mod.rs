@@ -117,6 +117,10 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/messages/:message_id/attachments",
             get(handlers::attachments::list_attachments),
         )
+        .route(
+            "/files/:message_id/*filepath",
+            get(handlers::attachments::serve_file),
+        )
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)
@@ -225,6 +229,33 @@ async fn send(app: Router, req: Request<Body>) -> (StatusCode, Value) {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     (status, json)
+}
+
+/// GET a URL with auth and return the raw response bytes (for binary/file responses).
+pub async fn get_raw_authed(app: Router, uri: &str, token: &str) -> (StatusCode, Vec<u8>) {
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(req).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, bytes.to_vec())
+}
+
+/// GET a URL without auth and return the raw response bytes.
+pub async fn get_raw_no_auth(app: Router, uri: &str) -> (StatusCode, Vec<u8>) {
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(req).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, bytes.to_vec())
 }
 
 // ── Scenario helpers ─────────────────────────────────────────────────────────
