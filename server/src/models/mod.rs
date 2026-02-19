@@ -183,6 +183,7 @@ pub struct Message {
     pub channel_id: Uuid,
     pub author_id: Option<Uuid>,
     pub content: String,
+    pub reply_to: Option<Uuid>,
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted: bool,
     pub created_at: DateTime<Utc>,
@@ -191,6 +192,7 @@ pub struct Message {
 #[derive(Debug, Deserialize)]
 pub struct CreateMessageDto {
     pub content: String,
+    pub reply_to: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
