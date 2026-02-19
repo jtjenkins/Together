@@ -121,6 +121,23 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/files/:message_id/*filepath",
             get(handlers::attachments::serve_file),
         )
+        // Voice routes
+        .route(
+            "/channels/:channel_id/voice",
+            post(handlers::voice::join_voice_channel),
+        )
+        .route(
+            "/channels/:channel_id/voice",
+            delete(handlers::voice::leave_voice_channel),
+        )
+        .route(
+            "/channels/:channel_id/voice",
+            patch(handlers::voice::update_voice_state),
+        )
+        .route(
+            "/channels/:channel_id/voice",
+            get(handlers::voice::list_voice_participants),
+        )
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)
