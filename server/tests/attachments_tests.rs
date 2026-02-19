@@ -211,6 +211,66 @@ async fn upload_empty_file_returns_400() {
 }
 
 #[tokio::test]
+async fn upload_oversized_file_returns_400() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    // One byte over the 50 MB limit (52_428_800 bytes).
+    let big_data = vec![0u8; 52_428_801];
+    let uri = format!("/messages/{}/attachments", f.message_id);
+    let (status, _) = post_multipart_authed(
+        app,
+        &uri,
+        &f.owner_token,
+        &[MultipartFile {
+            field_name: "files",
+            filename: "big.bin",
+            content_type: "application/octet-stream",
+            data: &big_data,
+        }],
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+/// Uploading to a message that already has the maximum number of attachments
+/// must be rejected without writing any files.
+#[tokio::test]
+async fn upload_exceeding_attachment_cap_returns_400() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    let uri = format!("/messages/{}/attachments", f.message_id);
+
+    // Fill the message to exactly 10 attachments (5 + 5).
+    for batch in 0..2 {
+        let files: Vec<_> = (0..5)
+            .map(|i| {
+                let name = format!("batch{batch}_file{i}.txt");
+                MultipartFile {
+                    field_name: "files",
+                    filename: Box::leak(name.into_boxed_str()),
+                    content_type: "text/plain",
+                    data: b"content",
+                }
+            })
+            .collect();
+        let (status, body) = post_multipart_authed(app.clone(), &uri, &f.owner_token, &files).await;
+        assert_eq!(status, StatusCode::CREATED, "batch {batch} failed: {body}");
+    }
+
+    // A message now has 10 attachments — one more should be rejected.
+    let (status, _) =
+        post_multipart_authed(app, &uri, &f.owner_token, &[txt_file("one_too_many.txt", b"x")])
+            .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn upload_to_nonexistent_message_returns_404() {
     let pool = test_pool().await;
     let app = create_test_app(pool);
