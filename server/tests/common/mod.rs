@@ -14,7 +14,11 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-use together_server::{handlers, state::AppState};
+use together_server::{
+    handlers,
+    state::AppState,
+    websocket::{websocket_handler, ConnectionManager},
+};
 
 pub const TEST_JWT_SECRET: &str = "test-secret-min-32-characters-long!!";
 
@@ -36,6 +40,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
     let state = AppState {
         pool,
         jwt_secret: Arc::from(TEST_JWT_SECRET),
+        connections: ConnectionManager::new(),
     };
     Router::new()
         .route("/health", get(handlers::health_check))
@@ -93,6 +98,8 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
         )
+        // WebSocket gateway
+        .route("/ws", get(websocket_handler))
         .with_state(state)
 }
 

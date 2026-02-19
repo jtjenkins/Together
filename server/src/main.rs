@@ -7,7 +7,8 @@ use tracing::info;
 
 use together_server::config::Config;
 use together_server::state::AppState;
-use together_server::{db, handlers};
+use together_server::websocket::ConnectionManager;
+use together_server::{db, handlers, websocket};
 
 #[tokio::main]
 async fn main() {
@@ -53,6 +54,7 @@ async fn main() {
     let app_state = AppState {
         pool,
         jwt_secret: config.jwt_secret,
+        connections: ConnectionManager::new(),
     };
 
     // Build router
@@ -115,6 +117,8 @@ async fn main() {
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
         )
+        // WebSocket gateway
+        .route("/ws", get(websocket::websocket_handler))
         // Middleware
         .layer(cors)
         .with_state(app_state);
