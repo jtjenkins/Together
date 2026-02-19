@@ -87,12 +87,50 @@ pub struct Server {
     pub owner_id: Uuid,
     pub icon_url: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateServerDto {
     pub name: String,
     pub icon_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateServerDto {
+    pub name: Option<String>,
+    pub icon_url: Option<String>,
+}
+
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct ServerMember {
+    pub user_id: Uuid,
+    pub server_id: Uuid,
+    pub nickname: Option<String>,
+    pub joined_at: DateTime<Utc>,
+}
+
+/// Server enriched with live member count for API responses.
+#[derive(Debug, Serialize)]
+pub struct ServerDto {
+    pub id: Uuid,
+    pub name: String,
+    pub owner_id: Uuid,
+    pub icon_url: Option<String>,
+    pub member_count: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Member of a server, combining user fields with membership metadata.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct MemberDto {
+    pub user_id: Uuid,
+    pub username: String,
+    pub avatar_url: Option<String>,
+    pub status: String,
+    pub nickname: Option<String>,
+    pub joined_at: DateTime<Utc>,
 }
 
 // ============================================================================
@@ -106,6 +144,7 @@ pub struct Channel {
     pub name: String,
     pub r#type: String,
     pub position: i32,
+    pub category: Option<String>,
     pub topic: Option<String>,
     pub created_at: DateTime<Utc>,
 }
