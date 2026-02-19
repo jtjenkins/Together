@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use tower_http::cors::CorsLayer;
@@ -65,6 +65,18 @@ async fn main() {
         // User routes (protected)
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
+        // Server routes (protected)
+        .route("/servers", post(handlers::servers::create_server))
+        .route("/servers", get(handlers::servers::list_servers))
+        .route("/servers/:id", get(handlers::servers::get_server))
+        .route("/servers/:id", patch(handlers::servers::update_server))
+        .route("/servers/:id", delete(handlers::servers::delete_server))
+        .route("/servers/:id/join", post(handlers::servers::join_server))
+        .route(
+            "/servers/:id/leave",
+            delete(handlers::servers::leave_server),
+        )
+        .route("/servers/:id/members", get(handlers::servers::list_members))
         // Middleware
         .layer(cors)
         .with_state(app_state);
