@@ -1,0 +1,45 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+}
+
+.placeholderContent {
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.placeholderContent h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.placeholderContent p {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.welcomeIcon {
+  width: 80px;
+  height: 80px;
+  background: var(--accent-primary);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 auto 20px;
+}
