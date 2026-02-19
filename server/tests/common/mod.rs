@@ -1,3 +1,7 @@
+// Each integration test file is a separate binary; helpers not used in every
+// binary would otherwise trigger dead_code warnings from clippy.
+#![allow(dead_code)]
+
 use axum::{
     body::Body,
     http::{header, Method, Request, StatusCode},

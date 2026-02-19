@@ -1,0 +1,8 @@
+[advisories]
+ignore = [
+    # RUSTSEC-2024-0421: idna 0.4.0 accepts malformed Punycode labels.
+    # Introduced transitively via validator 0.16.x → url → idna.
+    # Not exploitable here: the app performs no user-supplied URL parsing or
+    # internationalized domain-name handling. Revisit when validator is updated.
+    "RUSTSEC-2024-0421",
+]
