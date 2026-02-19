@@ -25,6 +25,9 @@ use crate::{
 /// JWT is passed as a query parameter because WebSocket upgrade requests are
 /// plain GET requests and cannot carry an Authorization header reliably across
 /// all client environments.
+///
+/// Note: query-parameter tokens appear in server and proxy access logs; use
+/// short-lived access tokens to limit exposure.
 #[derive(Debug, serde::Deserialize)]
 pub struct WsParams {
     pub token: String,
@@ -73,21 +76,28 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
 
-    // Register this connection so other handlers can push events to this user.
-    state.connections.add(user_id, tx).await;
-
-    // Set user online and notify their server members.
-    set_presence(&state, user_id, "online", None).await;
-
-    // Send READY event synchronously before spawning the forwarding task.
-    if let Some(ready_json) = build_ready(&state, user_id).await {
-        if ws_sender.send(Message::Text(ready_json)).await.is_err() {
-            // Client disconnected during READY — clean up and bail.
-            state.connections.remove(user_id).await;
-            set_presence(&state, user_id, "offline", None).await;
+    // Build and send READY before registering so the client receives user
+    // context before any events can arrive.
+    let ready_json = match build_ready(&state, user_id).await {
+        Some(json) => json,
+        None => {
+            tracing::warn!(
+                user_id = %user_id,
+                "Failed to build READY payload; closing connection"
+            );
             return;
         }
+    };
+
+    if ws_sender.send(Message::Text(ready_json)).await.is_err() {
+        // Client disconnected before READY could be sent.
+        return;
     }
+
+    // Register connection and go online *after* READY is delivered,
+    // so no broadcast events can arrive before the client has its initial state.
+    let conn_id = state.connections.add(user_id, tx).await;
+    set_presence(&state, user_id, "online", None).await;
 
     // Forward outbound events from the mpsc channel to the WebSocket.
     let mut send_task = tokio::spawn(async move {
@@ -101,15 +111,26 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
     // Handle inbound messages from the client.
     let state_clone = state.clone();
     let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = ws_receiver.next().await {
-            match msg {
-                Message::Text(text) => {
-                    handle_client_message(user_id, &text, &state_clone).await;
+        loop {
+            match ws_receiver.next().await {
+                Some(Ok(msg)) => match msg {
+                    Message::Text(text) => {
+                        handle_client_message(user_id, &text, &state_clone).await;
+                    }
+                    Message::Close(_) => break,
+                    // Axum handles Pong frames automatically; Ping frames are
+                    // echoed back transparently by the underlying library.
+                    _ => {}
+                },
+                Some(Err(e)) => {
+                    tracing::debug!(
+                        user_id = %user_id,
+                        error = ?e,
+                        "WebSocket receive error; closing connection"
+                    );
+                    break;
                 }
-                Message::Close(_) => break,
-                // Axum handles Pong frames automatically; Ping frames are
-                // echoed back transparently by the underlying library.
-                _ => {}
+                None => break,
             }
         }
     });
@@ -121,7 +142,7 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
     }
 
     // Clean up on disconnect.
-    state.connections.remove(user_id).await;
+    state.connections.remove(user_id, conn_id).await;
     set_presence(&state, user_id, "offline", None).await;
 }
 
@@ -146,6 +167,10 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
         GatewayOp::PresenceUpdate => {
             if let Some(data) = msg.d {
                 let status = data["status"].as_str().unwrap_or("online");
+                // Reject status values that violate the DB CHECK constraint.
+                if !matches!(status, "online" | "away" | "dnd" | "offline") {
+                    return;
+                }
                 let custom_status = data["custom_status"].as_str().map(ToOwned::to_owned);
                 set_presence(state, user_id, status, custom_status).await;
             }
@@ -161,8 +186,9 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
 
 /// Build the READY event payload for the connecting user.
 ///
-/// Returns `None` (and logs a warning) only if the user no longer exists in
-/// the database — which should not happen in practice.
+/// Returns `None` if the user no longer exists in the database or if a
+/// database error occurs. Either case is treated as fatal for this
+/// connection's READY handshake.
 async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
     let user: UserDto = sqlx::query_as::<_, User>(
         "SELECT id, username, email, password_hash, avatar_url, status, custom_status,
@@ -198,7 +224,8 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
 // ============================================================================
 
 /// Update a user's status in the database and broadcast a PRESENCE_UPDATE
-/// event to all online members who share a server with that user.
+/// event to all server co-members. Members without an active WebSocket
+/// connection are silently skipped by `broadcast_to_users`.
 pub async fn set_presence(
     state: &AppState,
     user_id: Uuid,
@@ -206,15 +233,22 @@ pub async fn set_presence(
     custom_status: Option<String>,
 ) {
     // Persist status — non-fatal if this fails.
-    let _ = sqlx::query("UPDATE users SET status = $1, custom_status = $2 WHERE id = $3")
+    if let Err(e) = sqlx::query("UPDATE users SET status = $1, custom_status = $2 WHERE id = $3")
         .bind(status)
         .bind(custom_status.as_deref())
         .bind(user_id)
         .execute(&state.pool)
-        .await;
+        .await
+    {
+        tracing::warn!(
+            user_id = %user_id,
+            error = ?e,
+            "Failed to persist presence status; broadcast will still proceed"
+        );
+    }
 
     // Collect all co-members across every server this user belongs to.
-    let member_ids: Vec<Uuid> = sqlx::query_scalar(
+    let member_ids: Vec<Uuid> = match sqlx::query_scalar(
         "SELECT DISTINCT sm2.user_id
          FROM server_members sm1
          JOIN server_members sm2 ON sm1.server_id = sm2.server_id
@@ -223,7 +257,17 @@ pub async fn set_presence(
     .bind(user_id)
     .fetch_all(&state.pool)
     .await
-    .unwrap_or_default();
+    {
+        Ok(ids) => ids,
+        Err(e) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error = ?e,
+                "Failed to fetch co-members for presence broadcast; update will not be delivered"
+            );
+            return;
+        }
+    };
 
     let event = GatewayMessage::dispatch(
         EVENT_PRESENCE_UPDATE,
@@ -234,10 +278,19 @@ pub async fn set_presence(
         }),
     );
 
-    if let Ok(json) = serde_json::to_string(&event) {
-        state
-            .connections
-            .broadcast_to_users(&member_ids, &json)
-            .await;
+    match serde_json::to_string(&event) {
+        Ok(json) => {
+            state
+                .connections
+                .broadcast_to_users(&member_ids, &json)
+                .await;
+        }
+        Err(e) => {
+            tracing::error!(
+                user_id = %user_id,
+                error = ?e,
+                "Failed to serialize presence event; this is a programming error"
+            );
+        }
     }
 }

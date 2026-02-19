@@ -140,13 +140,14 @@ pub async fn create_message(
     .await?;
 
     // Broadcast MESSAGE_CREATE to all connected server members.
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_MESSAGE_CREATE,
-        serde_json::to_value(&message).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&message) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_CREATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(message_id = %message.id, error = ?e, "Failed to serialize message for broadcast");
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(message)))
 }
@@ -245,13 +246,14 @@ pub async fn update_message(
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
     // Broadcast MESSAGE_UPDATE to all connected server members.
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_MESSAGE_UPDATE,
-        serde_json::to_value(&updated).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&updated) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_UPDATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(message_id = %updated.id, error = ?e, "Failed to serialize message for broadcast");
+        }
+    }
 
     Ok(Json(updated))
 }

@@ -181,6 +181,25 @@ pub async fn get_no_auth(app: Router, uri: &str) -> (StatusCode, Value) {
     send(app, req).await
 }
 
+pub async fn patch_no_auth(app: Router, uri: &str, body: Value) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::PATCH)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    send(app, req).await
+}
+
+pub async fn delete_no_auth(app: Router, uri: &str) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::DELETE)
+        .uri(uri)
+        .body(Body::empty())
+        .unwrap();
+    send(app, req).await
+}
+
 async fn send(app: Router, req: Request<Body>) -> (StatusCode, Value) {
     let response = app.oneshot(req).await.unwrap();
     let status = response.status();
