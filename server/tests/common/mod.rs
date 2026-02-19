@@ -5,7 +5,7 @@
 use axum::{
     body::Body,
     http::{header, Method, Request, StatusCode},
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use http_body_util::BodyExt;
@@ -43,6 +43,18 @@ pub fn create_test_app(pool: PgPool) -> Router {
         .route("/auth/login", post(handlers::auth::login))
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
+        // Server routes
+        .route("/servers", post(handlers::servers::create_server))
+        .route("/servers", get(handlers::servers::list_servers))
+        .route("/servers/:id", get(handlers::servers::get_server))
+        .route("/servers/:id", patch(handlers::servers::update_server))
+        .route("/servers/:id", delete(handlers::servers::delete_server))
+        .route("/servers/:id/join", post(handlers::servers::join_server))
+        .route(
+            "/servers/:id/leave",
+            delete(handlers::servers::leave_server),
+        )
+        .route("/servers/:id/members", get(handlers::servers::list_members))
         .with_state(state)
 }
 
@@ -57,6 +69,22 @@ pub async fn post_json(app: Router, uri: &str, body: Value) -> (StatusCode, Valu
     let req = Request::builder()
         .method(Method::POST)
         .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    send(app, req).await
+}
+
+pub async fn post_json_authed(
+    app: Router,
+    uri: &str,
+    token: &str,
+    body: Value,
+) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body.to_string()))
         .unwrap();
@@ -89,6 +117,16 @@ pub async fn patch_json_authed(
     send(app, req).await
 }
 
+pub async fn delete_authed(app: Router, uri: &str, token: &str) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::DELETE)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    send(app, req).await
+}
+
 pub async fn get_no_auth(app: Router, uri: &str) -> (StatusCode, Value) {
     let req = Request::builder()
         .method(Method::GET)
@@ -108,7 +146,7 @@ async fn send(app: Router, req: Request<Body>) -> (StatusCode, Value) {
 
 // ── Scenario helpers ─────────────────────────────────────────────────────────
 
-/// Register a fresh user and return their (access_token, refresh_token, user body).
+/// Register a fresh user and return the full response body.
 pub async fn register_user(app: Router, username: &str, password: &str) -> Value {
     let (status, body) = post_json(
         app,
@@ -124,4 +162,16 @@ pub async fn register_user(app: Router, username: &str, password: &str) -> Value
 pub async fn register_and_get_token(app: Router, username: &str, password: &str) -> String {
     let body = register_user(app, username, password).await;
     body["access_token"].as_str().unwrap().to_owned()
+}
+
+/// Create a server and return the full response body.
+pub async fn create_server(app: Router, token: &str, name: &str) -> Value {
+    let (status, body) =
+        post_json_authed(app, "/servers", token, serde_json::json!({ "name": name })).await;
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "setup create_server failed: {body}"
+    );
+    body
 }
