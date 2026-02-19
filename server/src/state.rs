@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use sqlx::PgPool;
@@ -13,4 +14,9 @@ pub struct AppState {
     pub pool: PgPool,
     pub jwt_secret: Arc<str>,
     pub connections: ConnectionManager,
+    /// Root directory where uploaded files are stored.
+    ///
+    /// Files are organized as `{upload_dir}/{message_id}/{uuid}_{filename}`.
+    /// The server serves them back under the `/files` prefix.
+    pub upload_dir: PathBuf,
 }
