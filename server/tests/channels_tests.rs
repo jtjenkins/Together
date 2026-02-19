@@ -492,7 +492,7 @@ async fn update_channel_requires_auth() {
 
     let req = axum::http::Request::builder()
         .method(axum::http::Method::PATCH)
-        .uri(&format!("/servers/{sid}/channels/{cid}"))
+        .uri(format!("/servers/{sid}/channels/{cid}"))
         .header(axum::http::header::CONTENT_TYPE, "application/json")
         .body(axum::body::Body::from(json!({ "name": "x" }).to_string()))
         .unwrap();
@@ -513,7 +513,7 @@ async fn delete_channel_requires_auth() {
 
     let req = axum::http::Request::builder()
         .method(axum::http::Method::DELETE)
-        .uri(&format!("/servers/{sid}/channels/{cid}"))
+        .uri(format!("/servers/{sid}/channels/{cid}"))
         .body(axum::body::Body::empty())
         .unwrap();
     let response = tower::ServiceExt::oneshot(app, req).await.unwrap();
