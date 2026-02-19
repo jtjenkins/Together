@@ -137,12 +137,20 @@ pub struct MemberDto {
 // Channel Models
 // ============================================================================
 
+#[derive(Debug, Clone, Deserialize, Serialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
+pub enum ChannelType {
+    Text,
+    Voice,
+}
+
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct Channel {
     pub id: Uuid,
     pub server_id: Uuid,
     pub name: String,
-    pub r#type: String,
+    pub r#type: ChannelType,
     pub position: i32,
     pub category: Option<String>,
     pub topic: Option<String>,
@@ -152,7 +160,7 @@ pub struct Channel {
 #[derive(Debug, Deserialize)]
 pub struct CreateChannelDto {
     pub name: String,
-    pub r#type: String,
+    pub r#type: ChannelType,
     pub topic: Option<String>,
     pub category: Option<String>,
 }

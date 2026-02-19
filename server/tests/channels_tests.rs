@@ -4,6 +4,24 @@ use axum::http::StatusCode;
 use serde_json::json;
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/// Register a user and have them join a server, returning their token.
+async fn register_and_join(app: axum::Router, server_id: &str, password: &str) -> String {
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), password).await;
+    common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/join"),
+        &token,
+        json!({}),
+    )
+    .await;
+    token
+}
+
+// ============================================================================
 // POST /servers/:id/channels — create channel
 // ============================================================================
 
@@ -153,7 +171,7 @@ async fn create_channel_invalid_type() {
     let server = common::create_server(app.clone(), &token, "Type Guild").await;
     let sid = server["id"].as_str().unwrap();
 
-    let (status, body) = common::post_json_authed(
+    let (status, _) = common::post_json_authed(
         app,
         &format!("/servers/{sid}/channels"),
         &token,
@@ -161,8 +179,8 @@ async fn create_channel_invalid_type() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(body["error"].is_string());
+    // ChannelType deserialization failure → axum JsonRejection → 422
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]
@@ -453,6 +471,242 @@ async fn delete_channel_not_found() {
         &token,
     )
     .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
+// Auth guard tests — PATCH and DELETE require authentication
+// ============================================================================
+
+#[tokio::test]
+async fn update_channel_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "Auth PATCH Guild").await;
+    let sid = server["id"].as_str().unwrap();
+    let ch = common::create_channel(app.clone(), &token, sid, "channel").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let req = axum::http::Request::builder()
+        .method(axum::http::Method::PATCH)
+        .uri(&format!("/servers/{sid}/channels/{cid}"))
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(axum::body::Body::from(json!({ "name": "x" }).to_string()))
+        .unwrap();
+    let response = tower::ServiceExt::oneshot(app, req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn delete_channel_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "Auth DELETE Guild").await;
+    let sid = server["id"].as_str().unwrap();
+    let ch = common::create_channel(app.clone(), &token, sid, "channel").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let req = axum::http::Request::builder()
+        .method(axum::http::Method::DELETE)
+        .uri(&format!("/servers/{sid}/channels/{cid}"))
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let response = tower::ServiceExt::oneshot(app, req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ============================================================================
+// Member read access — non-owners can still GET channels they belong to
+// ============================================================================
+
+#[tokio::test]
+async fn get_channel_member_can_read() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &owner_token, "Member Read Guild").await;
+    let sid = server["id"].as_str().unwrap();
+    let ch = common::create_channel(app.clone(), &owner_token, sid, "general").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let member_token = register_and_join(app.clone(), sid, "pass1234").await;
+
+    let (status, body) = common::get_authed(
+        app,
+        &format!("/servers/{sid}/channels/{cid}"),
+        &member_token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["id"], cid);
+}
+
+#[tokio::test]
+async fn get_channel_non_member_returns_404() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &owner_token, "Non-Member Guild").await;
+    let sid = server["id"].as_str().unwrap();
+    let ch = common::create_channel(app.clone(), &owner_token, sid, "secret").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let outsider_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    let (status, _) = common::get_authed(
+        app,
+        &format!("/servers/{sid}/channels/{cid}"),
+        &outsider_token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn list_channels_member_can_list() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &owner_token, "Member List Guild").await;
+    let sid = server["id"].as_str().unwrap();
+    common::create_channel(app.clone(), &owner_token, sid, "general").await;
+
+    let member_token = register_and_join(app.clone(), sid, "pass1234").await;
+
+    let (status, body) =
+        common::get_authed(app, &format!("/servers/{sid}/channels"), &member_token).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_array().unwrap().len(), 1);
+}
+
+// ============================================================================
+// PATCH validation — empty name and non-existent channel
+// ============================================================================
+
+#[tokio::test]
+async fn update_channel_empty_name_rejected() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "Validation PATCH Guild").await;
+    let sid = server["id"].as_str().unwrap();
+    let ch = common::create_channel(app.clone(), &token, sid, "channel").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/servers/{sid}/channels/{cid}"),
+        &token,
+        json!({ "name": "" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn update_channel_not_found() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "NF PATCH Guild").await;
+    let sid = server["id"].as_str().unwrap();
+
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/servers/{sid}/channels/00000000-0000-0000-0000-000000000000"),
+        &token,
+        json!({ "name": "new" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
+// Cross-server isolation — channels must not be reachable via another server's ID
+// ============================================================================
+
+#[tokio::test]
+async fn get_channel_cross_server_returns_404() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    let server_a = common::create_server(app.clone(), &token, "Server A").await;
+    let sid_a = server_a["id"].as_str().unwrap();
+    let server_b = common::create_server(app.clone(), &token, "Server B").await;
+    let sid_b = server_b["id"].as_str().unwrap();
+
+    // Channel belongs to server B.
+    let ch = common::create_channel(app.clone(), &token, sid_b, "channel-b").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    // Try to access it through server A's route.
+    let (status, _) =
+        common::get_authed(app, &format!("/servers/{sid_a}/channels/{cid}"), &token).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn update_channel_cross_server_returns_404() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    let server_a = common::create_server(app.clone(), &token, "XS Update A").await;
+    let sid_a = server_a["id"].as_str().unwrap();
+    let server_b = common::create_server(app.clone(), &token, "XS Update B").await;
+    let sid_b = server_b["id"].as_str().unwrap();
+
+    let ch = common::create_channel(app.clone(), &token, sid_b, "channel-b").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/servers/{sid_a}/channels/{cid}"),
+        &token,
+        json!({ "name": "sneaky" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn delete_channel_cross_server_returns_404() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    let server_a = common::create_server(app.clone(), &token, "XS Delete A").await;
+    let sid_a = server_a["id"].as_str().unwrap();
+    let server_b = common::create_server(app.clone(), &token, "XS Delete B").await;
+    let sid_b = server_b["id"].as_str().unwrap();
+
+    let ch = common::create_channel(app.clone(), &token, sid_b, "channel-b").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let (status, _) =
+        common::delete_authed(app, &format!("/servers/{sid_a}/channels/{cid}"), &token).await;
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }

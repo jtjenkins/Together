@@ -30,19 +30,25 @@ pub enum AppError {
     Internal,
 }
 
-/// Map sqlx errors to AppError, with special handling for unique-constraint
-/// violations (PG error code 23505) so they surface as 409 Conflict rather
-/// than 500 Internal Server Error.
+/// Map sqlx errors to AppError, with special handling for constraint violations:
+/// - 23505 (unique) → 409 Conflict
+/// - 23503 (foreign key) → 404 Not Found (the referenced resource is gone)
 impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
         if let sqlx::Error::Database(ref db_err) = e {
-            if db_err.code().as_deref() == Some("23505") {
-                let message = match db_err.constraint() {
-                    Some(c) if c.contains("username") => "Username already taken",
-                    Some(c) if c.contains("email") => "Email already registered",
-                    _ => "Resource already exists",
-                };
-                return AppError::Conflict(message.into());
+            match db_err.code().as_deref() {
+                Some("23505") => {
+                    let message = match db_err.constraint() {
+                        Some(c) if c.contains("username") => "Username already taken",
+                        Some(c) if c.contains("email") => "Email already registered",
+                        _ => "Resource already exists",
+                    };
+                    return AppError::Conflict(message.into());
+                }
+                Some("23503") => {
+                    return AppError::NotFound("Referenced resource no longer exists".into());
+                }
+                _ => {}
             }
         }
         AppError::Database(e)

@@ -6,10 +6,11 @@ use axum::{
 use uuid::Uuid;
 use validator::Validate;
 
+use super::shared::{fetch_server, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
-    models::{Channel, CreateChannelDto, Server, ServerMember, UpdateChannelDto},
+    models::{Channel, ChannelType, CreateChannelDto, UpdateChannelDto},
     state::AppState,
 };
 
@@ -21,8 +22,10 @@ use crate::{
 pub struct CreateChannelRequest {
     #[validate(length(min = 1, max = 100, message = "Channel name must be 1–100 characters"))]
     pub name: String,
-    pub r#type: String,
+    pub r#type: ChannelType,
+    #[validate(length(max = 1024, message = "Topic must be ≤ 1 024 characters"))]
     pub topic: Option<String>,
+    #[validate(length(max = 100, message = "Category must be ≤ 100 characters"))]
     pub category: Option<String>,
 }
 
@@ -30,41 +33,17 @@ pub struct CreateChannelRequest {
 pub struct UpdateChannelRequest {
     #[validate(length(min = 1, max = 100, message = "Channel name must be 1–100 characters"))]
     pub name: Option<String>,
+    #[validate(length(max = 1024, message = "Topic must be ≤ 1 024 characters"))]
     pub topic: Option<String>,
+    #[validate(length(max = 100, message = "Category must be ≤ 100 characters"))]
     pub category: Option<String>,
+    #[validate(range(min = 0, message = "Position must be ≥ 0"))]
     pub position: Option<i32>,
 }
 
 // ============================================================================
 // Private helpers
 // ============================================================================
-
-async fn fetch_server(pool: &sqlx::PgPool, server_id: Uuid) -> AppResult<Server> {
-    sqlx::query_as::<_, Server>(
-        "SELECT id, name, owner_id, icon_url, created_at, updated_at
-         FROM servers WHERE id = $1",
-    )
-    .bind(server_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Server not found".into()))
-}
-
-async fn require_member(
-    pool: &sqlx::PgPool,
-    server_id: Uuid,
-    user_id: Uuid,
-) -> AppResult<ServerMember> {
-    sqlx::query_as::<_, ServerMember>(
-        "SELECT user_id, server_id, nickname, joined_at
-         FROM server_members WHERE server_id = $1 AND user_id = $2",
-    )
-    .bind(server_id)
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Server not found".into()))
-}
 
 async fn fetch_channel(
     pool: &sqlx::PgPool,
@@ -82,6 +61,18 @@ async fn fetch_channel(
     .ok_or_else(|| AppError::NotFound("Channel not found".into()))
 }
 
+fn validation_error(e: validator::ValidationErrors) -> AppError {
+    AppError::Validation(
+        e.field_errors()
+            .values()
+            .flat_map(|v| v.iter())
+            .filter_map(|e| e.message.as_ref())
+            .map(|m| m.to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+    )
+}
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -93,29 +84,13 @@ pub async fn create_channel(
     Path(server_id): Path<Uuid>,
     Json(req): Json<CreateChannelRequest>,
 ) -> AppResult<(StatusCode, Json<Channel>)> {
-    req.validate().map_err(|e| {
-        AppError::Validation(
-            e.field_errors()
-                .values()
-                .flat_map(|v| v.iter())
-                .filter_map(|e| e.message.as_ref())
-                .map(|m| m.to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
-        )
-    })?;
+    req.validate().map_err(validation_error)?;
 
     let server = fetch_server(&state.pool, server_id).await?;
 
     if server.owner_id != auth.user_id() {
         return Err(AppError::Forbidden(
             "Only the server owner can create channels".into(),
-        ));
-    }
-
-    if req.r#type != "text" && req.r#type != "voice" {
-        return Err(AppError::Validation(
-            "Channel type must be 'text' or 'voice'".into(),
         ));
     }
 
@@ -126,23 +101,18 @@ pub async fn create_channel(
         category: req.category,
     };
 
-    // Auto-assign next position within the server (INT column → i32).
-    let position: i32 = sqlx::query_scalar(
-        "SELECT COALESCE(MAX(position) + 1, 0) FROM channels WHERE server_id = $1",
-    )
-    .bind(server_id)
-    .fetch_one(&state.pool)
-    .await?;
-
+    // The position subquery is part of the INSERT, making position assignment
+    // atomic and free from the TOCTOU race of a separate SELECT + INSERT.
     let channel = sqlx::query_as::<_, Channel>(
         "INSERT INTO channels (server_id, name, type, position, category, topic)
-         VALUES ($1, $2, $3, $4, $5, $6)
+         VALUES ($1, $2, $3,
+                 (SELECT COALESCE(MAX(position) + 1, 0) FROM channels WHERE server_id = $1),
+                 $4, $5)
          RETURNING id, server_id, name, type, position, category, topic, created_at",
     )
     .bind(server_id)
     .bind(&dto.name)
     .bind(&dto.r#type)
-    .bind(position)
     .bind(&dto.category)
     .bind(&dto.topic)
     .fetch_one(&state.pool)
@@ -191,17 +161,7 @@ pub async fn update_channel(
     Path((server_id, channel_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<UpdateChannelRequest>,
 ) -> AppResult<Json<Channel>> {
-    req.validate().map_err(|e| {
-        AppError::Validation(
-            e.field_errors()
-                .values()
-                .flat_map(|v| v.iter())
-                .filter_map(|e| e.message.as_ref())
-                .map(|m| m.to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
-        )
-    })?;
+    req.validate().map_err(validation_error)?;
 
     let server = fetch_server(&state.pool, server_id).await?;
 
@@ -211,9 +171,6 @@ pub async fn update_channel(
         ));
     }
 
-    // Verify channel exists within this server before updating.
-    fetch_channel(&state.pool, server_id, channel_id).await?;
-
     let dto = UpdateChannelDto {
         name: req.name,
         topic: req.topic,
@@ -221,6 +178,8 @@ pub async fn update_channel(
         position: req.position,
     };
 
+    // Use fetch_optional on the UPDATE itself — avoids a separate SELECT and
+    // eliminates the TOCTOU window between an existence check and the write.
     let updated = sqlx::query_as::<_, Channel>(
         "UPDATE channels
          SET name     = COALESCE($1, name),
@@ -236,13 +195,17 @@ pub async fn update_channel(
     .bind(dto.position)
     .bind(channel_id)
     .bind(server_id)
-    .fetch_one(&state.pool)
-    .await?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
 
     Ok(Json(updated))
 }
 
 /// DELETE /servers/:id/channels/:channel_id — delete a channel (owner only).
+///
+/// This is a hard delete; any messages in the channel are also removed by the
+/// database cascade constraint (ON DELETE CASCADE on messages.channel_id).
 pub async fn delete_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -256,14 +219,15 @@ pub async fn delete_channel(
         ));
     }
 
-    // Verify channel exists within this server.
-    fetch_channel(&state.pool, server_id, channel_id).await?;
-
-    sqlx::query("DELETE FROM channels WHERE id = $1 AND server_id = $2")
+    let result = sqlx::query("DELETE FROM channels WHERE id = $1 AND server_id = $2")
         .bind(channel_id)
         .bind(server_id)
         .execute(&state.pool)
         .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("Channel not found".into()));
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
