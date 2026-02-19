@@ -1,0 +1,180 @@
+import type {
+  GatewayMessage,
+  GatewayOp,
+  ReadyEvent,
+  Message,
+  PresenceUpdateEvent,
+  MessageDeleteEvent,
+} from '../types';
+
+type EventHandler<T = unknown> = (data: T) => void;
+
+interface EventHandlers {
+  READY: EventHandler<ReadyEvent>;
+  MESSAGE_CREATE: EventHandler<Message>;
+  MESSAGE_UPDATE: EventHandler<Message>;
+  MESSAGE_DELETE: EventHandler<MessageDeleteEvent>;
+  PRESENCE_UPDATE: EventHandler<PresenceUpdateEvent>;
+  connected: EventHandler<void>;
+  disconnected: EventHandler<void>;
+}
+
+type EventName = keyof EventHandlers;
+
+const WS_BASE = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`;
+
+const HEARTBEAT_INTERVAL = 30000;
+
+export class WebSocketClient {
+  private ws: WebSocket | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private token: string | null = null;
+  private handlers: Partial<Record<EventName, Set<EventHandler<never>>>> = {};
+  private _isConnected = false;
+
+  get isConnected(): boolean {
+    return this._isConnected;
+  }
+
+  on<K extends EventName>(event: K, handler: EventHandlers[K]): () => void {
+    if (!this.handlers[event]) {
+      this.handlers[event] = new Set();
+    }
+    this.handlers[event]!.add(handler as EventHandler<never>);
+    return () => {
+      this.handlers[event]?.delete(handler as EventHandler<never>);
+    };
+  }
+
+  private emit<K extends EventName>(event: K, data?: Parameters<EventHandlers[K]>[0]) {
+    this.handlers[event]?.forEach((handler) => {
+      (handler as EventHandler)(data);
+    });
+  }
+
+  connect(token: string) {
+    this.token = token;
+    this.reconnectAttempts = 0;
+    this.doConnect();
+  }
+
+  disconnect() {
+    this.token = null;
+    this.reconnectAttempts = this.maxReconnectAttempts;
+    this.cleanup();
+  }
+
+  sendPresenceUpdate(status: string, customStatus: string | null = null) {
+    this.send({
+      op: 'PRESENCE_UPDATE' as GatewayOp,
+      t: null,
+      d: { status, custom_status: customStatus },
+    });
+  }
+
+  private doConnect() {
+    if (!this.token) return;
+
+    this.cleanup();
+
+    const url = `${WS_BASE}?token=${encodeURIComponent(this.token)}`;
+    this.ws = new WebSocket(url);
+
+    this.ws.onopen = () => {
+      this._isConnected = true;
+      this.reconnectAttempts = 0;
+      this.startHeartbeat();
+      this.emit('connected');
+    };
+
+    this.ws.onmessage = (event) => {
+      try {
+        const msg: GatewayMessage = JSON.parse(event.data);
+        this.handleMessage(msg);
+      } catch {
+        // Ignore malformed messages
+      }
+    };
+
+    this.ws.onclose = () => {
+      this._isConnected = false;
+      this.stopHeartbeat();
+      this.emit('disconnected');
+      this.scheduleReconnect();
+    };
+
+    this.ws.onerror = () => {
+      // onclose will fire after onerror
+    };
+  }
+
+  private handleMessage(msg: GatewayMessage) {
+    switch (msg.op) {
+      case 'DISPATCH':
+        if (msg.t && msg.d) {
+          this.emit(msg.t as EventName, msg.d as never);
+        }
+        break;
+      case 'HEARTBEAT_ACK':
+        // Server acknowledged our heartbeat
+        break;
+    }
+  }
+
+  private send(msg: GatewayMessage) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(msg));
+    }
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      this.send({ op: 'HEARTBEAT' as GatewayOp, t: null, d: null });
+    }, HEARTBEAT_INTERVAL);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts || !this.token) {
+      return;
+    }
+
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+    this.reconnectAttempts++;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.doConnect();
+    }, delay);
+  }
+
+  private cleanup() {
+    this.stopHeartbeat();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.ws.onopen = null;
+      this.ws.onmessage = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+        this.ws.close();
+      }
+      this.ws = null;
+    }
+    this._isConnected = false;
+  }
+}
+
+export const gateway = new WebSocketClient();
