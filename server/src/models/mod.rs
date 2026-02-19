@@ -199,3 +199,21 @@ pub struct CreateMessageDto {
 pub struct UpdateMessageDto {
     pub content: String,
 }
+
+// ============================================================================
+// Attachment Models
+// ============================================================================
+
+/// A file attached to a message.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct Attachment {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub filename: String,
+    pub file_size: i64,
+    pub mime_type: String,
+    pub url: String,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub created_at: DateTime<Utc>,
+}
