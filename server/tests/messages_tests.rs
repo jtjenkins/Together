@@ -267,12 +267,8 @@ async fn list_messages_custom_limit() {
         common::create_message(app.clone(), &token, &cid, &format!("msg {i}")).await;
     }
 
-    let (status, body) = common::get_authed(
-        app,
-        &format!("/channels/{cid}/messages?limit=3"),
-        &token,
-    )
-    .await;
+    let (status, body) =
+        common::get_authed(app, &format!("/channels/{cid}/messages?limit=3"), &token).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body.as_array().unwrap().len(), 3);
@@ -465,13 +461,11 @@ async fn delete_message_author_success() {
     let msg = common::create_message(app.clone(), &token, &cid, "bye").await;
     let mid = msg["id"].as_str().unwrap();
 
-    let (status, _) =
-        common::delete_authed(app.clone(), &format!("/messages/{mid}"), &token).await;
+    let (status, _) = common::delete_authed(app.clone(), &format!("/messages/{mid}"), &token).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
     // Deleted message should no longer appear in the list.
-    let (_, body) =
-        common::get_authed(app, &format!("/channels/{cid}/messages"), &token).await;
+    let (_, body) = common::get_authed(app, &format!("/channels/{cid}/messages"), &token).await;
     assert_eq!(body, json!([]));
 }
 
@@ -485,8 +479,7 @@ async fn delete_message_server_owner_can_delete_any() {
     let msg = common::create_message(app.clone(), &member_token, &cid, "member msg").await;
     let mid = msg["id"].as_str().unwrap();
 
-    let (status, _) =
-        common::delete_authed(app, &format!("/messages/{mid}"), &owner_token).await;
+    let (status, _) = common::delete_authed(app, &format!("/messages/{mid}"), &owner_token).await;
 
     assert_eq!(status, StatusCode::NO_CONTENT);
 }
@@ -501,8 +494,7 @@ async fn delete_message_non_author_non_owner_forbidden() {
 
     let member_token = join_as_member(app.clone(), &sid).await;
 
-    let (status, _) =
-        common::delete_authed(app, &format!("/messages/{mid}"), &member_token).await;
+    let (status, _) = common::delete_authed(app, &format!("/messages/{mid}"), &member_token).await;
 
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
@@ -547,8 +539,7 @@ async fn delete_message_already_deleted_returns_404() {
     let mid = msg["id"].as_str().unwrap();
 
     common::delete_authed(app.clone(), &format!("/messages/{mid}"), &token).await;
-    let (status, _) =
-        common::delete_authed(app, &format!("/messages/{mid}"), &token).await;
+    let (status, _) = common::delete_authed(app, &format!("/messages/{mid}"), &token).await;
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }

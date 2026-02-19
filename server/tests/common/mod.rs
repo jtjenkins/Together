@@ -235,13 +235,8 @@ pub async fn create_channel(app: Router, token: &str, server_id: &str, name: &st
 /// Send a message to a channel and return the full response body.
 pub async fn create_message(app: Router, token: &str, channel_id: &str, content: &str) -> Value {
     let uri = format!("/channels/{channel_id}/messages");
-    let (status, body) = post_json_authed(
-        app,
-        &uri,
-        token,
-        serde_json::json!({ "content": content }),
-    )
-    .await;
+    let (status, body) =
+        post_json_authed(app, &uri, token, serde_json::json!({ "content": content })).await;
     assert_eq!(
         status,
         StatusCode::CREATED,

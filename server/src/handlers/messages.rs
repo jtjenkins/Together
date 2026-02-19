@@ -7,13 +7,13 @@ use serde::Deserialize;
 use uuid::Uuid;
 use validator::Validate;
 
+use super::shared::{fetch_channel_by_id, fetch_server, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
     models::{CreateMessageDto, Message, UpdateMessageDto},
     state::AppState,
 };
-use super::shared::{fetch_channel_by_id, fetch_server, require_member};
 
 // ============================================================================
 // Input validation
@@ -21,14 +21,22 @@ use super::shared::{fetch_channel_by_id, fetch_server, require_member};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateMessageRequest {
-    #[validate(length(min = 1, max = 4000, message = "Message content must be 1–4 000 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 4000,
+        message = "Message content must be 1–4 000 characters"
+    ))]
     pub content: String,
     pub reply_to: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateMessageRequest {
-    #[validate(length(min = 1, max = 4000, message = "Message content must be 1–4 000 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 4000,
+        message = "Message content must be 1–4 000 characters"
+    ))]
     pub content: String,
 }
 
