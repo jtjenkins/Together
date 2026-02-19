@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use serde_json::json;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -13,6 +14,10 @@ use crate::{
     error::{AppError, AppResult},
     models::{CreateMessageDto, Message, UpdateMessageDto},
     state::AppState,
+    websocket::{
+        broadcast_to_server,
+        events::{EVENT_MESSAGE_CREATE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_UPDATE},
+    },
 };
 
 // ============================================================================
@@ -42,7 +47,14 @@ pub struct UpdateMessageRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ListMessagesQuery {
-    /// Return messages created before this message ID (cursor-based pagination).
+    /// Cursor: return messages created strictly before the message with this ID.
+    ///
+    /// The ID is resolved to a `(created_at, id)` pair server-side, so the
+    /// actual comparison is on timestamp + UUID — not the ID alone. This gives
+    /// a stable total order even when two messages share an identical timestamp.
+    ///
+    /// If the cursor ID does not exist or belongs to a different channel the
+    /// query returns an empty array (no error).
     pub before: Option<Uuid>,
     /// Maximum number of messages to return (default 50, max 100).
     pub limit: Option<i64>,
@@ -92,10 +104,13 @@ pub async fn create_message(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
-    // Validate reply_to target exists in the same channel, if provided.
+    // Validate reply_to: target must exist in the same channel and not be deleted.
     if let Some(reply_to_id) = req.reply_to {
         let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM messages WHERE id = $1 AND channel_id = $2 AND deleted = FALSE)",
+            "SELECT EXISTS(
+                 SELECT 1 FROM messages
+                 WHERE id = $1 AND channel_id = $2 AND deleted = FALSE
+             )",
         )
         .bind(reply_to_id)
         .bind(channel_id)
@@ -124,13 +139,26 @@ pub async fn create_message(
     .fetch_one(&state.pool)
     .await?;
 
+    // Broadcast MESSAGE_CREATE to all connected server members.
+    match serde_json::to_value(&message) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_CREATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(message_id = %message.id, error = ?e, "Failed to serialize message for broadcast");
+        }
+    }
+
     Ok((StatusCode::CREATED, Json(message)))
 }
 
 /// GET /channels/:channel_id/messages — list messages with cursor pagination (members only).
 ///
 /// Returns up to `limit` messages (default 50, max 100), ordered newest-first.
-/// Pass `before=<message_id>` to paginate backwards through history.
+/// Pass `before=<message_id>` to paginate backwards.
+///
+/// The cursor uses a compound `(created_at, id)` comparison to give a stable
+/// total order even when messages share an identical timestamp.
 pub async fn list_messages(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -143,13 +171,17 @@ pub async fn list_messages(
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
 
     let messages = if let Some(before_id) = query.before {
+        // Compound cursor: (created_at, id) gives a total order even when
+        // two messages land in the same microsecond.
         sqlx::query_as::<_, Message>(
             "SELECT id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at
              FROM messages
              WHERE channel_id = $1
                AND deleted = FALSE
-               AND created_at < (SELECT created_at FROM messages WHERE id = $2)
-             ORDER BY created_at DESC
+               AND (created_at, id) < (
+                   SELECT created_at, id FROM messages WHERE id = $2
+               )
+             ORDER BY created_at DESC, id DESC
              LIMIT $3",
         )
         .bind(channel_id)
@@ -162,7 +194,7 @@ pub async fn list_messages(
             "SELECT id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at
              FROM messages
              WHERE channel_id = $1 AND deleted = FALSE
-             ORDER BY created_at DESC
+             ORDER BY created_at DESC, id DESC
              LIMIT $2",
         )
         .bind(channel_id)
@@ -185,6 +217,10 @@ pub async fn update_message(
 
     let message = fetch_message(&state.pool, message_id).await?;
 
+    // Verify the caller is still a member of the server that owns this channel.
+    let channel = fetch_channel_by_id(&state.pool, message.channel_id).await?;
+    require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
     if message.author_id != Some(auth.user_id()) {
         return Err(AppError::Forbidden(
             "Only the message author can edit it".into(),
@@ -195,16 +231,29 @@ pub async fn update_message(
         content: req.content,
     };
 
+    // AND deleted = FALSE guards against editing a message that was soft-deleted
+    // between the fetch above and this update (TOCTOU).
     let updated = sqlx::query_as::<_, Message>(
         "UPDATE messages
          SET content = $1, edited_at = NOW()
-         WHERE id = $2
+         WHERE id = $2 AND deleted = FALSE
          RETURNING id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at",
     )
     .bind(&dto.content)
     .bind(message_id)
-    .fetch_one(&state.pool)
-    .await?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
+
+    // Broadcast MESSAGE_UPDATE to all connected server members.
+    match serde_json::to_value(&updated) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_UPDATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(message_id = %updated.id, error = ?e, "Failed to serialize message for broadcast");
+        }
+    }
 
     Ok(Json(updated))
 }
@@ -223,6 +272,9 @@ pub async fn delete_message(
     let channel = fetch_channel_by_id(&state.pool, message.channel_id).await?;
     let server = fetch_server(&state.pool, channel.server_id).await?;
 
+    // Verify the caller is still an active member.
+    require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
     let is_author = message.author_id == Some(auth.user_id());
     let is_owner = server.owner_id == auth.user_id();
 
@@ -232,10 +284,25 @@ pub async fn delete_message(
         ));
     }
 
-    sqlx::query("UPDATE messages SET deleted = TRUE WHERE id = $1")
-        .bind(message_id)
-        .execute(&state.pool)
-        .await?;
+    // AND deleted = FALSE ensures rows_affected() == 0 on a concurrent double-delete.
+    let result =
+        sqlx::query("UPDATE messages SET deleted = TRUE WHERE id = $1 AND deleted = FALSE")
+            .bind(message_id)
+            .execute(&state.pool)
+            .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("Message not found".into()));
+    }
+
+    // Broadcast MESSAGE_DELETE to all connected server members.
+    broadcast_to_server(
+        &state,
+        channel.server_id,
+        EVENT_MESSAGE_DELETE,
+        json!({ "id": message_id, "channel_id": message.channel_id }),
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }

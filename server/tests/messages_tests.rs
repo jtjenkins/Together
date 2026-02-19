@@ -400,16 +400,14 @@ async fn update_message_requires_auth() {
     let msg = common::create_message(app.clone(), &token, &cid, "msg").await;
     let mid = msg["id"].as_str().unwrap();
 
-    let (status, _) = common::post_json(
+    let (status, _) = common::patch_no_auth(
         app,
         &format!("/messages/{mid}"),
         json!({ "content": "no token" }),
     )
     .await;
 
-    // POST without auth on a PATCH route → 405 Method Not Allowed or 401;
-    // the important thing is we don't get 200.
-    assert_ne!(status, StatusCode::OK);
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -507,10 +505,9 @@ async fn delete_message_requires_auth() {
     let msg = common::create_message(app.clone(), &token, &cid, "msg").await;
     let mid = msg["id"].as_str().unwrap();
 
-    let (status, _) = common::get_no_auth(app, &format!("/messages/{mid}")).await;
+    let (status, _) = common::delete_no_auth(app, &format!("/messages/{mid}")).await;
 
-    // GET on a DELETE-only route → 405 or 401; not 200/204.
-    assert_ne!(status, StatusCode::NO_CONTENT);
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
