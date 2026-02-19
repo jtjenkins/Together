@@ -2,8 +2,20 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, AppResult},
-    models::{Server, ServerMember},
+    models::{Channel, Server, ServerMember},
 };
+
+/// Fetch a channel by its ID alone (no server scope), returning 404 if not found.
+pub async fn fetch_channel_by_id(pool: &sqlx::PgPool, channel_id: Uuid) -> AppResult<Channel> {
+    sqlx::query_as::<_, Channel>(
+        "SELECT id, server_id, name, type, position, category, topic, created_at
+         FROM channels WHERE id = $1",
+    )
+    .bind(channel_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Channel not found".into()))
+}
 
 /// Fetch a server row, returning 404 if it does not exist.
 pub async fn fetch_server(pool: &sqlx::PgPool, server_id: Uuid) -> AppResult<Server> {

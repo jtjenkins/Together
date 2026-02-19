@@ -98,6 +98,23 @@ async fn main() {
             "/servers/:id/channels/:channel_id",
             delete(handlers::channels::delete_channel),
         )
+        // Message routes (protected, nested under channel)
+        .route(
+            "/channels/:channel_id/messages",
+            post(handlers::messages::create_message),
+        )
+        .route(
+            "/channels/:channel_id/messages",
+            get(handlers::messages::list_messages),
+        )
+        .route(
+            "/messages/:message_id",
+            patch(handlers::messages::update_message),
+        )
+        .route(
+            "/messages/:message_id",
+            delete(handlers::messages::delete_message),
+        )
         // Middleware
         .layer(cors)
         .with_state(app_state);
