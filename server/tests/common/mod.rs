@@ -55,6 +55,27 @@ pub fn create_test_app(pool: PgPool) -> Router {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Channel routes
+        .route(
+            "/servers/:id/channels",
+            post(handlers::channels::create_channel),
+        )
+        .route(
+            "/servers/:id/channels",
+            get(handlers::channels::list_channels),
+        )
+        .route(
+            "/servers/:id/channels/:channel_id",
+            get(handlers::channels::get_channel),
+        )
+        .route(
+            "/servers/:id/channels/:channel_id",
+            patch(handlers::channels::update_channel),
+        )
+        .route(
+            "/servers/:id/channels/:channel_id",
+            delete(handlers::channels::delete_channel),
+        )
         .with_state(state)
 }
 
@@ -172,6 +193,24 @@ pub async fn create_server(app: Router, token: &str, name: &str) -> Value {
         status,
         StatusCode::CREATED,
         "setup create_server failed: {body}"
+    );
+    body
+}
+
+/// Create a text channel in a server and return the full response body.
+pub async fn create_channel(app: Router, token: &str, server_id: &str, name: &str) -> Value {
+    let uri = format!("/servers/{server_id}/channels");
+    let (status, body) = post_json_authed(
+        app,
+        &uri,
+        token,
+        serde_json::json!({ "name": name, "type": "text" }),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "setup create_channel failed: {body}"
     );
     body
 }

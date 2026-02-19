@@ -77,6 +77,27 @@ async fn main() {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Channel routes (protected, nested under server)
+        .route(
+            "/servers/:id/channels",
+            post(handlers::channels::create_channel),
+        )
+        .route(
+            "/servers/:id/channels",
+            get(handlers::channels::list_channels),
+        )
+        .route(
+            "/servers/:id/channels/:channel_id",
+            get(handlers::channels::get_channel),
+        )
+        .route(
+            "/servers/:id/channels/:channel_id",
+            patch(handlers::channels::update_channel),
+        )
+        .route(
+            "/servers/:id/channels/:channel_id",
+            delete(handlers::channels::delete_channel),
+        )
         // Middleware
         .layer(cors)
         .with_state(app_state);
