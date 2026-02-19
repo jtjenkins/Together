@@ -1,8 +1,32 @@
 [advisories]
 ignore = [
     # RUSTSEC-2024-0421: idna 0.4.0 accepts malformed Punycode labels.
-    # Introduced transitively via validator 0.16.x → url → idna.
-    # Not exploitable here: the app performs no user-supplied URL parsing or
-    # internationalized domain-name handling. Revisit when validator is updated.
+    # Via: validator 0.16.x → url → idna.
+    # Not exploitable: the app performs no user-supplied URL or IDN parsing.
     "RUSTSEC-2024-0421",
+
+    # RUSTSEC-2024-0363: sqlx 0.7.4 binary protocol misinterpretation via
+    # truncating/overflowing casts. Fix: upgrade to sqlx >= 0.8.1.
+    # Tracked: sqlx 0.7 → 0.8 is a breaking upgrade; scheduled for Phase 3.
+    # Risk is low in practice — the vulnerability requires a malicious DB server
+    # response, which is not a threat model concern for a self-hosted private app.
+    "RUSTSEC-2024-0363",
+
+    # RUSTSEC-2023-0071: rsa 0.9.x Marvin Attack timing side-channel.
+    # Via: sqlx-mysql 0.7.4 (transitively compiled even though MySQL is unused).
+    # No fix available upstream. Not exploitable: the app uses PostgreSQL only
+    # and never calls any RSA decryption path.
+    "RUSTSEC-2023-0071",
+
+    # RUSTSEC-2024-0370: proc-macro-error 1.0.4 is unmaintained.
+    # Via: validator_derive → validator (compile-time only, no runtime exposure).
+    "RUSTSEC-2024-0370",
+
+    # RUSTSEC-2024-0436: paste 1.0.15 is unmaintained.
+    # Via: sqlx-core (compile-time macro helper, no runtime exposure).
+    "RUSTSEC-2024-0436",
+
+    # RUSTSEC-2025-0134: rustls-pemfile 1.0.4 is unmaintained.
+    # Via: reqwest 0.11 (dev-dependency only, not present in release builds).
+    "RUSTSEC-2025-0134",
 ]

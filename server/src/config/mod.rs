@@ -27,7 +27,7 @@ impl fmt::Debug for Config {
 
 impl Config {
     pub fn from_env() -> Result<Self, String> {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
 
         // JWT_SECRET is required and fatal if missing — a missing secret must never
         // silently fall back to a publicly-known default value.
