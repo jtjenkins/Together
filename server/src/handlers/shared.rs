@@ -2,8 +2,20 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, AppResult},
-    models::{Channel, Server, ServerMember},
+    models::{Channel, Message, Server, ServerMember},
 };
+
+/// Fetch a non-deleted message by ID, returning 404 if not found or deleted.
+pub async fn fetch_message(pool: &sqlx::PgPool, message_id: Uuid) -> AppResult<Message> {
+    sqlx::query_as::<_, Message>(
+        "SELECT id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at
+         FROM messages WHERE id = $1 AND deleted = FALSE",
+    )
+    .bind(message_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Message not found".into()))
+}
 
 /// Fetch a channel by its ID alone (no server scope), returning 404 if not found.
 pub async fn fetch_channel_by_id(pool: &sqlx::PgPool, channel_id: Uuid) -> AppResult<Channel> {

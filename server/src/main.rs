@@ -1,4 +1,5 @@
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{delete, get, patch, post},
     Router,
 };
@@ -51,10 +52,17 @@ async fn main() {
 
     let addr = config.server_addr();
 
+    // Create upload directory if it doesn't exist yet.
+    tokio::fs::create_dir_all(&config.upload_dir)
+        .await
+        .expect("Failed to create upload directory");
+    info!("📂 Upload directory: {}", config.upload_dir.display());
+
     let app_state = AppState {
         pool,
         jwt_secret: config.jwt_secret,
         connections: ConnectionManager::new(),
+        upload_dir: config.upload_dir.clone(),
     };
 
     // Build router
@@ -116,6 +124,21 @@ async fn main() {
         .route(
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
+        )
+        // Attachment routes (protected, nested under message)
+        .route(
+            "/messages/:message_id/attachments",
+            post(handlers::attachments::upload_attachments)
+                .layer(DefaultBodyLimit::max(52_428_800 + 65_536)), // 50 MB + multipart overhead
+        )
+        .route(
+            "/messages/:message_id/attachments",
+            get(handlers::attachments::list_attachments),
+        )
+        // Authenticated file serving (auth + membership checked before serving)
+        .route(
+            "/files/:message_id/*filepath",
+            get(handlers::attachments::serve_file),
         )
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))

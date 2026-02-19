@@ -11,6 +11,7 @@ use axum::{
 use http_body_util::BodyExt;
 use serde_json::Value;
 use sqlx::PgPool;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -21,6 +22,14 @@ use together_server::{
 };
 
 pub const TEST_JWT_SECRET: &str = "test-secret-min-32-characters-long!!";
+
+/// Shared upload directory for all integration tests.
+///
+/// Files are organized by message UUID, so parallel tests using different
+/// messages don't conflict with each other.
+pub fn test_upload_dir() -> PathBuf {
+    std::env::temp_dir().join("together_test_uploads")
+}
 
 /// Connect to the test database specified by DATABASE_URL.
 ///
@@ -41,6 +50,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
         pool,
         jwt_secret: Arc::from(TEST_JWT_SECRET),
         connections: ConnectionManager::new(),
+        upload_dir: test_upload_dir(),
     };
     Router::new()
         .route("/health", get(handlers::health_check))
@@ -97,6 +107,19 @@ pub fn create_test_app(pool: PgPool) -> Router {
         .route(
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
+        )
+        // Attachment routes
+        .route(
+            "/messages/:message_id/attachments",
+            post(handlers::attachments::upload_attachments),
+        )
+        .route(
+            "/messages/:message_id/attachments",
+            get(handlers::attachments::list_attachments),
+        )
+        .route(
+            "/files/:message_id/*filepath",
+            get(handlers::attachments::serve_file),
         )
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
@@ -208,6 +231,33 @@ async fn send(app: Router, req: Request<Body>) -> (StatusCode, Value) {
     (status, json)
 }
 
+/// GET a URL with auth and return the raw response bytes (for binary/file responses).
+pub async fn get_raw_authed(app: Router, uri: &str, token: &str) -> (StatusCode, Vec<u8>) {
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(req).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, bytes.to_vec())
+}
+
+/// GET a URL without auth and return the raw response bytes.
+pub async fn get_raw_no_auth(app: Router, uri: &str) -> (StatusCode, Vec<u8>) {
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(req).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, bytes.to_vec())
+}
+
 // ── Scenario helpers ─────────────────────────────────────────────────────────
 
 /// Register a fresh user and return the full response body.
@@ -269,4 +319,75 @@ pub async fn create_message(app: Router, token: &str, channel_id: &str, content:
         "setup create_message failed: {body}"
     );
     body
+}
+
+// ── Multipart helpers ─────────────────────────────────────────────────────────
+
+/// A single file in a multipart upload.
+pub struct MultipartFile<'a> {
+    pub field_name: &'a str,
+    pub filename: &'a str,
+    pub content_type: &'a str,
+    pub data: &'a [u8],
+}
+
+/// Build a `multipart/form-data` body from the provided files.
+///
+/// Returns `(body_bytes, content_type_header_value)` where the content-type
+/// includes the boundary parameter.
+pub fn build_multipart(files: &[MultipartFile<'_>]) -> (Vec<u8>, String) {
+    let boundary = "----TogetherTestBoundary1234567890";
+    let mut body: Vec<u8> = Vec::new();
+
+    for f in files {
+        body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+        body.extend_from_slice(
+            format!(
+                "Content-Disposition: form-data; name=\"{}\"; filename=\"{}\"\r\n",
+                f.field_name, f.filename
+            )
+            .as_bytes(),
+        );
+        body.extend_from_slice(format!("Content-Type: {}\r\n\r\n", f.content_type).as_bytes());
+        body.extend_from_slice(f.data);
+        body.extend_from_slice(b"\r\n");
+    }
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+
+    let content_type = format!("multipart/form-data; boundary={boundary}");
+    (body, content_type)
+}
+
+/// POST a multipart upload to the given URI with auth.
+pub async fn post_multipart_authed(
+    app: Router,
+    uri: &str,
+    token: &str,
+    files: &[MultipartFile<'_>],
+) -> (StatusCode, Value) {
+    let (body_bytes, content_type) = build_multipart(files);
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .header(header::CONTENT_TYPE, content_type)
+        .body(Body::from(body_bytes))
+        .unwrap();
+    send(app, req).await
+}
+
+/// POST a multipart upload to the given URI without auth.
+pub async fn post_multipart_no_auth(
+    app: Router,
+    uri: &str,
+    files: &[MultipartFile<'_>],
+) -> (StatusCode, Value) {
+    let (body_bytes, content_type) = build_multipart(files);
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, content_type)
+        .body(Body::from(body_bytes))
+        .unwrap();
+    send(app, req).await
 }

@@ -1,5 +1,6 @@
 use std::env;
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -10,6 +11,8 @@ pub struct Config {
     pub server_port: u16,
     /// true when APP_ENV != "production"
     pub is_dev: bool,
+    /// Root directory for uploaded files (from UPLOAD_DIR, default: ./data/uploads).
+    pub upload_dir: PathBuf,
 }
 
 /// Manual Debug impl — never prints jwt_secret or database credentials in plaintext.
@@ -21,6 +24,7 @@ impl fmt::Debug for Config {
             .field("server_host", &self.server_host)
             .field("server_port", &self.server_port)
             .field("is_dev", &self.is_dev)
+            .field("upload_dir", &self.upload_dir)
             .finish()
     }
 }
@@ -52,6 +56,9 @@ impl Config {
             is_dev: env::var("APP_ENV")
                 .map(|v| v != "production")
                 .unwrap_or(true),
+            upload_dir: PathBuf::from(
+                env::var("UPLOAD_DIR").unwrap_or_else(|_| "./data/uploads".to_string()),
+            ),
         })
     }
 

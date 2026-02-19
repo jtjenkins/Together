@@ -8,7 +8,7 @@ use serde_json::json;
 use uuid::Uuid;
 use validator::Validate;
 
-use super::shared::{fetch_channel_by_id, fetch_server, require_member};
+use super::shared::{fetch_channel_by_id, fetch_message, fetch_server, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -74,18 +74,6 @@ fn validation_error(e: validator::ValidationErrors) -> AppError {
             .collect::<Vec<_>>()
             .join(", "),
     )
-}
-
-/// Fetch a message by ID, returning 404 if deleted or not found.
-async fn fetch_message(pool: &sqlx::PgPool, message_id: Uuid) -> AppResult<Message> {
-    sqlx::query_as::<_, Message>(
-        "SELECT id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at
-         FROM messages WHERE id = $1 AND deleted = FALSE",
-    )
-    .bind(message_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Message not found".into()))
 }
 
 // ============================================================================
