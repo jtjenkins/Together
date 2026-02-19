@@ -5,6 +5,7 @@ pub mod messages;
 pub mod servers;
 pub mod shared;
 pub mod users;
+pub mod voice;
 
 use axum::{http::StatusCode, Json};
 use serde_json::{json, Value};

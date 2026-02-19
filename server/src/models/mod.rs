@@ -204,6 +204,33 @@ pub struct UpdateMessageDto {
 // Attachment Models
 // ============================================================================
 
+// ============================================================================
+// Voice Models
+// ============================================================================
+
+/// Tracks a user's current voice channel state. Safe to serialize directly —
+/// no secrets. A user can only be in one channel at a time (PK on user_id).
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct VoiceState {
+    pub user_id: Uuid,
+    pub channel_id: Uuid,
+    pub self_mute: bool,
+    pub self_deaf: bool,
+    pub server_mute: bool,
+    pub server_deaf: bool,
+    pub joined_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateVoiceStateRequest {
+    pub self_mute: Option<bool>,
+    pub self_deaf: Option<bool>,
+}
+
+// ============================================================================
+// Attachment Models
+// ============================================================================
+
 /// A file attached to a message.
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct Attachment {

@@ -11,7 +11,9 @@ use serde_json::json;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use super::events::{GatewayMessage, GatewayOp, EVENT_PRESENCE_UPDATE, EVENT_READY};
+use super::events::{
+    GatewayMessage, GatewayOp, EVENT_PRESENCE_UPDATE, EVENT_READY, EVENT_VOICE_SIGNAL,
+};
 use crate::{
     auth::{validate_token, TokenType},
     models::{Server, User, UserDto},
@@ -175,8 +177,65 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
                 set_presence(state, user_id, status, custom_status).await;
             }
         }
+        GatewayOp::VoiceSignal => {
+            if let Some(data) = msg.d {
+                handle_voice_signal(user_id, data, state).await;
+            }
+        }
         // Client should not send Dispatch or HeartbeatAck — silently ignore.
         _ => {}
+    }
+}
+
+// ============================================================================
+// Voice signaling relay
+// ============================================================================
+
+/// Relay a WebRTC SDP/ICE signal from `user_id` to the target peer.
+///
+/// Both users must be in the same voice channel; signals for users in
+/// different channels are silently dropped to prevent cross-channel leakage.
+async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &AppState) {
+    let to_user_id = match data["to_user_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+    {
+        Some(id) => id,
+        None => return,
+    };
+
+    // Verify co-membership in the same voice channel before relaying.
+    let same_channel: bool = match sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM voice_states vs1
+             JOIN voice_states vs2 ON vs1.channel_id = vs2.channel_id
+             WHERE vs1.user_id = $1 AND vs2.user_id = $2
+         )",
+    )
+    .bind(user_id)
+    .bind(to_user_id)
+    .fetch_one(&state.pool)
+    .await
+    {
+        Ok(b) => b,
+        Err(_) => return,
+    };
+
+    if !same_channel {
+        return;
+    }
+
+    // Forward the signal with from_user_id substituted for to_user_id.
+    let relayed = serde_json::json!({
+        "from_user_id": user_id,
+        "type":         data["type"],
+        "sdp":          data["sdp"],
+        "candidate":    data["candidate"],
+    });
+
+    let event = GatewayMessage::dispatch(EVENT_VOICE_SIGNAL, relayed);
+    if let Ok(json) = serde_json::to_string(&event) {
+        state.connections.send_to_user(to_user_id, &json).await;
     }
 }
 

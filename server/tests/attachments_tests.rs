@@ -263,9 +263,13 @@ async fn upload_exceeding_attachment_cap_returns_400() {
     }
 
     // A message now has 10 attachments — one more should be rejected.
-    let (status, _) =
-        post_multipart_authed(app, &uri, &f.owner_token, &[txt_file("one_too_many.txt", b"x")])
-            .await;
+    let (status, _) = post_multipart_authed(
+        app,
+        &uri,
+        &f.owner_token,
+        &[txt_file("one_too_many.txt", b"x")],
+    )
+    .await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }

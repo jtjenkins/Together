@@ -41,6 +41,10 @@ pub enum GatewayOp {
     HeartbeatAck,
     /// Client → server: update own presence status.
     PresenceUpdate,
+    /// Client → server: relay a WebRTC SDP/ICE signal to another peer in the
+    /// same voice channel. The server verifies channel co-membership before
+    /// forwarding — signals to users in different channels are silently dropped.
+    VoiceSignal,
 }
 
 // ── Server-to-client event type strings ──────────────────────────────────────
@@ -50,3 +54,5 @@ pub const EVENT_MESSAGE_CREATE: &str = "MESSAGE_CREATE";
 pub const EVENT_MESSAGE_UPDATE: &str = "MESSAGE_UPDATE";
 pub const EVENT_MESSAGE_DELETE: &str = "MESSAGE_DELETE";
 pub const EVENT_PRESENCE_UPDATE: &str = "PRESENCE_UPDATE";
+pub const EVENT_VOICE_STATE_UPDATE: &str = "VOICE_STATE_UPDATE";
+pub const EVENT_VOICE_SIGNAL: &str = "VOICE_SIGNAL";
