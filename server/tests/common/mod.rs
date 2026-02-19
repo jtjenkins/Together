@@ -1,0 +1,127 @@
+// Each integration test file is a separate binary; helpers not used in every
+// binary would otherwise trigger dead_code warnings from clippy.
+#![allow(dead_code)]
+
+use axum::{
+    body::Body,
+    http::{header, Method, Request, StatusCode},
+    routing::{get, patch, post},
+    Router,
+};
+use http_body_util::BodyExt;
+use serde_json::Value;
+use sqlx::PgPool;
+use std::sync::Arc;
+use tower::ServiceExt;
+
+use together_server::{handlers, state::AppState};
+
+pub const TEST_JWT_SECRET: &str = "test-secret-min-32-characters-long!!";
+
+/// Connect to the test database specified by DATABASE_URL.
+///
+/// Each test that calls this gets its own pool. Tests use UUID-based usernames
+/// so they don't conflict with each other or with data from previous runs.
+pub async fn test_pool() -> PgPool {
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://together:together_dev_password@localhost:5432/together_dev".to_string()
+    });
+    PgPool::connect(&url)
+        .await
+        .expect("Failed to connect to test database — is DATABASE_URL set?")
+}
+
+/// Build the full application router wired to a test database pool.
+pub fn create_test_app(pool: PgPool) -> Router {
+    let state = AppState {
+        pool,
+        jwt_secret: Arc::from(TEST_JWT_SECRET),
+    };
+    Router::new()
+        .route("/health", get(handlers::health_check))
+        .route("/auth/register", post(handlers::auth::register))
+        .route("/auth/login", post(handlers::auth::login))
+        .route("/users/@me", get(handlers::users::get_current_user))
+        .route("/users/@me", patch(handlers::users::update_current_user))
+        .with_state(state)
+}
+
+/// Generate a username that is unique per test invocation.
+pub fn unique_username() -> String {
+    format!("u{}", &uuid::Uuid::new_v4().simple().to_string()[..12])
+}
+
+// ── Request helpers ──────────────────────────────────────────────────────────
+
+pub async fn post_json(app: Router, uri: &str, body: Value) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    send(app, req).await
+}
+
+pub async fn get_authed(app: Router, uri: &str, token: &str) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    send(app, req).await
+}
+
+pub async fn patch_json_authed(
+    app: Router,
+    uri: &str,
+    token: &str,
+    body: Value,
+) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::PATCH)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    send(app, req).await
+}
+
+pub async fn get_no_auth(app: Router, uri: &str) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .body(Body::empty())
+        .unwrap();
+    send(app, req).await
+}
+
+async fn send(app: Router, req: Request<Body>) -> (StatusCode, Value) {
+    let response = app.oneshot(req).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    (status, json)
+}
+
+// ── Scenario helpers ─────────────────────────────────────────────────────────
+
+/// Register a fresh user and return their (access_token, refresh_token, user body).
+pub async fn register_user(app: Router, username: &str, password: &str) -> Value {
+    let (status, body) = post_json(
+        app,
+        "/auth/register",
+        serde_json::json!({ "username": username, "password": password }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "setup register failed: {body}");
+    body
+}
+
+/// Register a user and return just their access token.
+pub async fn register_and_get_token(app: Router, username: &str, password: &str) -> String {
+    let body = register_user(app, username, password).await;
+    body["access_token"].as_str().unwrap().to_owned()
+}

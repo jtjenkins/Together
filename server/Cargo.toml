@@ -6,6 +6,10 @@ authors = ["Together Contributors"]
 license = "AGPL-3.0"
 description = "Backend server for Together - a private Discord alternative"
 
+[lib]
+name = "together_server"
+path = "src/lib.rs"
+
 [dependencies]
 # Web framework
 axum = { version = "0.7", features = ["ws", "macros"] }
@@ -32,25 +36,29 @@ futures = "0.3"
 # Utilities
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-dotenv = "0.15"
+dotenvy = "0.15"
 thiserror = "1"
 
 # Logging and tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Phase 2+ dependencies (add as needed):
-# jsonwebtoken = "9"           # JWT auth (Phase 2)
-# bcrypt = "0.15"              # Password hashing (Phase 2)
+# Phase 2: Authentication and API
+jsonwebtoken = "9"           # JWT auth
+bcrypt = "0.15"              # Password hashing
+sha2 = "0.10"                # SHA-256 for refresh token hashing (deterministic)
+validator = { version = "0.16", features = ["derive"] }  # Input validation
+axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers for auth
+
+# Phase 3+ dependencies (add as needed):
 # tokio-tungstenite = "0.21"   # WebSocket (Phase 3)
 # governor = "0.6"             # Rate limiting (Phase 2-3)
-# validator = { version = "0.16", features = ["derive"] }  # Input validation (Phase 2)
 # webrtc = "0.9"               # Voice/video (Phase 4) - VERY HEAVY
 
 [dev-dependencies]
-# Testing
 tokio-test = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
+http-body-util = "0.1"   # BodyExt::collect() for reading response bodies in tests
 
 [[bin]]
 name = "together-server"
