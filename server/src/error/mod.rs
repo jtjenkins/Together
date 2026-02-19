@@ -59,7 +59,10 @@ impl IntoResponse for AppError {
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
             AppError::Internal => {
                 tracing::error!("Internal server error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".into(),
+                )
             }
         };
 
@@ -108,13 +111,19 @@ mod tests {
     #[tokio::test]
     async fn internal_error_returns_500() {
         let response = AppError::Internal.into_response();
-        assert_eq!(response.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            response.status(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
     }
 
     #[tokio::test]
     async fn database_row_not_found_returns_500() {
         let response = AppError::Database(sqlx::Error::RowNotFound).into_response();
-        assert_eq!(response.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            response.status(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
     }
 
     #[tokio::test]

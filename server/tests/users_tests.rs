@@ -17,7 +17,10 @@ async fn get_current_user_success() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["username"], username.as_str());
     assert!(body["id"].is_string(), "response should contain 'id' field");
-    assert!(body["status"].is_string(), "response should contain 'status' field");
+    assert!(
+        body["status"].is_string(),
+        "response should contain 'status' field"
+    );
     assert!(
         body.get("password_hash").is_none(),
         "response must NOT expose password_hash"
@@ -117,13 +120,8 @@ async fn update_user_status_valid() {
     let username = common::unique_username();
 
     let token = common::register_and_get_token(app.clone(), &username, "password123").await;
-    let (status, body) = common::patch_json_authed(
-        app,
-        "/users/@me",
-        &token,
-        json!({ "status": "away" }),
-    )
-    .await;
+    let (status, body) =
+        common::patch_json_authed(app, "/users/@me", &token, json!({ "status": "away" })).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "away");
@@ -138,13 +136,9 @@ async fn update_user_status_invalid() {
     let username = common::unique_username();
 
     let token = common::register_and_get_token(app.clone(), &username, "password123").await;
-    let (status, body) = common::patch_json_authed(
-        app,
-        "/users/@me",
-        &token,
-        json!({ "status": "invisible" }),
-    )
-    .await;
+    let (status, body) =
+        common::patch_json_authed(app, "/users/@me", &token, json!({ "status": "invisible" }))
+            .await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
@@ -204,13 +198,8 @@ async fn update_user_partial_fields() {
     let initial_username = initial_body["username"].clone();
 
     // PATCH with only status — avatar_url and custom_status should be unchanged
-    let (status, body) = common::patch_json_authed(
-        app,
-        "/users/@me",
-        &token,
-        json!({ "status": "dnd" }),
-    )
-    .await;
+    let (status, body) =
+        common::patch_json_authed(app, "/users/@me", &token, json!({ "status": "dnd" })).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "dnd", "status should be updated to 'dnd'");

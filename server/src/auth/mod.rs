@@ -41,7 +41,12 @@ pub struct Claims {
 }
 
 impl Claims {
-    fn new(user_id: Uuid, username: String, expiration_minutes: i64, token_type: TokenType) -> Self {
+    fn new(
+        user_id: Uuid,
+        username: String,
+        expiration_minutes: i64,
+        token_type: TokenType,
+    ) -> Self {
         let now = Utc::now();
         let exp = now + Duration::minutes(expiration_minutes);
 
@@ -162,10 +167,7 @@ impl AuthUser {
 type AuthRejection = (StatusCode, Json<serde_json::Value>);
 
 fn auth_error(message: &str) -> AuthRejection {
-    (
-        StatusCode::UNAUTHORIZED,
-        Json(json!({ "error": message })),
-    )
+    (StatusCode::UNAUTHORIZED, Json(json!({ "error": message })))
 }
 
 #[async_trait]
@@ -315,7 +317,10 @@ mod tests {
             .expect("create_access_token should succeed");
 
         let result = validate_token(&token, "completely-different-secret-value!!");
-        assert!(result.is_err(), "validate_token must reject a token signed with a different secret");
+        assert!(
+            result.is_err(),
+            "validate_token must reject a token signed with a different secret"
+        );
     }
 
     // ------------------------------------------------------------------------
@@ -325,13 +330,19 @@ mod tests {
     #[test]
     fn validate_token_rejects_malformed_string() {
         let result = validate_token("this.is.not.a.valid.jwt", TEST_SECRET);
-        assert!(result.is_err(), "validate_token must reject a malformed token string");
+        assert!(
+            result.is_err(),
+            "validate_token must reject a malformed token string"
+        );
     }
 
     #[test]
     fn validate_token_rejects_empty_string() {
         let result = validate_token("", TEST_SECRET);
-        assert!(result.is_err(), "validate_token must reject an empty string");
+        assert!(
+            result.is_err(),
+            "validate_token must reject an empty string"
+        );
     }
 
     // ------------------------------------------------------------------------
@@ -355,7 +366,10 @@ mod tests {
 
         let is_valid = verify_password("wrong-password", &hash)
             .expect("verify_password should not error on a valid hash");
-        assert!(!is_valid, "Wrong password must not verify against a different password's hash");
+        assert!(
+            !is_valid,
+            "Wrong password must not verify against a different password's hash"
+        );
     }
 
     // ------------------------------------------------------------------------
@@ -368,11 +382,15 @@ mod tests {
         let token = create_access_token(expected_id, "eve".to_string(), TEST_SECRET)
             .expect("create_access_token should succeed");
 
-        let claims = validate_token(&token, TEST_SECRET)
-            .expect("validate_token should succeed");
+        let claims = validate_token(&token, TEST_SECRET).expect("validate_token should succeed");
 
-        let parsed_id = claims.user_id().expect("user_id() should parse the UUID without error");
-        assert_eq!(parsed_id, expected_id, "Parsed UUID must match the original user ID");
+        let parsed_id = claims
+            .user_id()
+            .expect("user_id() should parse the UUID without error");
+        assert_eq!(
+            parsed_id, expected_id,
+            "Parsed UUID must match the original user ID"
+        );
     }
 
     #[test]
@@ -387,6 +405,9 @@ mod tests {
         };
 
         let result = claims.user_id();
-        assert!(result.is_err(), "user_id() must return an error when sub is not a valid UUID");
+        assert!(
+            result.is_err(),
+            "user_id() must return an error when sub is not a valid UUID"
+        );
     }
 }

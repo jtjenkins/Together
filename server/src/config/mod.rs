@@ -49,7 +49,9 @@ impl Config {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .unwrap_or(8080),
-            is_dev: env::var("APP_ENV").map(|v| v != "production").unwrap_or(true),
+            is_dev: env::var("APP_ENV")
+                .map(|v| v != "production")
+                .unwrap_or(true),
         })
     }
 

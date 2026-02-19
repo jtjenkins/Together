@@ -55,7 +55,10 @@ async fn register_duplicate_username() {
     .await;
 
     assert_eq!(status, StatusCode::CONFLICT);
-    assert!(body["error"].is_string(), "expected 'error' key in body: {body}");
+    assert!(
+        body["error"].is_string(),
+        "expected 'error' key in body: {body}"
+    );
 }
 
 // ============================================================================
@@ -184,8 +187,14 @@ async fn login_success() {
     .await;
 
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert!(body["access_token"].is_string(), "missing access_token: {body}");
-    assert!(body["refresh_token"].is_string(), "missing refresh_token: {body}");
+    assert!(
+        body["access_token"].is_string(),
+        "missing access_token: {body}"
+    );
+    assert!(
+        body["refresh_token"].is_string(),
+        "missing refresh_token: {body}"
+    );
     assert!(body["user"].is_object(), "missing user: {body}");
     assert_eq!(body["user"]["username"], username.as_str());
 }
@@ -219,7 +228,10 @@ async fn login_wrong_password() {
     .await;
 
     assert_eq!(status, StatusCode::UNAUTHORIZED, "body: {body}");
-    assert!(body["error"].is_string(), "expected 'error' key in body: {body}");
+    assert!(
+        body["error"].is_string(),
+        "expected 'error' key in body: {body}"
+    );
 }
 
 // ============================================================================
@@ -239,7 +251,10 @@ async fn login_unknown_user() {
     .await;
 
     assert_eq!(status, StatusCode::UNAUTHORIZED, "body: {body}");
-    assert!(body["error"].is_string(), "expected 'error' key in body: {body}");
+    assert!(
+        body["error"].is_string(),
+        "expected 'error' key in body: {body}"
+    );
 }
 
 // ============================================================================
@@ -336,7 +351,11 @@ async fn register_returns_different_tokens_each_call() {
         json!({ "username": username_a, "password": "securepassword123" }),
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED, "first register failed: {body_a}");
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "first register failed: {body_a}"
+    );
 
     // Register the second user.
     let app = common::create_test_app(pool);
@@ -346,7 +365,11 @@ async fn register_returns_different_tokens_each_call() {
         json!({ "username": username_b, "password": "securepassword123" }),
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED, "second register failed: {body_b}");
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "second register failed: {body_b}"
+    );
 
     let token_a = body_a["access_token"].as_str().unwrap();
     let token_b = body_b["access_token"].as_str().unwrap();

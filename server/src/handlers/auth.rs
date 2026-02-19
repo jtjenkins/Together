@@ -4,7 +4,10 @@ use tracing::info;
 use validator::Validate;
 
 use crate::{
-    auth::{create_access_token, create_refresh_token, hash_password, hash_refresh_token, verify_password},
+    auth::{
+        create_access_token, create_refresh_token, hash_password, hash_refresh_token,
+        verify_password,
+    },
     error::{AppError, AppResult},
     models::{User, UserDto},
     state::AppState,
