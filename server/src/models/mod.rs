@@ -154,6 +154,15 @@ pub struct CreateChannelDto {
     pub name: String,
     pub r#type: String,
     pub topic: Option<String>,
+    pub category: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateChannelDto {
+    pub name: Option<String>,
+    pub topic: Option<String>,
+    pub category: Option<String>,
+    pub position: Option<i32>,
 }
 
 // ============================================================================
