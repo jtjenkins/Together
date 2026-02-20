@@ -146,7 +146,7 @@ export interface UpdateVoiceStateRequest {
 
 export interface VoiceStateUpdateEvent {
   user_id: string;
-  username: string | null;
+  username: string;
   channel_id: string | null;
   self_mute: boolean;
   self_deaf: boolean;
@@ -155,27 +155,33 @@ export interface VoiceStateUpdateEvent {
   joined_at: string | null;
 }
 
-export interface VoiceSignalData {
+type VoiceSignalBase = {
   to_user_id?: string;
   from_user_id?: string;
-  type: "offer" | "answer" | "candidate";
-  sdp?: string;
-  candidate?: string;
-}
+};
+
+// Discriminated union so callers must provide sdp for offer/answer
+// and candidate for ICE candidates — never mix them up.
+export type VoiceSignalData =
+  | (VoiceSignalBase & { type: "offer"; sdp: string })
+  | (VoiceSignalBase & { type: "answer"; sdp: string })
+  | (VoiceSignalBase & { type: "candidate"; candidate: string });
 
 // ─── Attachment Types ─────────────────────────────────────────
 
-export interface Attachment {
+type AttachmentBase = {
   id: string;
   message_id: string;
   filename: string;
   file_size: number;
   mime_type: string;
   url: string;
-  width: number | null;
-  height: number | null;
   created_at: string;
-}
+};
+
+// width and height are always both present or both absent — never mixed.
+export type Attachment = AttachmentBase &
+  ({ width: number; height: number } | { width: null; height: null });
 
 // ─── WebSocket Types ─────────────────────────────────────────
 

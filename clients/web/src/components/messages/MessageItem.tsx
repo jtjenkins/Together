@@ -155,7 +155,7 @@ export function MessageItem({
                           alt={att.filename}
                           className={styles.attachmentImage}
                           style={
-                            att.width && att.height
+                            att.width !== null
                               ? {
                                   aspectRatio: `${att.width} / ${att.height}`,
                                 }

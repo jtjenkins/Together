@@ -11,14 +11,8 @@ interface VoiceStore {
 
   join: (channelId: string) => Promise<VoiceParticipant>;
   leave: () => Promise<void>;
-  toggleMute: (
-    channelId: string,
-    currentMuted: boolean,
-  ) => Promise<VoiceParticipant>;
-  toggleDeafen: (
-    channelId: string,
-    currentDeafened: boolean,
-  ) => Promise<VoiceParticipant>;
+  toggleMute: () => Promise<void>;
+  toggleDeafen: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -51,18 +45,23 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
   leave: async () => {
     const { connectedChannelId: channelId } = useVoiceStore.getState();
     if (!channelId) return;
-    // Clear local state immediately for snappy UI, ignore API errors
+    // Clear local state immediately for snappy UI
     set({ connectedChannelId: null, isMuted: false, isDeafened: false });
-    await api.leaveVoiceChannel(channelId).catch(() => {
-      // Ignore — the server will clean up via WebSocket disconnect
-    });
+    try {
+      await api.leaveVoiceChannel(channelId);
+    } catch (err) {
+      console.error("[VoiceStore] leave: failed to notify server", err);
+    }
   },
 
-  toggleMute: async (channelId, currentMuted) => {
+  toggleMute: async () => {
+    const { connectedChannelId: channelId, isMuted: currentMuted } =
+      useVoiceStore.getState();
+    if (!channelId) return;
     const newMuted = !currentMuted;
     set({ isMuted: newMuted });
     try {
-      return await api.updateVoiceState(channelId, {
+      await api.updateVoiceState(channelId, {
         self_mute: newMuted,
       } satisfies UpdateVoiceStateRequest);
     } catch (err) {
@@ -71,11 +70,14 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
     }
   },
 
-  toggleDeafen: async (channelId, currentDeafened) => {
+  toggleDeafen: async () => {
+    const { connectedChannelId: channelId, isDeafened: currentDeafened } =
+      useVoiceStore.getState();
+    if (!channelId) return;
     const newDeafened = !currentDeafened;
     set({ isDeafened: newDeafened });
     try {
-      return await api.updateVoiceState(channelId, {
+      await api.updateVoiceState(channelId, {
         self_deaf: newDeafened,
       } satisfies UpdateVoiceStateRequest);
     } catch (err) {

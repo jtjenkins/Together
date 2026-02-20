@@ -26,6 +26,32 @@
   color: var(--text-primary);
 }
 
+/* ── Error Banner ───────────────────────── */
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--accent-red) 40%, transparent);
+  font-size: 13px;
+  color: var(--accent-red);
+}
+
+.errorDismiss {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--accent-red);
+  opacity: 0.7;
+}
+
+.errorDismiss:hover {
+  opacity: 1;
+}
+
 .body {
   flex: 1;
   display: flex;

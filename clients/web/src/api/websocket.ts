@@ -113,11 +113,17 @@ export class WebSocketClient {
     };
 
     this.ws.onmessage = (event) => {
+      let msg: GatewayMessage;
       try {
-        const msg: GatewayMessage = JSON.parse(event.data);
-        this.handleMessage(msg);
+        msg = JSON.parse(event.data) as GatewayMessage;
       } catch {
-        // Ignore malformed messages
+        console.warn("[Gateway] Received malformed message, ignoring");
+        return;
+      }
+      try {
+        this.handleMessage(msg);
+      } catch (err) {
+        console.error("[Gateway] Error dispatching message", err);
       }
     };
 
@@ -128,8 +134,9 @@ export class WebSocketClient {
       this.scheduleReconnect();
     };
 
-    this.ws.onerror = () => {
-      // onclose will fire after onerror
+    this.ws.onerror = (event) => {
+      console.error("[Gateway] WebSocket error", event);
+      // onclose fires after onerror — reconnect is handled there
     };
   }
 
@@ -168,6 +175,11 @@ export class WebSocketClient {
 
   private scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts || !this.token) {
+      if (this.token) {
+        console.error(
+          `[Gateway] Connection lost — gave up after ${this.maxReconnectAttempts} reconnect attempts`,
+        );
+      }
       return;
     }
 

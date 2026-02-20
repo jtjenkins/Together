@@ -53,7 +53,7 @@ export const useMessageStore = create<MessageState>((set) => ({
           isLoading: false,
         };
       });
-      // Batch-fetch attachments for loaded messages (fire-and-forget)
+      // Batch-fetch attachments for all loaded messages in parallel
       const results = await Promise.allSettled(
         fetched.map((m) => api.listAttachments(m.id)),
       );
@@ -62,6 +62,12 @@ export const useMessageStore = create<MessageState>((set) => ({
         results.forEach((r, i) => {
           if (r.status === "fulfilled" && r.value.length > 0) {
             updates[fetched[i].id] = r.value;
+          } else if (r.status === "rejected") {
+            console.warn(
+              "[MessageStore] Failed to load attachments for",
+              fetched[i].id,
+              r.reason,
+            );
           }
         });
         return {
@@ -78,11 +84,20 @@ export const useMessageStore = create<MessageState>((set) => ({
   },
 
   sendMessage: async (channelId, data, files) => {
+    let msg: Message;
     try {
-      const msg = await api.createMessage(channelId, data);
+      msg = await api.createMessage(channelId, data);
       set({ replyingTo: null });
-      // Message will also arrive via WebSocket, but upload attachments now
-      if (files && files.length > 0) {
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError ? err.message : "Failed to send message";
+      set({ error: message });
+      throw err;
+    }
+
+    // Message delivery succeeded — upload attachments separately
+    if (files && files.length > 0) {
+      try {
         const attachments = await api.uploadAttachments(msg.id, files);
         set((state) => ({
           attachmentCache: {
@@ -90,12 +105,14 @@ export const useMessageStore = create<MessageState>((set) => ({
             [msg.id]: attachments,
           },
         }));
+      } catch (err) {
+        const message =
+          err instanceof ApiRequestError
+            ? err.message
+            : "Message sent but file upload failed";
+        set({ error: message });
+        // Do not re-throw — the message itself was delivered successfully
       }
-    } catch (err) {
-      const message =
-        err instanceof ApiRequestError ? err.message : "Failed to send message";
-      set({ error: message });
-      throw err;
     }
   },
 

@@ -9,6 +9,8 @@ vi.mock("../api/client", () => ({
     createMessage: vi.fn(),
     updateMessage: vi.fn(),
     deleteMessage: vi.fn(),
+    listAttachments: vi.fn().mockResolvedValue([]),
+    uploadAttachments: vi.fn().mockResolvedValue([]),
   },
   ApiRequestError: class extends Error {
     status: number;
@@ -31,6 +33,18 @@ const mockMsg = (overrides: Partial<Message> = {}): Message => ({
   ...overrides,
 });
 
+const mockAttachment = () => ({
+  id: "att-1",
+  message_id: "msg-1",
+  filename: "image.png",
+  file_size: 1024,
+  mime_type: "image/png",
+  url: "/files/image.png",
+  width: 800 as const,
+  height: 600 as const,
+  created_at: "2024-01-01T00:00:00Z",
+});
+
 beforeEach(() => {
   useMessageStore.setState({
     messages: [],
@@ -38,8 +52,11 @@ beforeEach(() => {
     hasMore: true,
     error: null,
     replyingTo: null,
+    attachmentCache: {},
   });
   vi.clearAllMocks();
+  vi.mocked(api.listAttachments).mockResolvedValue([]);
+  vi.mocked(api.uploadAttachments).mockResolvedValue([]);
 });
 
 describe("messageStore", () => {
@@ -193,6 +210,78 @@ describe("messageStore", () => {
         content: "Edited",
       });
       expect(useMessageStore.getState().messages[0].content).toBe("Edited");
+    });
+  });
+
+  describe("attachments", () => {
+    it("should populate attachmentCache when fetching messages with attachments", async () => {
+      const messages = [mockMsg({ id: "msg-1" })];
+      const attachment = mockAttachment();
+      vi.mocked(api.listMessages).mockResolvedValueOnce(messages);
+      vi.mocked(api.listAttachments).mockResolvedValueOnce([attachment]);
+
+      await useMessageStore.getState().fetchMessages("ch-1");
+
+      expect(api.listAttachments).toHaveBeenCalledWith("msg-1");
+      expect(useMessageStore.getState().attachmentCache["msg-1"]).toEqual([
+        attachment,
+      ]);
+    });
+
+    it("should not add empty attachment arrays to cache", async () => {
+      const messages = [mockMsg({ id: "msg-1" })];
+      vi.mocked(api.listMessages).mockResolvedValueOnce(messages);
+      vi.mocked(api.listAttachments).mockResolvedValueOnce([]);
+
+      await useMessageStore.getState().fetchMessages("ch-1");
+
+      expect(
+        useMessageStore.getState().attachmentCache["msg-1"],
+      ).toBeUndefined();
+    });
+
+    it("should upload attachments and cache them when sending with files", async () => {
+      const msg = mockMsg({ id: "msg-1" });
+      const attachment = mockAttachment();
+      vi.mocked(api.createMessage).mockResolvedValueOnce(msg);
+      vi.mocked(api.uploadAttachments).mockResolvedValueOnce([attachment]);
+
+      const file = new File(["data"], "image.png", { type: "image/png" });
+      await useMessageStore
+        .getState()
+        .sendMessage("ch-1", { content: "Hi" }, [file]);
+
+      expect(api.uploadAttachments).toHaveBeenCalledWith("msg-1", [file]);
+      expect(useMessageStore.getState().attachmentCache["msg-1"]).toEqual([
+        attachment,
+      ]);
+    });
+
+    it("should set error but not throw when upload fails after message is sent", async () => {
+      const msg = mockMsg({ id: "msg-1" });
+      vi.mocked(api.createMessage).mockResolvedValueOnce(msg);
+      vi.mocked(api.uploadAttachments).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      const file = new File(["data"], "image.png", { type: "image/png" });
+      await expect(
+        useMessageStore
+          .getState()
+          .sendMessage("ch-1", { content: "Hi" }, [file]),
+      ).resolves.toBeUndefined();
+
+      expect(useMessageStore.getState().error).toBeTruthy();
+    });
+
+    it("should clear attachmentCache on clearMessages", () => {
+      useMessageStore.setState({
+        attachmentCache: { "msg-1": [mockAttachment()] },
+      });
+
+      useMessageStore.getState().clearMessages();
+
+      expect(useMessageStore.getState().attachmentCache).toEqual({});
     });
   });
 });

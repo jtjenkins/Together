@@ -19,13 +19,17 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
   const isMuted = useVoiceStore((s) => s.isMuted);
   const isDeafened = useVoiceStore((s) => s.isDeafened);
   const isConnecting = useVoiceStore((s) => s.isConnecting);
+  const voiceError = useVoiceStore((s) => s.error);
+  const clearVoiceError = useVoiceStore((s) => s.clearError);
   const join = useVoiceStore((s) => s.join);
   const leave = useVoiceStore((s) => s.leave);
   const toggleMute = useVoiceStore((s) => s.toggleMute);
   const toggleDeafen = useVoiceStore((s) => s.toggleDeafen);
 
   const [participants, setParticipants] = useState<VoiceParticipant[]>([]);
-  const [isInitiator, setIsInitiator] = useState(false);
+  // Peer IDs to send WebRTC offers to — captured once at join time
+  const [initialPeers, setInitialPeers] = useState<string[]>([]);
+  const [rtcError, setRtcError] = useState<string | null>(null);
 
   const channel = channels.find((c) => c.id === channelId);
   const isConnected = connectedChannelId === channelId;
@@ -34,8 +38,8 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
     try {
       const list = await api.listVoiceParticipants(channelId);
       setParticipants(list);
-    } catch {
-      // Ignore fetch errors — show stale list
+    } catch (err) {
+      console.warn("[VoiceChannel] Failed to fetch participants", err);
     }
   }, [channelId]);
 
@@ -50,11 +54,43 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
       "VOICE_STATE_UPDATE",
       (event: VoiceStateUpdateEvent) => {
         if (event.channel_id === channelId) {
-          // Someone joined or updated state in our channel — refresh
-          fetchParticipants();
+          // User joined or changed state in our channel
+          setParticipants((prev) => {
+            const exists = prev.some((p) => p.user_id === event.user_id);
+            if (exists) {
+              // Update mute/deaf state from the event — no REST needed
+              return prev.map((p) =>
+                p.user_id === event.user_id
+                  ? {
+                      ...p,
+                      self_mute: event.self_mute,
+                      self_deaf: event.self_deaf,
+                      server_mute: event.server_mute,
+                      server_deaf: event.server_deaf,
+                    }
+                  : p,
+              );
+            }
+            // New participant — add from event data
+            return [
+              ...prev,
+              {
+                user_id: event.user_id,
+                username: event.username,
+                channel_id: event.channel_id,
+                avatar_url: null,
+                status: "online" as const,
+                nickname: null,
+                joined_at: event.joined_at ?? new Date().toISOString(),
+                self_mute: event.self_mute,
+                self_deaf: event.self_deaf,
+                server_mute: event.server_mute,
+                server_deaf: event.server_deaf,
+              },
+            ];
+          });
         } else {
-          // Someone left (channel_id null) or moved to another channel —
-          // remove them from our local list if they were here
+          // User left or moved to another channel — remove from our list
           setParticipants((prev) =>
             prev.filter((p) => p.user_id !== event.user_id),
           );
@@ -62,44 +98,60 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
       },
     );
     return unsub;
-  }, [channelId, fetchParticipants]);
+  }, [channelId]);
 
   const handleJoin = async () => {
+    clearVoiceError();
+    setRtcError(null);
     try {
       await join(channelId);
-      setIsInitiator(true);
-      // Refresh list after join so we see ourselves
-      await fetchParticipants();
+      const list = await api.listVoiceParticipants(channelId);
+      setParticipants(list);
+      // Capture the peers present at join time — we send offers to them
+      setInitialPeers(
+        list.filter((p) => p.user_id !== user?.id).map((p) => p.user_id),
+      );
     } catch {
-      // Error displayed via store
+      // Error displayed via voiceError from store
     }
   };
 
   const handleLeave = async () => {
     await leave();
-    setIsInitiator(false);
+    setInitialPeers([]);
     await fetchParticipants();
   };
 
   const handleToggleMute = async () => {
     if (!isConnected) return;
-    await toggleMute(channelId, isMuted);
+    try {
+      await toggleMute();
+    } catch (err) {
+      console.error("[VoiceChannel] toggleMute failed", err);
+    }
   };
 
   const handleToggleDeafen = async () => {
     if (!isConnected) return;
-    await toggleDeafen(channelId, isDeafened);
+    try {
+      await toggleDeafen();
+    } catch (err) {
+      console.error("[VoiceChannel] toggleDeafen failed", err);
+    }
   };
 
-  // WebRTC audio — works on localhost and HTTPS; silently degrades otherwise
+  // WebRTC audio — works on localhost and HTTPS; degrades gracefully otherwise
   useWebRTC({
     enabled: isConnected,
     myUserId: user?.id ?? "",
     participants,
-    isInitiator,
+    initialPeers,
     isMuted,
     isDeafened,
+    onError: setRtcError,
   });
+
+  const activeError = voiceError ?? rtcError;
 
   return (
     <div className={styles.voiceChannel}>
@@ -107,6 +159,21 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
         <span className={styles.headerIcon}>🔊</span>
         <h2 className={styles.channelName}>{channel?.name ?? "Voice"}</h2>
       </div>
+
+      {activeError && (
+        <div className={styles.errorBanner}>
+          {activeError}
+          <button
+            className={styles.errorDismiss}
+            onClick={() => {
+              clearVoiceError();
+              setRtcError(null);
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className={styles.body}>
         <section className={styles.participantsSection}>

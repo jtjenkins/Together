@@ -35,11 +35,12 @@ class ApiClient {
 
   private async request<T>(
     path: string,
-    options: RequestInit = {},
+    options: RequestInit & { skipContentType?: boolean } = {},
   ): Promise<T> {
+    const { skipContentType, ...fetchOptions } = options;
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...(options.headers as Record<string, string>),
+      ...(skipContentType ? {} : { "Content-Type": "application/json" }),
+      ...(fetchOptions.headers as Record<string, string>),
     };
 
     if (this.accessToken) {
@@ -47,7 +48,7 @@ class ApiClient {
     }
 
     const res = await fetch(`${API_BASE}${path}`, {
-      ...options,
+      ...fetchOptions,
       headers,
     });
 
@@ -235,22 +236,10 @@ class ApiClient {
   uploadAttachments(messageId: string, files: File[]): Promise<Attachment[]> {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
-
-    const headers: Record<string, string> = {};
-    if (this.accessToken) {
-      headers["Authorization"] = `Bearer ${this.accessToken}`;
-    }
-
-    return fetch(`${API_BASE}/messages/${messageId}/attachments`, {
+    return this.request(`/messages/${messageId}/attachments`, {
       method: "POST",
-      headers,
       body: formData,
-    }).then(async (res) => {
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new ApiRequestError(res.status, body.error || "Upload failed");
-      }
-      return res.json();
+      skipContentType: true,
     });
   }
 
