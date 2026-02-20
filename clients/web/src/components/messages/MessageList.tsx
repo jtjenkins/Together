@@ -1,7 +1,7 @@
-import { MessageItem } from './MessageItem';
-import { useServerStore } from '../../stores/serverStore';
-import type { Message } from '../../types';
-import styles from './MessageList.module.css';
+import { MessageItem } from "./MessageItem";
+import { useServerStore } from "../../stores/serverStore";
+import type { Message } from "../../types";
+import styles from "./MessageList.module.css";
 
 interface MessageListProps {
   messages: Message[];
@@ -12,9 +12,9 @@ export function MessageList({ messages, channelId }: MessageListProps) {
   const members = useServerStore((s) => s.members);
 
   const getAuthorName = (authorId: string | null): string => {
-    if (!authorId) return 'Deleted User';
+    if (!authorId) return "Deleted User";
     const member = members.find((m) => m.user_id === authorId);
-    return member?.nickname || member?.username || 'Unknown User';
+    return member?.nickname || member?.username || "Unknown User";
   };
 
   const getAvatarUrl = (authorId: string | null): string | null => {
@@ -35,7 +35,8 @@ export function MessageList({ messages, channelId }: MessageListProps) {
     const showHeader =
       !prev ||
       prev.author_id !== msg.author_id ||
-      new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() > 5 * 60 * 1000 ||
+      new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() >
+        5 * 60 * 1000 ||
       msg.reply_to !== null;
 
     groupedMessages.push({ message: msg, showHeader });
@@ -63,7 +64,8 @@ export function MessageList({ messages, channelId }: MessageListProps) {
           replyAuthorName={
             message.reply_to
               ? getAuthorName(
-                  messages.find((m) => m.id === message.reply_to)?.author_id ?? null,
+                  messages.find((m) => m.id === message.reply_to)?.author_id ??
+                    null,
                 )
               : undefined
           }

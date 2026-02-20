@@ -5,7 +5,9 @@ import type {
   Message,
   PresenceUpdateEvent,
   MessageDeleteEvent,
-} from '../types';
+  VoiceStateUpdateEvent,
+  VoiceSignalData,
+} from "../types";
 
 type EventHandler<T = unknown> = (data: T) => void;
 
@@ -15,13 +17,17 @@ interface EventHandlers {
   MESSAGE_UPDATE: EventHandler<Message>;
   MESSAGE_DELETE: EventHandler<MessageDeleteEvent>;
   PRESENCE_UPDATE: EventHandler<PresenceUpdateEvent>;
+  VOICE_STATE_UPDATE: EventHandler<VoiceStateUpdateEvent>;
+  VOICE_SIGNAL: EventHandler<VoiceSignalData>;
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
 }
 
 type EventName = keyof EventHandlers;
 
-const WS_BASE = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`;
+const WS_BASE =
+  import.meta.env.VITE_WS_URL ||
+  `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`;
 
 const HEARTBEAT_INTERVAL = 30000;
 
@@ -49,7 +55,10 @@ export class WebSocketClient {
     };
   }
 
-  private emit<K extends EventName>(event: K, data?: Parameters<EventHandlers[K]>[0]) {
+  private emit<K extends EventName>(
+    event: K,
+    data?: Parameters<EventHandlers[K]>[0],
+  ) {
     this.handlers[event]?.forEach((handler) => {
       (handler as EventHandler)(data);
     });
@@ -69,9 +78,22 @@ export class WebSocketClient {
 
   sendPresenceUpdate(status: string, customStatus: string | null = null) {
     this.send({
-      op: 'PRESENCE_UPDATE' as GatewayOp,
+      op: "PRESENCE_UPDATE" as GatewayOp,
       t: null,
       d: { status, custom_status: customStatus },
+    });
+  }
+
+  sendVoiceSignal(
+    toUserId: string,
+    type: "offer" | "answer" | "candidate",
+    sdp?: string,
+    candidate?: string,
+  ) {
+    this.send({
+      op: "VOICE_SIGNAL" as GatewayOp,
+      t: null,
+      d: { to_user_id: toUserId, type, sdp, candidate },
     });
   }
 
@@ -87,38 +109,45 @@ export class WebSocketClient {
       this._isConnected = true;
       this.reconnectAttempts = 0;
       this.startHeartbeat();
-      this.emit('connected');
+      this.emit("connected");
     };
 
     this.ws.onmessage = (event) => {
+      let msg: GatewayMessage;
       try {
-        const msg: GatewayMessage = JSON.parse(event.data);
-        this.handleMessage(msg);
+        msg = JSON.parse(event.data) as GatewayMessage;
       } catch {
-        // Ignore malformed messages
+        console.warn("[Gateway] Received malformed message, ignoring");
+        return;
+      }
+      try {
+        this.handleMessage(msg);
+      } catch (err) {
+        console.error("[Gateway] Error dispatching message", err);
       }
     };
 
     this.ws.onclose = () => {
       this._isConnected = false;
       this.stopHeartbeat();
-      this.emit('disconnected');
+      this.emit("disconnected");
       this.scheduleReconnect();
     };
 
-    this.ws.onerror = () => {
-      // onclose will fire after onerror
+    this.ws.onerror = (event) => {
+      console.error("[Gateway] WebSocket error", event);
+      // onclose fires after onerror — reconnect is handled there
     };
   }
 
   private handleMessage(msg: GatewayMessage) {
     switch (msg.op) {
-      case 'DISPATCH':
+      case "DISPATCH":
         if (msg.t && msg.d) {
           this.emit(msg.t as EventName, msg.d as never);
         }
         break;
-      case 'HEARTBEAT_ACK':
+      case "HEARTBEAT_ACK":
         // Server acknowledged our heartbeat
         break;
     }
@@ -133,7 +162,7 @@ export class WebSocketClient {
   private startHeartbeat() {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      this.send({ op: 'HEARTBEAT' as GatewayOp, t: null, d: null });
+      this.send({ op: "HEARTBEAT" as GatewayOp, t: null, d: null });
     }, HEARTBEAT_INTERVAL);
   }
 
@@ -146,6 +175,11 @@ export class WebSocketClient {
 
   private scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts || !this.token) {
+      if (this.token) {
+        console.error(
+          `[Gateway] Connection lost — gave up after ${this.maxReconnectAttempts} reconnect attempts`,
+        );
+      }
       return;
     }
 
@@ -168,7 +202,10 @@ export class WebSocketClient {
       this.ws.onmessage = null;
       this.ws.onclose = null;
       this.ws.onerror = null;
-      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+      if (
+        this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING
+      ) {
         this.ws.close();
       }
       this.ws = null;

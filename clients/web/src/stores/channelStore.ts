@@ -1,6 +1,10 @@
-import { create } from 'zustand';
-import type { Channel, CreateChannelRequest, UpdateChannelRequest } from '../types';
-import { api, ApiRequestError } from '../api/client';
+import { create } from "zustand";
+import type {
+  Channel,
+  CreateChannelRequest,
+  UpdateChannelRequest,
+} from "../types";
+import { api, ApiRequestError } from "../api/client";
 
 interface ChannelState {
   channels: Channel[];
@@ -10,8 +14,15 @@ interface ChannelState {
 
   setActiveChannel: (id: string | null) => void;
   fetchChannels: (serverId: string) => Promise<void>;
-  createChannel: (serverId: string, data: CreateChannelRequest) => Promise<Channel>;
-  updateChannel: (serverId: string, channelId: string, data: UpdateChannelRequest) => Promise<void>;
+  createChannel: (
+    serverId: string,
+    data: CreateChannelRequest,
+  ) => Promise<Channel>;
+  updateChannel: (
+    serverId: string,
+    channelId: string,
+    data: UpdateChannelRequest,
+  ) => Promise<void>;
   deleteChannel: (serverId: string, channelId: string) => Promise<void>;
   clearChannels: () => void;
   clearError: () => void;
@@ -32,7 +43,10 @@ export const useChannelStore = create<ChannelState>((set) => ({
       channels.sort((a, b) => a.position - b.position);
       set({ channels, isLoading: false });
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to fetch channels';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to fetch channels";
       set({ error: message, isLoading: false });
     }
   },
@@ -43,7 +57,10 @@ export const useChannelStore = create<ChannelState>((set) => ({
       set((state) => ({ channels: [...state.channels, channel] }));
       return channel;
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to create channel';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to create channel";
       set({ error: message });
       throw err;
     }
@@ -56,7 +73,10 @@ export const useChannelStore = create<ChannelState>((set) => ({
         channels: state.channels.map((c) => (c.id === channelId ? updated : c)),
       }));
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to update channel';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to update channel";
       set({ error: message });
       throw err;
     }
@@ -67,10 +87,14 @@ export const useChannelStore = create<ChannelState>((set) => ({
       await api.deleteChannel(serverId, channelId);
       set((state) => ({
         channels: state.channels.filter((c) => c.id !== channelId),
-        activeChannelId: state.activeChannelId === channelId ? null : state.activeChannelId,
+        activeChannelId:
+          state.activeChannelId === channelId ? null : state.activeChannelId,
       }));
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to delete channel';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to delete channel";
       set({ error: message });
       throw err;
     }

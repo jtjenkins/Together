@@ -1,13 +1,13 @@
-import { useState } from 'react';
-import { useServerStore } from '../../stores/serverStore';
-import { useChannelStore } from '../../stores/channelStore';
-import { useAuthStore } from '../../stores/authStore';
-import { CreateServerModal } from '../servers/CreateServerModal';
-import { ServerSettingsModal } from '../servers/ServerSettingsModal';
-import { ContextMenu, ContextMenuItem } from '../common/ContextMenu';
-import { UserPanel } from '../users/UserPanel';
-import type { ServerDto } from '../../types';
-import styles from './ServerSidebar.module.css';
+import { useState } from "react";
+import { useServerStore } from "../../stores/serverStore";
+import { useChannelStore } from "../../stores/channelStore";
+import { useAuthStore } from "../../stores/authStore";
+import { CreateServerModal } from "../servers/CreateServerModal";
+import { ServerSettingsModal } from "../servers/ServerSettingsModal";
+import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
+import { UserPanel } from "../users/UserPanel";
+import type { ServerDto } from "../../types";
+import styles from "./ServerSidebar.module.css";
 
 export function ServerSidebar() {
   const servers = useServerStore((s) => s.servers);
@@ -43,7 +43,7 @@ export function ServerSidebar() {
     <div className={styles.sidebar}>
       <div className={styles.serverList}>
         <button
-          className={`${styles.serverIcon} ${styles.homeIcon} ${!activeServerId ? styles.active : ''}`}
+          className={`${styles.serverIcon} ${styles.homeIcon} ${!activeServerId ? styles.active : ""}`}
           onClick={() => {
             clearChannels();
             setActiveServer(null);
@@ -58,13 +58,17 @@ export function ServerSidebar() {
         {servers.map((server) => (
           <button
             key={server.id}
-            className={`${styles.serverIcon} ${server.id === activeServerId ? styles.active : ''}`}
+            className={`${styles.serverIcon} ${server.id === activeServerId ? styles.active : ""}`}
             onClick={() => handleSelectServer(server.id)}
             onContextMenu={(e) => handleContextMenu(e, server)}
             title={server.name}
           >
             {server.icon_url ? (
-              <img src={server.icon_url} alt={server.name} className={styles.icon} />
+              <img
+                src={server.icon_url}
+                alt={server.name}
+                className={styles.icon}
+              />
             ) : (
               <span>{server.name.charAt(0).toUpperCase()}</span>
             )}

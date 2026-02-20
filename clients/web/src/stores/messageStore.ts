@@ -1,6 +1,11 @@
-import { create } from 'zustand';
-import type { Message, CreateMessageRequest, MessageDeleteEvent } from '../types';
-import { api, ApiRequestError } from '../api/client';
+import { create } from "zustand";
+import type {
+  Message,
+  CreateMessageRequest,
+  MessageDeleteEvent,
+  Attachment,
+} from "../types";
+import { api, ApiRequestError } from "../api/client";
 
 interface MessageState {
   messages: Message[];
@@ -8,15 +13,22 @@ interface MessageState {
   hasMore: boolean;
   error: string | null;
   replyingTo: Message | null;
+  /** Attachments keyed by message ID — populated after upload. */
+  attachmentCache: Record<string, Attachment[]>;
 
   fetchMessages: (channelId: string, before?: string) => Promise<void>;
-  sendMessage: (channelId: string, data: CreateMessageRequest) => Promise<void>;
+  sendMessage: (
+    channelId: string,
+    data: CreateMessageRequest,
+    files?: File[],
+  ) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   addMessage: (message: Message) => void;
   updateMessage: (message: Message) => void;
   removeMessage: (event: MessageDeleteEvent) => void;
   setReplyingTo: (message: Message | null) => void;
+  cacheAttachments: (messageId: string, attachments: Attachment[]) => void;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -27,36 +39,80 @@ export const useMessageStore = create<MessageState>((set) => ({
   hasMore: true,
   error: null,
   replyingTo: null,
+  attachmentCache: {},
 
   fetchMessages: async (channelId, before) => {
     set({ isLoading: true });
     try {
       const fetched = await api.listMessages(channelId, { before, limit: 50 });
       set((state) => {
-        const newMessages = before
-          ? [...fetched, ...state.messages]
-          : fetched;
+        const newMessages = before ? [...fetched, ...state.messages] : fetched;
         return {
           messages: newMessages,
           hasMore: fetched.length === 50,
           isLoading: false,
         };
       });
+      // Batch-fetch attachments for all loaded messages in parallel
+      const results = await Promise.allSettled(
+        fetched.map((m) => api.listAttachments(m.id)),
+      );
+      set((state) => {
+        const updates: Record<string, Attachment[]> = {};
+        results.forEach((r, i) => {
+          if (r.status === "fulfilled" && r.value.length > 0) {
+            updates[fetched[i].id] = r.value;
+          } else if (r.status === "rejected") {
+            console.warn(
+              "[MessageStore] Failed to load attachments for",
+              fetched[i].id,
+              r.reason,
+            );
+          }
+        });
+        return {
+          attachmentCache: { ...state.attachmentCache, ...updates },
+        };
+      });
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to fetch messages';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to fetch messages";
       set({ error: message, isLoading: false });
     }
   },
 
-  sendMessage: async (channelId, data) => {
+  sendMessage: async (channelId, data, files) => {
+    let msg: Message;
     try {
-      await api.createMessage(channelId, data);
+      msg = await api.createMessage(channelId, data);
       set({ replyingTo: null });
-      // Message will arrive via WebSocket
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to send message';
+      const message =
+        err instanceof ApiRequestError ? err.message : "Failed to send message";
       set({ error: message });
       throw err;
+    }
+
+    // Message delivery succeeded — upload attachments separately
+    if (files && files.length > 0) {
+      try {
+        const attachments = await api.uploadAttachments(msg.id, files);
+        set((state) => ({
+          attachmentCache: {
+            ...state.attachmentCache,
+            [msg.id]: attachments,
+          },
+        }));
+      } catch (err) {
+        const message =
+          err instanceof ApiRequestError
+            ? err.message
+            : "Message sent but file upload failed";
+        set({ error: message });
+        // Do not re-throw — the message itself was delivered successfully
+      }
     }
   },
 
@@ -67,7 +123,8 @@ export const useMessageStore = create<MessageState>((set) => ({
         messages: state.messages.map((m) => (m.id === messageId ? updated : m)),
       }));
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to edit message';
+      const message =
+        err instanceof ApiRequestError ? err.message : "Failed to edit message";
       set({ error: message });
       throw err;
     }
@@ -78,7 +135,10 @@ export const useMessageStore = create<MessageState>((set) => ({
       await api.deleteMessage(messageId);
       // Deletion event arrives via WebSocket
     } catch (err) {
-      const msg = err instanceof ApiRequestError ? err.message : 'Failed to delete message';
+      const msg =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to delete message";
       set({ error: msg });
       throw err;
     }
@@ -100,14 +160,20 @@ export const useMessageStore = create<MessageState>((set) => ({
   removeMessage: (event) => {
     set((state) => ({
       messages: state.messages.map((m) =>
-        m.id === event.id ? { ...m, deleted: true, content: '' } : m,
+        m.id === event.id ? { ...m, deleted: true, content: "" } : m,
       ),
     }));
   },
 
   setReplyingTo: (message) => set({ replyingTo: message }),
 
-  clearMessages: () => set({ messages: [], hasMore: true, replyingTo: null }),
+  cacheAttachments: (messageId, attachments) =>
+    set((state) => ({
+      attachmentCache: { ...state.attachmentCache, [messageId]: attachments },
+    })),
+
+  clearMessages: () =>
+    set({ messages: [], hasMore: true, replyingTo: null, attachmentCache: {} }),
 
   clearError: () => set({ error: null }),
 }));

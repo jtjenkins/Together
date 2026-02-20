@@ -1,6 +1,6 @@
-import { useServerStore } from '../../stores/serverStore';
-import type { MemberDto, UserStatus } from '../../types';
-import styles from './MemberSidebar.module.css';
+import { useServerStore } from "../../stores/serverStore";
+import type { MemberDto, UserStatus } from "../../types";
+import styles from "./MemberSidebar.module.css";
 
 function StatusIndicator({ status }: { status: UserStatus }) {
   return <span className={`${styles.status} ${styles[status]}`} />;
@@ -8,7 +8,9 @@ function StatusIndicator({ status }: { status: UserStatus }) {
 
 function MemberItem({ member }: { member: MemberDto }) {
   return (
-    <div className={`${styles.member} ${member.status === 'offline' ? styles.offline : ''}`}>
+    <div
+      className={`${styles.member} ${member.status === "offline" ? styles.offline : ""}`}
+    >
       <div className={styles.avatarWrapper}>
         {member.avatar_url ? (
           <img src={member.avatar_url} alt="" className={styles.avatar} />
@@ -31,8 +33,8 @@ function MemberItem({ member }: { member: MemberDto }) {
 export function MemberSidebar() {
   const members = useServerStore((s) => s.members);
 
-  const onlineMembers = members.filter((m) => m.status !== 'offline');
-  const offlineMembers = members.filter((m) => m.status === 'offline');
+  const onlineMembers = members.filter((m) => m.status !== "offline");
+  const offlineMembers = members.filter((m) => m.status === "offline");
 
   return (
     <div className={styles.sidebar}>
@@ -56,9 +58,7 @@ export function MemberSidebar() {
           ))}
         </div>
       )}
-      {members.length === 0 && (
-        <div className={styles.empty}>No members</div>
-      )}
+      {members.length === 0 && <div className={styles.empty}>No members</div>}
     </div>
   );
 }

@@ -188,7 +188,9 @@
   font-size: 14px;
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 
 .actionBtn:hover {
@@ -198,4 +200,67 @@
 
 .dangerBtn:hover {
   color: var(--accent-red);
+}
+
+/* ── Attachments ──────────────────────────── */
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.imageAttachment {
+  display: block;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  max-width: 400px;
+}
+
+.attachmentImage {
+  display: block;
+  max-width: 400px;
+  max-height: 300px;
+  width: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.fileAttachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  max-width: 300px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.fileAttachment:hover {
+  background: var(--bg-hover);
+}
+
+.fileAttachIcon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.fileAttachName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.fileAttachSize {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-size: 12px;
 }

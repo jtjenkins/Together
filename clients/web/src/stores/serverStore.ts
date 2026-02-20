@@ -1,6 +1,11 @@
-import { create } from 'zustand';
-import type { ServerDto, CreateServerRequest, UpdateServerRequest, MemberDto } from '../types';
-import { api, ApiRequestError } from '../api/client';
+import { create } from "zustand";
+import type {
+  ServerDto,
+  CreateServerRequest,
+  UpdateServerRequest,
+  MemberDto,
+} from "../types";
+import { api, ApiRequestError } from "../api/client";
 
 interface ServerState {
   servers: ServerDto[];
@@ -18,7 +23,11 @@ interface ServerState {
   joinServer: (id: string) => Promise<void>;
   leaveServer: (id: string) => Promise<void>;
   fetchMembers: (serverId: string) => Promise<void>;
-  updateMemberPresence: (userId: string, status: string, customStatus: string | null) => void;
+  updateMemberPresence: (
+    userId: string,
+    status: string,
+    customStatus: string | null,
+  ) => void;
   clearError: () => void;
 }
 
@@ -44,7 +53,10 @@ export const useServerStore = create<ServerState>((set, get) => ({
       const servers = await api.listServers();
       set({ servers, isLoading: false });
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to fetch servers';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to fetch servers";
       set({ error: message, isLoading: false });
     }
   },
@@ -55,7 +67,10 @@ export const useServerStore = create<ServerState>((set, get) => ({
       set((state) => ({ servers: [...state.servers, server] }));
       return server;
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to create server';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to create server";
       set({ error: message });
       throw err;
     }
@@ -68,7 +83,10 @@ export const useServerStore = create<ServerState>((set, get) => ({
         servers: state.servers.map((s) => (s.id === id ? updated : s)),
       }));
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to update server';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to update server";
       set({ error: message });
       throw err;
     }
@@ -79,10 +97,14 @@ export const useServerStore = create<ServerState>((set, get) => ({
       await api.deleteServer(id);
       set((state) => ({
         servers: state.servers.filter((s) => s.id !== id),
-        activeServerId: state.activeServerId === id ? null : state.activeServerId,
+        activeServerId:
+          state.activeServerId === id ? null : state.activeServerId,
       }));
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to delete server';
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to delete server";
       set({ error: message });
       throw err;
     }
@@ -93,7 +115,8 @@ export const useServerStore = create<ServerState>((set, get) => ({
       await api.joinServer(id);
       await get().fetchServers();
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to join server';
+      const message =
+        err instanceof ApiRequestError ? err.message : "Failed to join server";
       set({ error: message });
       throw err;
     }
@@ -104,10 +127,12 @@ export const useServerStore = create<ServerState>((set, get) => ({
       await api.leaveServer(id);
       set((state) => ({
         servers: state.servers.filter((s) => s.id !== id),
-        activeServerId: state.activeServerId === id ? null : state.activeServerId,
+        activeServerId:
+          state.activeServerId === id ? null : state.activeServerId,
       }));
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Failed to leave server';
+      const message =
+        err instanceof ApiRequestError ? err.message : "Failed to leave server";
       set({ error: message });
       throw err;
     }
@@ -125,7 +150,13 @@ export const useServerStore = create<ServerState>((set, get) => ({
   updateMemberPresence: (userId, status, customStatus) => {
     set((state) => ({
       members: state.members.map((m) =>
-        m.user_id === userId ? { ...m, status: status as MemberDto['status'], custom_status: customStatus } : m,
+        m.user_id === userId
+          ? {
+              ...m,
+              status: status as MemberDto["status"],
+              custom_status: customStatus,
+            }
+          : m,
       ),
     }));
   },

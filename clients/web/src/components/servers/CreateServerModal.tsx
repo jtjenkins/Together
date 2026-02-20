@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react';
-import { Modal } from '../common/Modal';
-import { useServerStore } from '../../stores/serverStore';
-import styles from './ServerModals.module.css';
+import { useState, type FormEvent } from "react";
+import { Modal } from "../common/Modal";
+import { useServerStore } from "../../stores/serverStore";
+import styles from "./ServerModals.module.css";
 
 interface CreateServerModalProps {
   open: boolean;
@@ -9,10 +9,10 @@ interface CreateServerModalProps {
 }
 
 export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
-  const [name, setName] = useState('');
-  const [iconUrl, setIconUrl] = useState('');
+  const [name, setName] = useState("");
+  const [iconUrl, setIconUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const createServer = useServerStore((s) => s.createServer);
   const setActiveServer = useServerStore((s) => s.setActiveServer);
 
@@ -21,18 +21,18 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
     if (!name.trim()) return;
 
     setIsSubmitting(true);
-    setError('');
+    setError("");
     try {
       const server = await createServer({
         name: name.trim(),
         icon_url: iconUrl.trim() || undefined,
       });
       setActiveServer(server.id);
-      setName('');
-      setIconUrl('');
+      setName("");
+      setIconUrl("");
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create server');
+      setError(err instanceof Error ? err.message : "Failed to create server");
     } finally {
       setIsSubmitting(false);
     }
@@ -75,8 +75,12 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
           <button type="button" className={styles.cancelBtn} onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
-            {isSubmitting ? 'Creating...' : 'Create Server'}
+          <button
+            type="submit"
+            className={styles.submitBtn}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Creating..." : "Create Server"}
           </button>
         </div>
       </form>

@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { useAuthStore } from '../../stores/authStore';
-import { useMessageStore } from '../../stores/messageStore';
-import { formatMessageTime } from '../../utils/formatTime';
-import type { Message } from '../../types';
-import styles from './MessageItem.module.css';
+import { useState } from "react";
+import { useAuthStore } from "../../stores/authStore";
+import { useMessageStore } from "../../stores/messageStore";
+import { formatMessageTime } from "../../utils/formatTime";
+import { api } from "../../api/client";
+import type { Message } from "../../types";
+import styles from "./MessageItem.module.css";
 
 interface MessageItemProps {
   message: Message;
@@ -28,6 +29,9 @@ export function MessageItem({
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
   const setReplyingTo = useMessageStore((s) => s.setReplyingTo);
+  const attachments = useMessageStore(
+    (s) => s.attachmentCache[message.id] ?? [],
+  );
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
@@ -35,6 +39,12 @@ export function MessageItem({
 
   const isOwnMessage = message.author_id === user?.id;
   void channelId;
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleEdit = async () => {
     if (editContent.trim() && editContent !== message.content) {
@@ -44,11 +54,11 @@ export function MessageItem({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleEdit();
     }
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       setIsEditing(false);
       setEditContent(message.content);
     }
@@ -125,7 +135,54 @@ export function MessageItem({
               </div>
             </div>
           ) : (
-            <div className={styles.text}>{message.content}</div>
+            <>
+              {message.content !== "\u200b" && (
+                <div className={styles.text}>{message.content}</div>
+              )}
+              {attachments.length > 0 && (
+                <div className={styles.attachments}>
+                  {attachments.map((att) =>
+                    att.mime_type.startsWith("image/") ? (
+                      <a
+                        key={att.id}
+                        href={api.fileUrl(att.url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={styles.imageAttachment}
+                      >
+                        <img
+                          src={api.fileUrl(att.url)}
+                          alt={att.filename}
+                          className={styles.attachmentImage}
+                          style={
+                            att.width !== null
+                              ? {
+                                  aspectRatio: `${att.width} / ${att.height}`,
+                                }
+                              : undefined
+                          }
+                        />
+                      </a>
+                    ) : (
+                      <a
+                        key={att.id}
+                        href={api.fileUrl(att.url)}
+                        download={att.filename}
+                        className={styles.fileAttachment}
+                      >
+                        <span className={styles.fileAttachIcon}>📄</span>
+                        <span className={styles.fileAttachName}>
+                          {att.filename}
+                        </span>
+                        <span className={styles.fileAttachSize}>
+                          {formatBytes(att.file_size)}
+                        </span>
+                      </a>
+                    ),
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 

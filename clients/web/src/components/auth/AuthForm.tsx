@@ -1,12 +1,12 @@
-import { useState, type FormEvent } from 'react';
-import { useAuthStore } from '../../stores/authStore';
-import styles from './AuthForm.module.css';
+import { useState, type FormEvent } from "react";
+import { useAuthStore } from "../../stores/authStore";
+import styles from "./AuthForm.module.css";
 
 export function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { login, register, error, clearError } = useAuthStore();
@@ -30,9 +30,9 @@ export function AuthForm() {
   const toggleMode = () => {
     setIsLogin(!isLogin);
     clearError();
-    setUsername('');
-    setEmail('');
-    setPassword('');
+    setUsername("");
+    setEmail("");
+    setPassword("");
   };
 
   return (
@@ -44,12 +44,12 @@ export function AuthForm() {
         </div>
 
         <h2 className={styles.heading}>
-          {isLogin ? 'Welcome back!' : 'Create an account'}
+          {isLogin ? "Welcome back!" : "Create an account"}
         </h2>
         <p className={styles.subtitle}>
           {isLogin
-            ? 'Sign in to continue to Together'
-            : 'Join your community on Together'}
+            ? "Sign in to continue to Together"
+            : "Join your community on Together"}
         </p>
 
         {error && (
@@ -106,7 +106,7 @@ export function AuthForm() {
               required
               minLength={isLogin ? 1 : 8}
               maxLength={128}
-              autoComplete={isLogin ? 'current-password' : 'new-password'}
+              autoComplete={isLogin ? "current-password" : "new-password"}
             />
           </div>
 
@@ -116,21 +116,21 @@ export function AuthForm() {
             disabled={isSubmitting}
           >
             {isSubmitting
-              ? 'Please wait...'
+              ? "Please wait..."
               : isLogin
-                ? 'Sign In'
-                : 'Create Account'}
+                ? "Sign In"
+                : "Create Account"}
           </button>
         </form>
 
         <p className={styles.toggle}>
-          {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
+          {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
             type="button"
             className={styles.toggleBtn}
             onClick={toggleMode}
           >
-            {isLogin ? 'Register' : 'Sign In'}
+            {isLogin ? "Register" : "Sign In"}
           </button>
         </p>
       </div>

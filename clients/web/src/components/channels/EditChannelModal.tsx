@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
-import { Modal } from '../common/Modal';
-import { useChannelStore } from '../../stores/channelStore';
-import type { Channel } from '../../types';
-import styles from '../servers/ServerModals.module.css';
+import { useState, type FormEvent } from "react";
+import { Modal } from "../common/Modal";
+import { useChannelStore } from "../../stores/channelStore";
+import type { Channel } from "../../types";
+import styles from "../servers/ServerModals.module.css";
 
 interface EditChannelModalProps {
   open: boolean;
@@ -11,12 +11,17 @@ interface EditChannelModalProps {
   channel: Channel;
 }
 
-export function EditChannelModal({ open, onClose, serverId, channel }: EditChannelModalProps) {
+export function EditChannelModal({
+  open,
+  onClose,
+  serverId,
+  channel,
+}: EditChannelModalProps) {
   const [name, setName] = useState(channel.name);
-  const [topic, setTopic] = useState(channel.topic || '');
-  const [category, setCategory] = useState(channel.category || '');
+  const [topic, setTopic] = useState(channel.topic || "");
+  const [category, setCategory] = useState(channel.category || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const updateChannel = useChannelStore((s) => s.updateChannel);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -24,16 +29,16 @@ export function EditChannelModal({ open, onClose, serverId, channel }: EditChann
     if (!name.trim()) return;
 
     setIsSubmitting(true);
-    setError('');
+    setError("");
     try {
       await updateChannel(serverId, channel.id, {
-        name: name.trim().toLowerCase().replace(/\s+/g, '-'),
+        name: name.trim().toLowerCase().replace(/\s+/g, "-"),
         topic: topic.trim() || undefined,
         category: category.trim() || undefined,
       });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update channel');
+      setError(err instanceof Error ? err.message : "Failed to update channel");
     } finally {
       setIsSubmitting(false);
     }
@@ -88,8 +93,12 @@ export function EditChannelModal({ open, onClose, serverId, channel }: EditChann
           <button type="button" className={styles.cancelBtn} onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
+          <button
+            type="submit"
+            className={styles.submitBtn}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>

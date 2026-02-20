@@ -1,10 +1,16 @@
-import { create } from 'zustand';
-import type { UserDto, RegisterRequest, LoginRequest, UpdateUserDto, UserStatus } from '../types';
-import { api, ApiRequestError } from '../api/client';
-import { gateway } from '../api/websocket';
+import { create } from "zustand";
+import type {
+  UserDto,
+  RegisterRequest,
+  LoginRequest,
+  UpdateUserDto,
+  UserStatus,
+} from "../types";
+import { api, ApiRequestError } from "../api/client";
+import { gateway } from "../api/websocket";
 
-const TOKEN_KEY = 'together_access_token';
-const REFRESH_KEY = 'together_refresh_token';
+const TOKEN_KEY = "together_access_token";
+const REFRESH_KEY = "together_refresh_token";
 
 interface AuthState {
   user: UserDto | null;
@@ -38,7 +44,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       gateway.connect(res.access_token);
       set({ user: res.user, isAuthenticated: true, isLoading: false });
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Registration failed';
+      const message =
+        err instanceof ApiRequestError ? err.message : "Registration failed";
       set({ error: message, isLoading: false });
       throw err;
     }
@@ -54,7 +61,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       gateway.connect(res.access_token);
       set({ user: res.user, isAuthenticated: true, isLoading: false });
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Login failed';
+      const message =
+        err instanceof ApiRequestError ? err.message : "Login failed";
       set({ error: message, isLoading: false });
       throw err;
     }
@@ -73,7 +81,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await api.updateCurrentUser(data);
       set({ user });
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'Update failed';
+      const message =
+        err instanceof ApiRequestError ? err.message : "Update failed";
       set({ error: message });
       throw err;
     }
@@ -83,7 +92,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     gateway.sendPresenceUpdate(status, customStatus);
     const user = get().user;
     if (user) {
-      set({ user: { ...user, status, custom_status: customStatus ?? user.custom_status } });
+      set({
+        user: {
+          ...user,
+          status,
+          custom_status: customStatus ?? user.custom_status,
+        },
+      });
     }
   },
 
