@@ -1,5 +1,5 @@
-import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -18,7 +18,7 @@ const localStorageMock = (() => {
   };
 })();
 
-Object.defineProperty(window, 'localStorage', {
+Object.defineProperty(window, "localStorage", {
   value: localStorageMock,
 });
 
@@ -39,7 +39,7 @@ class MockWebSocket {
   close = vi.fn();
 }
 
-Object.defineProperty(globalThis, 'WebSocket', {
+Object.defineProperty(globalThis, "WebSocket", {
   value: MockWebSocket,
   writable: true,
 });

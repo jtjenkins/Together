@@ -75,7 +75,9 @@
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 14px;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 
 .channel:hover {

@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
-import { Modal } from '../common/Modal';
-import { useChannelStore } from '../../stores/channelStore';
-import type { ChannelType } from '../../types';
-import styles from '../servers/ServerModals.module.css';
+import { useState, type FormEvent } from "react";
+import { Modal } from "../common/Modal";
+import { useChannelStore } from "../../stores/channelStore";
+import type { ChannelType } from "../../types";
+import styles from "../servers/ServerModals.module.css";
 
 interface CreateChannelModalProps {
   open: boolean;
@@ -10,13 +10,17 @@ interface CreateChannelModalProps {
   serverId: string;
 }
 
-export function CreateChannelModal({ open, onClose, serverId }: CreateChannelModalProps) {
-  const [name, setName] = useState('');
-  const [type, setType] = useState<ChannelType>('text');
-  const [topic, setTopic] = useState('');
-  const [category, setCategory] = useState('');
+export function CreateChannelModal({
+  open,
+  onClose,
+  serverId,
+}: CreateChannelModalProps) {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<ChannelType>("text");
+  const [topic, setTopic] = useState("");
+  const [category, setCategory] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const createChannel = useChannelStore((s) => s.createChannel);
   const setActiveChannel = useChannelStore((s) => s.setActiveChannel);
 
@@ -25,24 +29,24 @@ export function CreateChannelModal({ open, onClose, serverId }: CreateChannelMod
     if (!name.trim()) return;
 
     setIsSubmitting(true);
-    setError('');
+    setError("");
     try {
       const channel = await createChannel(serverId, {
-        name: name.trim().toLowerCase().replace(/\s+/g, '-'),
+        name: name.trim().toLowerCase().replace(/\s+/g, "-"),
         type,
         topic: topic.trim() || undefined,
         category: category.trim() || undefined,
       });
-      if (type === 'text') {
+      if (type === "text") {
         setActiveChannel(channel.id);
       }
-      setName('');
-      setTopic('');
-      setCategory('');
-      setType('text');
+      setName("");
+      setTopic("");
+      setCategory("");
+      setType("text");
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create channel');
+      setError(err instanceof Error ? err.message : "Failed to create channel");
     } finally {
       setIsSubmitting(false);
     }
@@ -114,8 +118,12 @@ export function CreateChannelModal({ open, onClose, serverId }: CreateChannelMod
           <button type="button" className={styles.cancelBtn} onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
-            {isSubmitting ? 'Creating...' : 'Create Channel'}
+          <button
+            type="submit"
+            className={styles.submitBtn}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Creating..." : "Create Channel"}
           </button>
         </div>
       </form>

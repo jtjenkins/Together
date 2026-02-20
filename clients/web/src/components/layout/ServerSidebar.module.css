@@ -31,7 +31,10 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: border-radius 0.2s, background 0.2s, color 0.2s;
+  transition:
+    border-radius 0.2s,
+    background 0.2s,
+    color 0.2s;
   overflow: hidden;
 }
 

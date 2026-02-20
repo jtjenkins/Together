@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useAuthStore } from '../../stores/authStore';
-import { UserSettingsModal } from './UserSettingsModal';
-import type { UserStatus } from '../../types';
-import styles from './UserPanel.module.css';
+import { useState } from "react";
+import { useAuthStore } from "../../stores/authStore";
+import { UserSettingsModal } from "./UserSettingsModal";
+import type { UserStatus } from "../../types";
+import styles from "./UserPanel.module.css";
 
 export function UserPanel() {
   const user = useAuthStore((s) => s.user);
@@ -12,10 +12,10 @@ export function UserPanel() {
   if (!user) return null;
 
   const statusColors: Record<UserStatus, string> = {
-    online: 'var(--status-online)',
-    away: 'var(--status-away)',
-    dnd: 'var(--status-dnd)',
-    offline: 'var(--status-offline)',
+    online: "var(--status-online)",
+    away: "var(--status-away)",
+    dnd: "var(--status-dnd)",
+    offline: "var(--status-offline)",
   };
 
   return (

@@ -1,10 +1,15 @@
-import { useEffect } from 'react';
-import { gateway } from '../api/websocket';
-import { useAuthStore } from '../stores/authStore';
-import { useServerStore } from '../stores/serverStore';
-import { useMessageStore } from '../stores/messageStore';
-import { useChannelStore } from '../stores/channelStore';
-import type { ReadyEvent, Message, PresenceUpdateEvent, MessageDeleteEvent } from '../types';
+import { useEffect } from "react";
+import { gateway } from "../api/websocket";
+import { useAuthStore } from "../stores/authStore";
+import { useServerStore } from "../stores/serverStore";
+import { useMessageStore } from "../stores/messageStore";
+import { useChannelStore } from "../stores/channelStore";
+import type {
+  ReadyEvent,
+  Message,
+  PresenceUpdateEvent,
+  MessageDeleteEvent,
+} from "../types";
 
 export function useWebSocket() {
   const setUser = useAuthStore((s) => s.setUser);
@@ -19,34 +24,34 @@ export function useWebSocket() {
 
   useEffect(() => {
     const unsubs = [
-      gateway.on('READY', (data: ReadyEvent) => {
+      gateway.on("READY", (data: ReadyEvent) => {
         setUser(data.user);
         setServers(data.servers);
       }),
 
-      gateway.on('MESSAGE_CREATE', (msg: Message) => {
+      gateway.on("MESSAGE_CREATE", (msg: Message) => {
         if (msg.channel_id === activeChannelId) {
           addMessage(msg);
         }
       }),
 
-      gateway.on('MESSAGE_UPDATE', (msg: Message) => {
+      gateway.on("MESSAGE_UPDATE", (msg: Message) => {
         if (msg.channel_id === activeChannelId) {
           updateMessage(msg);
         }
       }),
 
-      gateway.on('MESSAGE_DELETE', (event: MessageDeleteEvent) => {
+      gateway.on("MESSAGE_DELETE", (event: MessageDeleteEvent) => {
         if (event.channel_id === activeChannelId) {
           removeMessage(event);
         }
       }),
 
-      gateway.on('PRESENCE_UPDATE', (event: PresenceUpdateEvent) => {
+      gateway.on("PRESENCE_UPDATE", (event: PresenceUpdateEvent) => {
         updateMemberPresence(event.user_id, event.status, event.custom_status);
       }),
 
-      gateway.on('connected', () => {
+      gateway.on("connected", () => {
         if (activeServerId) {
           fetchMembers(activeServerId);
         }

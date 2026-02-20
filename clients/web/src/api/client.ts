@@ -15,9 +15,12 @@ import type {
   CreateMessageRequest,
   UpdateMessageRequest,
   ListMessagesQuery,
-} from '../types';
+  VoiceParticipant,
+  UpdateVoiceStateRequest,
+  Attachment,
+} from "../types";
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 class ApiClient {
   private accessToken: string | null = null;
@@ -35,12 +38,12 @@ class ApiClient {
     options: RequestInit = {},
   ): Promise<T> {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
     };
 
     if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
     }
 
     const res = await fetch(`${API_BASE}${path}`, {
@@ -49,8 +52,8 @@ class ApiClient {
     });
 
     if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: 'Unknown error' }));
-      throw new ApiRequestError(res.status, body.error || 'Request failed');
+      const body = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new ApiRequestError(res.status, body.error || "Request failed");
     }
 
     if (res.status === 204) {
@@ -63,15 +66,15 @@ class ApiClient {
   // ─── Auth ──────────────────────────────────────────────────
 
   register(data: RegisterRequest): Promise<AuthResponse> {
-    return this.request('/auth/register', {
-      method: 'POST',
+    return this.request("/auth/register", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   login(data: LoginRequest): Promise<AuthResponse> {
-    return this.request('/auth/login', {
-      method: 'POST',
+    return this.request("/auth/login", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
@@ -79,12 +82,12 @@ class ApiClient {
   // ─── Users ─────────────────────────────────────────────────
 
   getCurrentUser(): Promise<UserDto> {
-    return this.request('/users/@me');
+    return this.request("/users/@me");
   }
 
   updateCurrentUser(data: UpdateUserDto): Promise<UserDto> {
-    return this.request('/users/@me', {
-      method: 'PATCH',
+    return this.request("/users/@me", {
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
@@ -92,14 +95,14 @@ class ApiClient {
   // ─── Servers ───────────────────────────────────────────────
 
   createServer(data: CreateServerRequest): Promise<ServerDto> {
-    return this.request('/servers', {
-      method: 'POST',
+    return this.request("/servers", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   listServers(): Promise<ServerDto[]> {
-    return this.request('/servers');
+    return this.request("/servers");
   }
 
   getServer(id: string): Promise<ServerDto> {
@@ -108,21 +111,21 @@ class ApiClient {
 
   updateServer(id: string, data: UpdateServerRequest): Promise<ServerDto> {
     return this.request(`/servers/${id}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
 
   deleteServer(id: string): Promise<void> {
-    return this.request(`/servers/${id}`, { method: 'DELETE' });
+    return this.request(`/servers/${id}`, { method: "DELETE" });
   }
 
   joinServer(id: string): Promise<{ message: string }> {
-    return this.request(`/servers/${id}/join`, { method: 'POST' });
+    return this.request(`/servers/${id}/join`, { method: "POST" });
   }
 
   leaveServer(id: string): Promise<void> {
-    return this.request(`/servers/${id}/leave`, { method: 'DELETE' });
+    return this.request(`/servers/${id}/leave`, { method: "DELETE" });
   }
 
   listMembers(serverId: string): Promise<MemberDto[]> {
@@ -136,7 +139,7 @@ class ApiClient {
     data: CreateChannelRequest,
   ): Promise<Channel> {
     return this.request(`/servers/${serverId}/channels`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
@@ -155,14 +158,14 @@ class ApiClient {
     data: UpdateChannelRequest,
   ): Promise<Channel> {
     return this.request(`/servers/${serverId}/channels/${channelId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
 
   deleteChannel(serverId: string, channelId: string): Promise<void> {
     return this.request(`/servers/${serverId}/channels/${channelId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
@@ -173,7 +176,7 @@ class ApiClient {
     data: CreateMessageRequest,
   ): Promise<Message> {
     return this.request(`/channels/${channelId}/messages`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
@@ -183,21 +186,81 @@ class ApiClient {
     query?: ListMessagesQuery,
   ): Promise<Message[]> {
     const params = new URLSearchParams();
-    if (query?.before) params.set('before', query.before);
-    if (query?.limit) params.set('limit', String(query.limit));
+    if (query?.before) params.set("before", query.before);
+    if (query?.limit) params.set("limit", String(query.limit));
     const qs = params.toString();
-    return this.request(`/channels/${channelId}/messages${qs ? `?${qs}` : ''}`);
+    return this.request(`/channels/${channelId}/messages${qs ? `?${qs}` : ""}`);
   }
 
-  updateMessage(messageId: string, data: UpdateMessageRequest): Promise<Message> {
+  updateMessage(
+    messageId: string,
+    data: UpdateMessageRequest,
+  ): Promise<Message> {
     return this.request(`/messages/${messageId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
 
   deleteMessage(messageId: string): Promise<void> {
-    return this.request(`/messages/${messageId}`, { method: 'DELETE' });
+    return this.request(`/messages/${messageId}`, { method: "DELETE" });
+  }
+
+  // ─── Voice ─────────────────────────────────────────────────
+
+  joinVoiceChannel(channelId: string): Promise<VoiceParticipant> {
+    return this.request(`/channels/${channelId}/voice`, { method: "POST" });
+  }
+
+  leaveVoiceChannel(channelId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/voice`, { method: "DELETE" });
+  }
+
+  updateVoiceState(
+    channelId: string,
+    data: UpdateVoiceStateRequest,
+  ): Promise<VoiceParticipant> {
+    return this.request(`/channels/${channelId}/voice`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  listVoiceParticipants(channelId: string): Promise<VoiceParticipant[]> {
+    return this.request(`/channels/${channelId}/voice`);
+  }
+
+  // ─── Attachments ───────────────────────────────────────────
+
+  uploadAttachments(messageId: string, files: File[]): Promise<Attachment[]> {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
+    }
+
+    return fetch(`${API_BASE}/messages/${messageId}/attachments`, {
+      method: "POST",
+      headers,
+      body: formData,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new ApiRequestError(res.status, body.error || "Upload failed");
+      }
+      return res.json();
+    });
+  }
+
+  listAttachments(messageId: string): Promise<Attachment[]> {
+    return this.request(`/messages/${messageId}/attachments`);
+  }
+
+  /** Resolve an attachment URL for use in <img> / <a> tags. */
+  fileUrl(path: string): string {
+    return `${API_BASE}${path}`;
   }
 }
 
@@ -207,7 +270,7 @@ export class ApiRequestError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = 'ApiRequestError';
+    this.name = "ApiRequestError";
   }
 }
 

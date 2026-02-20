@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import styles from './ContextMenu.module.css';
+import { useEffect, useRef, type ReactNode } from "react";
+import styles from "./ContextMenu.module.css";
 
 interface ContextMenuProps {
   x: number;
@@ -17,16 +17,16 @@ export function ContextMenu({ x, y, onClose, children }: ContextMenuProps) {
         onClose();
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
   return (
@@ -47,10 +47,14 @@ interface ContextMenuItemProps {
   danger?: boolean;
 }
 
-export function ContextMenuItem({ label, onClick, danger }: ContextMenuItemProps) {
+export function ContextMenuItem({
+  label,
+  onClick,
+  danger,
+}: ContextMenuItemProps) {
   return (
     <button
-      className={`${styles.item} ${danger ? styles.danger : ''}`}
+      className={`${styles.item} ${danger ? styles.danger : ""}`}
       onClick={onClick}
       role="menuitem"
     >

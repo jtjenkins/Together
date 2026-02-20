@@ -1,9 +1,9 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { MessageList } from './MessageList';
-import { MessageInput } from './MessageInput';
-import { useMessageStore } from '../../stores/messageStore';
-import { useChannelStore } from '../../stores/channelStore';
-import styles from './ChatArea.module.css';
+import { useEffect, useRef, useCallback } from "react";
+import { MessageList } from "./MessageList";
+import { MessageInput } from "./MessageInput";
+import { useMessageStore } from "../../stores/messageStore";
+import { useChannelStore } from "../../stores/channelStore";
+import styles from "./ChatArea.module.css";
 
 interface ChatAreaProps {
   channelId: string;
@@ -29,7 +29,8 @@ export function ChatArea({ channelId }: ChatAreaProps) {
     if (messages.length > prevMessageCount.current) {
       const el = scrollRef.current;
       if (el) {
-        const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+        const isNearBottom =
+          el.scrollHeight - el.scrollTop - el.clientHeight < 150;
         if (isNearBottom || prevMessageCount.current === 0) {
           el.scrollTop = el.scrollHeight;
         }
@@ -48,7 +49,7 @@ export function ChatArea({ channelId }: ChatAreaProps) {
     <div className={styles.chatArea}>
       <div className={styles.header}>
         <span className={styles.channelIcon}>#</span>
-        <h2 className={styles.channelName}>{channel?.name ?? 'channel'}</h2>
+        <h2 className={styles.channelName}>{channel?.name ?? "channel"}</h2>
         {channel?.topic && (
           <>
             <span className={styles.divider} />
@@ -65,7 +66,7 @@ export function ChatArea({ channelId }: ChatAreaProps) {
               disabled={isLoading}
               className={styles.loadMoreBtn}
             >
-              {isLoading ? 'Loading...' : 'Load older messages'}
+              {isLoading ? "Loading..." : "Load older messages"}
             </button>
           </div>
         )}

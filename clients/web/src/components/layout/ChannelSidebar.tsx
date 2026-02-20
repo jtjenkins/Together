@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useChannelStore } from '../../stores/channelStore';
-import { useMessageStore } from '../../stores/messageStore';
-import { useServerStore } from '../../stores/serverStore';
-import { useAuthStore } from '../../stores/authStore';
-import { CreateChannelModal } from '../channels/CreateChannelModal';
-import { EditChannelModal } from '../channels/EditChannelModal';
-import { ContextMenu, ContextMenuItem } from '../common/ContextMenu';
-import type { Channel } from '../../types';
-import styles from './ChannelSidebar.module.css';
+import { useEffect, useState } from "react";
+import { useChannelStore } from "../../stores/channelStore";
+import { useMessageStore } from "../../stores/messageStore";
+import { useServerStore } from "../../stores/serverStore";
+import { useAuthStore } from "../../stores/authStore";
+import { CreateChannelModal } from "../channels/CreateChannelModal";
+import { EditChannelModal } from "../channels/EditChannelModal";
+import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
+import type { Channel } from "../../types";
+import styles from "./ChannelSidebar.module.css";
 
 interface ChannelSidebarProps {
   serverId: string;
@@ -53,23 +53,23 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   };
 
   // Group channels by category
-  const textChannels = channels.filter((c) => c.type === 'text');
-  const voiceChannels = channels.filter((c) => c.type === 'voice');
+  const textChannels = channels.filter((c) => c.type === "text");
+  const voiceChannels = channels.filter((c) => c.type === "voice");
 
   const categories = new Map<string, Channel[]>();
   for (const ch of textChannels) {
-    const cat = ch.category || 'Text Channels';
+    const cat = ch.category || "Text Channels";
     if (!categories.has(cat)) categories.set(cat, []);
     categories.get(cat)!.push(ch);
   }
   if (voiceChannels.length > 0) {
-    categories.set('Voice Channels', voiceChannels);
+    categories.set("Voice Channels", voiceChannels);
   }
 
   return (
     <div className={styles.sidebar}>
       <div className={styles.header}>
-        <h2 className={styles.serverName}>{server?.name ?? 'Server'}</h2>
+        <h2 className={styles.serverName}>{server?.name ?? "Server"}</h2>
       </div>
 
       <div className={styles.channelList}>
@@ -90,12 +90,12 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
             {chans.map((channel) => (
               <button
                 key={channel.id}
-                className={`${styles.channel} ${channel.id === activeChannelId ? styles.active : ''}`}
+                className={`${styles.channel} ${channel.id === activeChannelId ? styles.active : ""}`}
                 onClick={() => handleSelectChannel(channel.id)}
                 onContextMenu={(e) => handleContextMenu(e, channel)}
               >
                 <span className={styles.channelIcon}>
-                  {channel.type === 'text' ? '#' : '\u{1F50A}'}
+                  {channel.type === "text" ? "#" : "\u{1F50A}"}
                 </span>
                 <span className={styles.channelName}>{channel.name}</span>
               </button>

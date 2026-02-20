@@ -1,6 +1,6 @@
 // ─── User Types ──────────────────────────────────────────────
 
-export type UserStatus = 'online' | 'away' | 'dnd' | 'offline';
+export type UserStatus = "online" | "away" | "dnd" | "offline";
 
 export interface UserDto {
   id: string;
@@ -72,7 +72,7 @@ export interface MemberDto {
 
 // ─── Channel Types ───────────────────────────────────────────
 
-export type ChannelType = 'text' | 'voice';
+export type ChannelType = "text" | "voice";
 
 export interface Channel {
   id: string;
@@ -126,9 +126,65 @@ export interface ListMessagesQuery {
   limit?: number;
 }
 
+// ─── Voice Types ─────────────────────────────────────────────
+
+export interface VoiceParticipant {
+  user_id: string;
+  username: string;
+  channel_id: string | null;
+  self_mute: boolean;
+  self_deaf: boolean;
+  server_mute: boolean;
+  server_deaf: boolean;
+  joined_at: string | null;
+}
+
+export interface UpdateVoiceStateRequest {
+  self_mute?: boolean;
+  self_deaf?: boolean;
+}
+
+export interface VoiceStateUpdateEvent {
+  user_id: string;
+  username: string | null;
+  channel_id: string | null;
+  self_mute: boolean;
+  self_deaf: boolean;
+  server_mute: boolean;
+  server_deaf: boolean;
+  joined_at: string | null;
+}
+
+export interface VoiceSignalData {
+  to_user_id?: string;
+  from_user_id?: string;
+  type: "offer" | "answer" | "candidate";
+  sdp?: string;
+  candidate?: string;
+}
+
+// ─── Attachment Types ─────────────────────────────────────────
+
+export interface Attachment {
+  id: string;
+  message_id: string;
+  filename: string;
+  file_size: number;
+  mime_type: string;
+  url: string;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+}
+
 // ─── WebSocket Types ─────────────────────────────────────────
 
-export type GatewayOp = 'DISPATCH' | 'HEARTBEAT' | 'HEARTBEAT_ACK' | 'PRESENCE_UPDATE';
+export type GatewayOp =
+  | "DISPATCH"
+  | "HEARTBEAT"
+  | "HEARTBEAT_ACK"
+  | "PRESENCE_UPDATE"
+  | "VOICE_SIGNAL";
 
 export interface GatewayMessage {
   op: GatewayOp;
