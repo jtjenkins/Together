@@ -3,14 +3,13 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde_json::json;
 use uuid::Uuid;
 
 use super::shared::{fetch_channel_by_id, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
-    models::{ChannelType, UpdateVoiceStateRequest, VoiceState},
+    models::{ChannelType, UpdateVoiceStateRequest, VoiceState, VoiceStateDto},
     state::AppState,
     websocket::{broadcast_to_server, events::EVENT_VOICE_STATE_UPDATE},
 };
@@ -19,7 +18,7 @@ use crate::{
 // Private helpers
 // ============================================================================
 
-/// Return 400 if the channel is not a voice channel.
+/// Returns `AppError::Validation` (HTTP 400) if the channel's type is not `Voice`.
 fn require_voice_channel(channel: &crate::models::Channel) -> AppResult<()> {
     if !matches!(channel.r#type, ChannelType::Voice) {
         return Err(AppError::Validation(
@@ -29,46 +28,80 @@ fn require_voice_channel(channel: &crate::models::Channel) -> AppResult<()> {
     Ok(())
 }
 
-/// Look up a user's username and broadcast VOICE_STATE_UPDATE for an active state.
-async fn broadcast_voice_update(state: &AppState, vs: &VoiceState, server_id: Uuid) {
-    let username: Option<String> = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
-        .bind(vs.user_id)
+/// Fetch a user's username for broadcast payloads.
+///
+/// On DB error: logs a warning and returns `None` so the broadcast still
+/// fires — the REST operation has already succeeded and the state change
+/// should still be announced to other members.
+async fn fetch_username_for_broadcast(state: &AppState, user_id: Uuid) -> Option<String> {
+    match sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+        .bind(user_id)
         .fetch_optional(&state.pool)
         .await
-        .unwrap_or(None);
+    {
+        Ok(opt) => opt,
+        Err(e) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error = ?e,
+                "Failed to fetch username for VOICE_STATE_UPDATE broadcast; \
+                 proceeding with null username"
+            );
+            None
+        }
+    }
+}
 
-    let payload = json!({
-        "user_id":     vs.user_id,
-        "username":    username,
-        "channel_id":  vs.channel_id,
-        "self_mute":   vs.self_mute,
-        "self_deaf":   vs.self_deaf,
-        "server_mute": vs.server_mute,
-        "server_deaf": vs.server_deaf,
-        "joined_at":   vs.joined_at,
-    });
+/// Broadcast VOICE_STATE_UPDATE for an active voice state.
+///
+/// The payload is derived from `VoiceStateDto` (ensuring all DTO fields are
+/// included automatically if the type grows) with `username` injected
+/// separately since it is not part of the stored voice state.
+async fn broadcast_voice_update(state: &AppState, vs: &VoiceState, server_id: Uuid) {
+    let username = fetch_username_for_broadcast(state, vs.user_id).await;
+    let dto = VoiceStateDto::from(vs.clone());
+
+    let mut payload = match serde_json::to_value(&dto) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize VoiceStateDto; this is a programming error");
+            return;
+        }
+    };
+    if let serde_json::Value::Object(ref mut map) = payload {
+        map.insert("username".to_owned(), serde_json::json!(username));
+    }
 
     broadcast_to_server(state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
 }
 
-/// Broadcast VOICE_STATE_UPDATE indicating the user has left all voice channels.
+/// Broadcast VOICE_STATE_UPDATE with `channel_id: null`, indicating the user
+/// has left their voice channel.
+///
+/// Uses `VoiceStateDto` for the base payload so field additions to the DTO
+/// automatically appear in this broadcast as well.
 async fn broadcast_voice_leave(state: &AppState, user_id: Uuid, server_id: Uuid) {
-    let username: Option<String> = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
-        .bind(user_id)
-        .fetch_optional(&state.pool)
-        .await
-        .unwrap_or(None);
+    let username = fetch_username_for_broadcast(state, user_id).await;
+    let dto = VoiceStateDto {
+        user_id,
+        channel_id: None,
+        self_mute: false,
+        self_deaf: false,
+        server_mute: false,
+        server_deaf: false,
+        joined_at: None,
+    };
 
-    let payload = json!({
-        "user_id":     user_id,
-        "username":    username,
-        "channel_id":  serde_json::Value::Null,
-        "self_mute":   false,
-        "self_deaf":   false,
-        "server_mute": false,
-        "server_deaf": false,
-        "joined_at":   serde_json::Value::Null,
-    });
+    let mut payload = match serde_json::to_value(&dto) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize VoiceStateDto; this is a programming error");
+            return;
+        }
+    };
+    if let serde_json::Value::Object(ref mut map) = payload {
+        map.insert("username".to_owned(), serde_json::json!(username));
+    }
 
     broadcast_to_server(state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
 }
@@ -79,13 +112,15 @@ async fn broadcast_voice_leave(state: &AppState, user_id: Uuid, server_id: Uuid)
 
 /// POST /channels/:channel_id/voice — join a voice channel.
 ///
-/// Uses UPSERT so the user is atomically moved from any prior channel to
-/// this one. Self-mute and self-deaf are reset on channel switch.
+/// Uses UPSERT to atomically move the user from any prior channel to this one.
+/// `self_mute` and `self_deaf` are reset to `false` on channel switch.
+/// `server_mute` and `server_deaf` are intentionally preserved so
+/// moderator-applied restrictions survive channel switches.
 pub async fn join_voice_channel(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(channel_id): Path<Uuid>,
-) -> AppResult<(StatusCode, Json<VoiceState>)> {
+) -> AppResult<(StatusCode, Json<VoiceStateDto>)> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
     require_voice_channel(&channel)?;
@@ -108,7 +143,7 @@ pub async fn join_voice_channel(
 
     broadcast_voice_update(&state, &vs, channel.server_id).await;
 
-    Ok((StatusCode::CREATED, Json(vs)))
+    Ok((StatusCode::CREATED, Json(VoiceStateDto::from(vs))))
 }
 
 /// DELETE /channels/:channel_id/voice — leave a voice channel.
@@ -140,13 +175,20 @@ pub async fn leave_voice_channel(
 
 /// PATCH /channels/:channel_id/voice — update self-mute / self-deaf state.
 ///
+/// At least one field must be provided; an empty body returns 400.
 /// Returns 404 if the user is not currently in this channel.
 pub async fn update_voice_state(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(channel_id): Path<Uuid>,
     Json(req): Json<UpdateVoiceStateRequest>,
-) -> AppResult<Json<VoiceState>> {
+) -> AppResult<Json<VoiceStateDto>> {
+    if req.self_mute.is_none() && req.self_deaf.is_none() {
+        return Err(AppError::Validation(
+            "At least one field (self_mute or self_deaf) must be provided".into(),
+        ));
+    }
+
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
     require_voice_channel(&channel)?;
@@ -169,7 +211,7 @@ pub async fn update_voice_state(
 
     broadcast_voice_update(&state, &vs, channel.server_id).await;
 
-    Ok(Json(vs))
+    Ok(Json(VoiceStateDto::from(vs)))
 }
 
 /// GET /channels/:channel_id/voice — list all participants (members only).
@@ -177,7 +219,7 @@ pub async fn list_voice_participants(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(channel_id): Path<Uuid>,
-) -> AppResult<Json<Vec<VoiceState>>> {
+) -> AppResult<Json<Vec<VoiceStateDto>>> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
     require_voice_channel(&channel)?;
@@ -190,7 +232,10 @@ pub async fn list_voice_participants(
     )
     .bind(channel_id)
     .fetch_all(&state.pool)
-    .await?;
+    .await?
+    .into_iter()
+    .map(VoiceStateDto::from)
+    .collect();
 
     Ok(Json(participants))
 }

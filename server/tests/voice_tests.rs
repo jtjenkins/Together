@@ -371,8 +371,145 @@ async fn update_requires_auth() {
 }
 
 // ============================================================================
+// PATCH /channels/:channel_id/voice — additional update tests
+// ============================================================================
+
+#[tokio::test]
+async fn update_with_no_fields_returns_400() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn update_preserves_existing_state_when_field_omitted() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    // Set both flags.
+    common::patch_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({ "self_mute": true, "self_deaf": true }),
+    )
+    .await;
+
+    // Patch only self_mute — self_deaf must be preserved.
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({ "self_mute": false }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(!body["self_mute"].as_bool().unwrap());
+    assert!(
+        body["self_deaf"].as_bool().unwrap(),
+        "self_deaf should be preserved"
+    );
+}
+
+#[tokio::test]
+async fn update_wrong_channel_returns_404() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    // User is in vc1 but tries to PATCH vc2.
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc2_id),
+        &f.owner_token,
+        json!({ "self_mute": true }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
+// DELETE /channels/:channel_id/voice — additional leave tests
+// ============================================================================
+
+#[tokio::test]
+async fn leave_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    let (status, _) = common::delete_no_auth(app, &format!("/channels/{}/voice", f.vc1_id)).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn leave_requires_server_membership() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    let (status, _) = common::delete_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.outsider_token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
 // GET /channels/:channel_id/voice — list participants
 // ============================================================================
+
+#[tokio::test]
+async fn list_voice_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    let (status, _) = common::get_no_auth(app, &format!("/channels/{}/voice", f.vc1_id)).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
 
 #[tokio::test]
 async fn list_voice_participants_empty() {

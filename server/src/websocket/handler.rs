@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use super::events::{
     GatewayMessage, GatewayOp, EVENT_PRESENCE_UPDATE, EVENT_READY, EVENT_VOICE_SIGNAL,
+    EVENT_VOICE_STATE_UPDATE,
 };
 use crate::{
     auth::{validate_token, TokenType},
@@ -145,6 +146,7 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
 
     // Clean up on disconnect.
     state.connections.remove(user_id, conn_id).await;
+    cleanup_voice_on_disconnect(&state, user_id).await;
     set_presence(&state, user_id, "offline", None).await;
 }
 
@@ -156,6 +158,7 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
 async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
     let Ok(msg) = serde_json::from_str::<GatewayMessage>(text) else {
         // Ignore unparseable frames — don't disconnect for bad JSON.
+        tracing::debug!(user_id = %user_id, "Received unparseable WebSocket frame; ignoring");
         return;
     };
 
@@ -182,9 +185,94 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
                 handle_voice_signal(user_id, data, state).await;
             }
         }
-        // Client should not send Dispatch or HeartbeatAck — silently ignore.
-        _ => {}
+        // Client should not send Dispatch or HeartbeatAck; log at debug so
+        // client-side protocol bugs are visible without polluting warn logs.
+        _ => {
+            tracing::debug!(
+                user_id = %user_id,
+                op = ?msg.op,
+                "Client sent unexpected gateway opcode; ignoring"
+            );
+        }
     }
+}
+
+// ============================================================================
+// Voice disconnect cleanup
+// ============================================================================
+
+/// Combined DB row used to look up a user's active voice state plus the
+/// server it belongs to in a single query.
+#[derive(sqlx::FromRow)]
+struct VoiceCleanupRow {
+    channel_id: Uuid,
+    server_id: Uuid,
+    username: String,
+}
+
+/// Remove a disconnecting user from their voice channel (if any) and
+/// broadcast a `VOICE_STATE_UPDATE` leave event to the server.
+///
+/// Called from the `handle_socket` cleanup path so that an abrupt disconnect
+/// (browser close, network drop) does not leave a ghost participant in the
+/// voice channel participant list.
+async fn cleanup_voice_on_disconnect(state: &AppState, user_id: Uuid) {
+    let row = sqlx::query_as::<_, VoiceCleanupRow>(
+        "SELECT vs.channel_id, c.server_id, u.username
+         FROM voice_states vs
+         JOIN channels c ON vs.channel_id = c.id
+         JOIN users    u ON vs.user_id     = u.id
+         WHERE vs.user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.pool)
+    .await;
+
+    let VoiceCleanupRow {
+        channel_id,
+        server_id,
+        username,
+    } = match row {
+        Ok(Some(r)) => r,
+        Ok(None) => return, // user was not in a voice channel
+        Err(e) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error   = ?e,
+                "Failed to query voice state during disconnect cleanup"
+            );
+            return;
+        }
+    };
+
+    if let Err(e) = sqlx::query("DELETE FROM voice_states WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&state.pool)
+        .await
+    {
+        tracing::warn!(
+            user_id    = %user_id,
+            channel_id = %channel_id,
+            error      = ?e,
+            "Failed to remove voice state on disconnect; participant list may be stale"
+        );
+        // Still attempt the broadcast — the row may have been cleaned up by
+        // a concurrent leave request, and other clients need to know the user
+        // is gone regardless.
+    }
+
+    let payload = serde_json::json!({
+        "user_id":     user_id,
+        "username":    username,
+        "channel_id":  serde_json::Value::Null,
+        "self_mute":   false,
+        "self_deaf":   false,
+        "server_mute": false,
+        "server_deaf": false,
+        "joined_at":   serde_json::Value::Null,
+    });
+
+    super::broadcast_to_server(state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
 }
 
 // ============================================================================
@@ -194,14 +282,27 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
 /// Relay a WebRTC SDP/ICE signal from `user_id` to the target peer.
 ///
 /// Both users must be in the same voice channel; signals for users in
-/// different channels are silently dropped to prevent cross-channel leakage.
+/// different channels are dropped (debug-logged) to prevent cross-channel
+/// leakage. A DB error during the co-membership check also drops the signal
+/// (warn-logged) — if debugging broken signaling, check DB connectivity.
+///
+/// The forwarded payload replaces `to_user_id` with `from_user_id` (the
+/// receiver already knows they are the target). Both `sdp` and `candidate`
+/// are forwarded as-is; whichever was absent in the original signal will be
+/// `null` in the relayed message.
 async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &AppState) {
     let to_user_id = match data["to_user_id"]
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
     {
         Some(id) => id,
-        None => return,
+        None => {
+            tracing::debug!(
+                from_user_id = %user_id,
+                "VoiceSignal frame missing or invalid to_user_id; dropping"
+            );
+            return;
+        }
     };
 
     // Verify co-membership in the same voice channel before relaying.
@@ -218,14 +319,28 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
     .await
     {
         Ok(b) => b,
-        Err(_) => return,
+        Err(e) => {
+            tracing::warn!(
+                from_user_id = %user_id,
+                to_user_id   = %to_user_id,
+                error        = ?e,
+                "DB error verifying voice channel co-membership; signal dropped"
+            );
+            return;
+        }
     };
 
     if !same_channel {
+        tracing::debug!(
+            from_user_id = %user_id,
+            to_user_id   = %to_user_id,
+            "VoiceSignal dropped: users not in the same voice channel"
+        );
         return;
     }
 
-    // Forward the signal with from_user_id substituted for to_user_id.
+    // Build the forwarded payload: `from_user_id` replaces `to_user_id`
+    // (dropped entirely); the receiver already knows they are the target.
     let relayed = serde_json::json!({
         "from_user_id": user_id,
         "type":         data["type"],

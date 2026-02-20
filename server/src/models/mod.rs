@@ -201,16 +201,19 @@ pub struct UpdateMessageDto {
 }
 
 // ============================================================================
-// Attachment Models
-// ============================================================================
-
-// ============================================================================
 // Voice Models
 // ============================================================================
 
-/// Tracks a user's current voice channel state. Safe to serialize directly —
-/// no secrets. A user can only be in one channel at a time (PK on user_id).
-#[derive(Debug, Clone, FromRow, Serialize)]
+/// Internal database row for a user's current voice channel state.
+///
+/// A user can only be in one channel at a time — enforced by the `user_id`
+/// PRIMARY KEY constraint. The `user_id PRIMARY KEY` is also the enforcement
+/// point for the UPSERT join logic in `join_voice_channel` and the
+/// co-membership JOIN in the WebRTC signal relay.
+///
+/// Note: `server_mute`/`server_deaf` are moderator-applied and are intentionally
+/// preserved across channel switches; only `self_mute`/`self_deaf` are reset.
+#[derive(Debug, Clone, FromRow)]
 pub struct VoiceState {
     pub user_id: Uuid,
     pub channel_id: Uuid,
@@ -221,7 +224,44 @@ pub struct VoiceState {
     pub joined_at: DateTime<Utc>,
 }
 
+/// Wire representation of voice state for REST responses and broadcast events.
+///
+/// `channel_id` and `joined_at` are `None` when representing a user who has
+/// left all voice channels (used in `VOICE_STATE_UPDATE` leave broadcasts).
+/// This is a separate type from `VoiceState` to decouple the API shape from
+/// the DB row and prevent future field additions from accidentally leaking.
+#[derive(Debug, Serialize)]
+pub struct VoiceStateDto {
+    pub user_id: Uuid,
+    pub channel_id: Option<Uuid>,
+    pub self_mute: bool,
+    pub self_deaf: bool,
+    pub server_mute: bool,
+    pub server_deaf: bool,
+    pub joined_at: Option<DateTime<Utc>>,
+}
+
+impl From<VoiceState> for VoiceStateDto {
+    fn from(vs: VoiceState) -> Self {
+        VoiceStateDto {
+            user_id: vs.user_id,
+            channel_id: Some(vs.channel_id),
+            self_mute: vs.self_mute,
+            self_deaf: vs.self_deaf,
+            server_mute: vs.server_mute,
+            server_deaf: vs.server_deaf,
+            joined_at: Some(vs.joined_at),
+        }
+    }
+}
+
+/// Request body for PATCH /channels/:id/voice.
+///
+/// Only user-controlled flags are accepted; `server_mute`/`server_deaf` are
+/// excluded at the type level to prevent privilege escalation. Unknown fields
+/// are rejected (deny_unknown_fields) rather than silently ignored.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateVoiceStateRequest {
     pub self_mute: Option<bool>,
     pub self_deaf: Option<bool>,
