@@ -329,7 +329,7 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
     // Validate the signal type — must be one of the three WebRTC signal types.
     // This prevents the relay from being used to forward arbitrary payloads.
     match data["type"].as_str() {
-        Some(t) if matches!(t, "offer" | "answer" | "candidate") => {}
+        Some("offer" | "answer" | "candidate") => {}
         Some(t) => {
             tracing::debug!(
                 from_user_id = %user_id,
