@@ -17,7 +17,7 @@ use super::events::{
 };
 use crate::{
     auth::{validate_token, TokenType},
-    models::{Server, User, UserDto},
+    models::{Server, User, UserDto, VoiceStateDto},
     state::AppState,
 };
 
@@ -180,11 +180,15 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
                 set_presence(state, user_id, status, custom_status).await;
             }
         }
-        GatewayOp::VoiceSignal => {
-            if let Some(data) = msg.d {
-                handle_voice_signal(user_id, data, state).await;
+        GatewayOp::VoiceSignal => match msg.d {
+            Some(data) => handle_voice_signal(user_id, data, state).await,
+            None => {
+                tracing::debug!(
+                    user_id = %user_id,
+                    "VoiceSignal frame missing data payload; dropping"
+                );
             }
-        }
+        },
         // Client should not send Dispatch or HeartbeatAck; log at debug so
         // client-side protocol bugs are visible without polluting warn logs.
         _ => {
@@ -245,8 +249,13 @@ async fn cleanup_voice_on_disconnect(state: &AppState, user_id: Uuid) {
         }
     };
 
-    if let Err(e) = sqlx::query("DELETE FROM voice_states WHERE user_id = $1")
+    // Scope the DELETE to the specific channel_id captured above.
+    // This prevents a race where the user reconnects and joins a new channel
+    // between the SELECT and DELETE — without the channel_id guard the stale
+    // cleanup would destroy the new connection's voice state.
+    if let Err(e) = sqlx::query("DELETE FROM voice_states WHERE user_id = $1 AND channel_id = $2")
         .bind(user_id)
+        .bind(channel_id)
         .execute(&state.pool)
         .await
     {
@@ -256,21 +265,33 @@ async fn cleanup_voice_on_disconnect(state: &AppState, user_id: Uuid) {
             error      = ?e,
             "Failed to remove voice state on disconnect; participant list may be stale"
         );
-        // Still attempt the broadcast — the row may have been cleaned up by
-        // a concurrent leave request, and other clients need to know the user
-        // is gone regardless.
+        // Still attempt the broadcast. Two scenarios:
+        // 1. A concurrent REST leave already deleted the row — broadcasting
+        //    here is safe and ensures clients see the leave even if the REST
+        //    broadcast raced with this cleanup.
+        // 2. A genuine DB failure — the row is still present, but we broadcast
+        //    a "left" event anyway, accepting a temporary inconsistency between
+        //    the DB state and client views until the next channel join or
+        //    server restart reconciles state.
     }
 
-    let payload = serde_json::json!({
-        "user_id":     user_id,
-        "username":    username,
-        "channel_id":  serde_json::Value::Null,
-        "self_mute":   false,
-        "self_deaf":   false,
-        "server_mute": false,
-        "server_deaf": false,
-        "joined_at":   serde_json::Value::Null,
-    });
+    // Build the leave payload via VoiceStateDto::leave so future field
+    // additions automatically propagate to disconnect leave broadcasts.
+    let dto = VoiceStateDto::leave(user_id);
+    let mut payload = match serde_json::to_value(&dto) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                user_id = %user_id,
+                error   = ?e,
+                "Failed to serialize VoiceStateDto::leave; this is a programming error"
+            );
+            return;
+        }
+    };
+    if let serde_json::Value::Object(ref mut map) = payload {
+        map.insert("username".to_owned(), serde_json::json!(username));
+    }
 
     super::broadcast_to_server(state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
 }
@@ -286,10 +307,10 @@ async fn cleanup_voice_on_disconnect(state: &AppState, user_id: Uuid) {
 /// leakage. A DB error during the co-membership check also drops the signal
 /// (warn-logged) — if debugging broken signaling, check DB connectivity.
 ///
-/// The forwarded payload replaces `to_user_id` with `from_user_id` (the
-/// receiver already knows they are the target). Both `sdp` and `candidate`
-/// are forwarded as-is; whichever was absent in the original signal will be
-/// `null` in the relayed message.
+/// The forwarded payload adds `from_user_id` (the sender's identity) and
+/// omits `to_user_id` entirely — the receiver already knows they are the
+/// target. Both `sdp` and `candidate` are forwarded as-is; whichever was
+/// absent in the original signal will be `null` in the relayed message.
 async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &AppState) {
     let to_user_id = match data["to_user_id"]
         .as_str()
@@ -304,6 +325,39 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
             return;
         }
     };
+
+    // Validate the signal type — must be one of the three WebRTC signal types.
+    // This prevents the relay from being used to forward arbitrary payloads.
+    match data["type"].as_str() {
+        Some(t) if matches!(t, "offer" | "answer" | "candidate") => {}
+        Some(t) => {
+            tracing::debug!(
+                from_user_id = %user_id,
+                signal_type  = %t,
+                "VoiceSignal has invalid type field; dropping"
+            );
+            return;
+        }
+        None => {
+            tracing::debug!(
+                from_user_id = %user_id,
+                "VoiceSignal missing type field; dropping"
+            );
+            return;
+        }
+    }
+
+    // sdp and candidate must be strings or null — no nested objects or arrays.
+    for (field_name, field_value) in [("sdp", &data["sdp"]), ("candidate", &data["candidate"])] {
+        if !field_value.is_null() && !field_value.is_string() {
+            tracing::debug!(
+                from_user_id = %user_id,
+                field        = %field_name,
+                "VoiceSignal field is not a string or null; dropping"
+            );
+            return;
+        }
+    }
 
     // Verify co-membership in the same voice channel before relaying.
     let same_channel: bool = match sqlx::query_scalar(
@@ -339,8 +393,8 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
         return;
     }
 
-    // Build the forwarded payload: `from_user_id` replaces `to_user_id`
-    // (dropped entirely); the receiver already knows they are the target.
+    // Build the forwarded payload: adds `from_user_id` and omits `to_user_id`
+    // entirely — the receiver already knows they are the target.
     let relayed = serde_json::json!({
         "from_user_id": user_id,
         "type":         data["type"],
@@ -349,8 +403,18 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
     });
 
     let event = GatewayMessage::dispatch(EVENT_VOICE_SIGNAL, relayed);
-    if let Ok(json) = serde_json::to_string(&event) {
-        state.connections.send_to_user(to_user_id, &json).await;
+    match serde_json::to_string(&event) {
+        Ok(json) => {
+            state.connections.send_to_user(to_user_id, &json).await;
+        }
+        Err(e) => {
+            tracing::error!(
+                from_user_id = %user_id,
+                to_user_id   = %to_user_id,
+                error        = ?e,
+                "Failed to serialize VOICE_SIGNAL relay; this is a programming error"
+            );
+        }
     }
 }
 
@@ -375,7 +439,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
     .ok()??
     .into();
 
-    let servers = sqlx::query_as::<_, Server>(
+    let servers = match sqlx::query_as::<_, Server>(
         "SELECT s.id, s.name, s.owner_id, s.icon_url, s.created_at, s.updated_at
          FROM servers s
          JOIN server_members sm ON s.id = sm.server_id
@@ -385,7 +449,17 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
     .bind(user_id)
     .fetch_all(&state.pool)
     .await
-    .unwrap_or_default();
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error   = ?e,
+                "Failed to fetch servers for READY payload; client will receive empty server list"
+            );
+            vec![]
+        }
+    };
 
     let payload =
         GatewayMessage::dispatch(EVENT_READY, json!({ "user": user, "servers": servers }));

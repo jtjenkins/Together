@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use super::shared::{fetch_channel_by_id, require_member};
@@ -78,19 +79,11 @@ async fn broadcast_voice_update(state: &AppState, vs: &VoiceState, server_id: Uu
 /// Broadcast VOICE_STATE_UPDATE with `channel_id: null`, indicating the user
 /// has left their voice channel.
 ///
-/// Uses `VoiceStateDto` for the base payload so field additions to the DTO
-/// automatically appear in this broadcast as well.
+/// Uses `VoiceStateDto::leave` so field additions to the DTO automatically
+/// appear in this broadcast as well.
 async fn broadcast_voice_leave(state: &AppState, user_id: Uuid, server_id: Uuid) {
     let username = fetch_username_for_broadcast(state, user_id).await;
-    let dto = VoiceStateDto {
-        user_id,
-        channel_id: None,
-        self_mute: false,
-        self_deaf: false,
-        server_mute: false,
-        server_deaf: false,
-        joined_at: None,
-    };
+    let dto = VoiceStateDto::leave(user_id);
 
     let mut payload = match serde_json::to_value(&dto) {
         Ok(v) => v,
@@ -107,6 +100,35 @@ async fn broadcast_voice_leave(state: &AppState, user_id: Uuid, server_id: Uuid)
 }
 
 // ============================================================================
+// Private query types
+// ============================================================================
+
+/// Query row used to find a user's current voice channel before a join UPSERT.
+///
+/// Fetched before the UPSERT so we can detect cross-server channel switches
+/// and broadcast a leave event to the old server.
+#[derive(sqlx::FromRow)]
+struct PriorVoiceLocation {
+    server_id: Uuid,
+}
+
+/// Query row for listing voice channel participants, including username.
+///
+/// Fetched via a JOIN with the `users` table so the REST list response
+/// matches the shape of `VOICE_STATE_UPDATE` WebSocket broadcast events.
+#[derive(sqlx::FromRow)]
+struct VoiceParticipantRow {
+    user_id: Uuid,
+    channel_id: Uuid,
+    username: String,
+    self_mute: bool,
+    self_deaf: bool,
+    server_mute: bool,
+    server_deaf: bool,
+    joined_at: DateTime<Utc>,
+}
+
+// ============================================================================
 // Handlers
 // ============================================================================
 
@@ -116,6 +138,10 @@ async fn broadcast_voice_leave(state: &AppState, user_id: Uuid, server_id: Uuid)
 /// `self_mute` and `self_deaf` are reset to `false` on channel switch.
 /// `server_mute` and `server_deaf` are intentionally preserved so
 /// moderator-applied restrictions survive channel switches.
+///
+/// If the user was in a voice channel on a *different* server, a
+/// `VOICE_STATE_UPDATE` leave event is broadcast to that server so its
+/// members do not see a ghost participant.
 pub async fn join_voice_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -124,6 +150,31 @@ pub async fn join_voice_channel(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
     require_voice_channel(&channel)?;
+
+    // Look up the user's current voice location before the UPSERT.
+    // If they are in a channel on a different server we must broadcast a leave
+    // to that server — the UPSERT overwrites the DB row silently.
+    let prior: Option<PriorVoiceLocation> = match sqlx::query_as::<_, PriorVoiceLocation>(
+        "SELECT c.server_id
+         FROM voice_states vs
+         JOIN channels c ON vs.channel_id = c.id
+         WHERE vs.user_id = $1",
+    )
+    .bind(auth.user_id())
+    .fetch_optional(&state.pool)
+    .await
+    {
+        Ok(opt) => opt,
+        Err(e) => {
+            tracing::warn!(
+                user_id = %auth.user_id(),
+                error   = ?e,
+                "Failed to query prior voice state before join; \
+                 cross-server leave broadcast may be skipped"
+            );
+            None
+        }
+    };
 
     let vs = sqlx::query_as::<_, VoiceState>(
         "INSERT INTO voice_states (user_id, channel_id)
@@ -142,6 +193,15 @@ pub async fn join_voice_channel(
     .await?;
 
     broadcast_voice_update(&state, &vs, channel.server_id).await;
+
+    // If the user switched from a channel on a *different* server, broadcast
+    // a leave to the old server. Same-server switches do not need this — the
+    // join broadcast already implies the move for same-server clients.
+    if let Some(prior) = prior {
+        if prior.server_id != channel.server_id {
+            broadcast_voice_leave(&state, auth.user_id(), prior.server_id).await;
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(VoiceStateDto::from(vs))))
 }
@@ -177,6 +237,8 @@ pub async fn leave_voice_channel(
 ///
 /// At least one field must be provided; an empty body returns 400.
 /// Returns 404 if the user is not currently in this channel.
+/// Only `self_mute` and `self_deaf` are accepted; `server_mute`/`server_deaf`
+/// are excluded from the request type to prevent privilege escalation.
 pub async fn update_voice_state(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -215,27 +277,60 @@ pub async fn update_voice_state(
 }
 
 /// GET /channels/:channel_id/voice — list all participants (members only).
+///
+/// Each entry includes `username` so the response shape matches the
+/// `VOICE_STATE_UPDATE` WebSocket broadcast events.
 pub async fn list_voice_participants(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(channel_id): Path<Uuid>,
-) -> AppResult<Json<Vec<VoiceStateDto>>> {
+) -> AppResult<Json<Vec<serde_json::Value>>> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
     require_voice_channel(&channel)?;
 
-    let participants = sqlx::query_as::<_, VoiceState>(
-        "SELECT user_id, channel_id, self_mute, self_deaf, server_mute, server_deaf, joined_at
-         FROM voice_states
-         WHERE channel_id = $1
-         ORDER BY joined_at ASC",
+    let rows = sqlx::query_as::<_, VoiceParticipantRow>(
+        "SELECT vs.user_id, vs.channel_id, u.username,
+                vs.self_mute, vs.self_deaf, vs.server_mute, vs.server_deaf, vs.joined_at
+         FROM voice_states vs
+         JOIN users u ON vs.user_id = u.id
+         WHERE vs.channel_id = $1
+         ORDER BY vs.joined_at ASC",
     )
     .bind(channel_id)
     .fetch_all(&state.pool)
-    .await?
-    .into_iter()
-    .map(VoiceStateDto::from)
-    .collect();
+    .await?;
+
+    let participants = rows
+        .into_iter()
+        .filter_map(|row| {
+            let dto = VoiceStateDto {
+                user_id: row.user_id,
+                channel_id: Some(row.channel_id),
+                self_mute: row.self_mute,
+                self_deaf: row.self_deaf,
+                server_mute: row.server_mute,
+                server_deaf: row.server_deaf,
+                joined_at: Some(row.joined_at),
+            };
+            match serde_json::to_value(&dto) {
+                Ok(mut value) => {
+                    if let serde_json::Value::Object(ref mut map) = value {
+                        map.insert("username".to_owned(), serde_json::json!(row.username));
+                    }
+                    Some(value)
+                }
+                Err(e) => {
+                    tracing::error!(
+                        user_id = %row.user_id,
+                        error   = ?e,
+                        "Failed to serialize VoiceStateDto in participant list; skipping entry"
+                    );
+                    None
+                }
+            }
+        })
+        .collect();
 
     Ok(Json(participants))
 }

@@ -207,9 +207,10 @@ pub struct UpdateMessageDto {
 /// Internal database row for a user's current voice channel state.
 ///
 /// A user can only be in one channel at a time — enforced by the `user_id`
-/// PRIMARY KEY constraint. The `user_id PRIMARY KEY` is also the enforcement
-/// point for the UPSERT join logic in `join_voice_channel` and the
-/// co-membership JOIN in the WebRTC signal relay.
+/// PRIMARY KEY constraint. This uniqueness constraint is what makes the
+/// `ON CONFLICT (user_id)` UPSERT in `join_voice_channel` correct, and the
+/// co-membership check in the WebRTC signal relay relies on the same
+/// single-row-per-user invariant to confirm both participants share a channel.
 ///
 /// Note: `server_mute`/`server_deaf` are moderator-applied and are intentionally
 /// preserved across channel switches; only `self_mute`/`self_deaf` are reset.
@@ -251,6 +252,26 @@ impl From<VoiceState> for VoiceStateDto {
             server_mute: vs.server_mute,
             server_deaf: vs.server_deaf,
             joined_at: Some(vs.joined_at),
+        }
+    }
+}
+
+impl VoiceStateDto {
+    /// Construct a leave-state DTO where `channel_id` and `joined_at` are `None`.
+    ///
+    /// Used for `VOICE_STATE_UPDATE` leave broadcasts — both REST-triggered leaves
+    /// and WebSocket-disconnect cleanup use this constructor so both paths produce
+    /// an identical payload. Future fields added to this type will automatically
+    /// appear in all leave broadcasts.
+    pub fn leave(user_id: Uuid) -> Self {
+        VoiceStateDto {
+            user_id,
+            channel_id: None,
+            self_mute: false,
+            self_deaf: false,
+            server_mute: false,
+            server_deaf: false,
+            joined_at: None,
         }
     }
 }
