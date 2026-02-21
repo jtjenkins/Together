@@ -25,9 +25,22 @@ interface EventHandlers {
 
 type EventName = keyof EventHandlers;
 
-const WS_BASE =
-  import.meta.env.VITE_WS_URL ||
-  `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`;
+function resolveWsBase(): string {
+  const isTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
+  if (isTauri) {
+    const saved = localStorage.getItem("server_url");
+    if (saved) {
+      const url = new URL(saved);
+      const wsScheme = url.protocol === "https:" ? "wss:" : "ws:";
+      return `${wsScheme}//${url.host}/ws`;
+    }
+    return "";
+  }
+  return (
+    import.meta.env.VITE_WS_URL ||
+    `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`
+  );
+}
 
 const HEARTBEAT_INTERVAL = 30000;
 
@@ -40,6 +53,7 @@ export class WebSocketClient {
   private token: string | null = null;
   private handlers: Partial<Record<EventName, Set<EventHandler<never>>>> = {};
   private _isConnected = false;
+  private wsBase: string = resolveWsBase();
 
   get isConnected(): boolean {
     return this._isConnected;
@@ -62,6 +76,17 @@ export class WebSocketClient {
     this.handlers[event]?.forEach((handler) => {
       (handler as EventHandler)(data);
     });
+  }
+
+  setServerUrl(url: string): void {
+    localStorage.setItem("ws_url", url);
+    const parsed = new URL(url);
+    const wsScheme = parsed.protocol === "https:" ? "wss:" : "ws:";
+    this.wsBase = `${wsScheme}//${parsed.host}/ws`;
+    if (this._isConnected) {
+      this.cleanup();
+      this.doConnect();
+    }
   }
 
   connect(token: string) {
@@ -102,7 +127,7 @@ export class WebSocketClient {
 
     this.cleanup();
 
-    const url = `${WS_BASE}?token=${encodeURIComponent(this.token)}`;
+    const url = `${this.wsBase}?token=${encodeURIComponent(this.token)}`;
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {

@@ -20,10 +20,18 @@ import type {
   Attachment,
 } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
+function resolveApiBase(): string {
+  const isTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
+  if (isTauri) {
+    const saved = localStorage.getItem("server_url");
+    return saved ? `${saved}/api` : "";
+  }
+  return import.meta.env.VITE_API_URL || "/api";
+}
 
 class ApiClient {
   private accessToken: string | null = null;
+  private apiBase: string = resolveApiBase();
 
   setToken(token: string | null) {
     this.accessToken = token;
@@ -31,6 +39,11 @@ class ApiClient {
 
   getToken(): string | null {
     return this.accessToken;
+  }
+
+  setServerUrl(url: string): void {
+    localStorage.setItem("server_url", url);
+    this.apiBase = `${url}/api`;
   }
 
   private async request<T>(
@@ -47,7 +60,7 @@ class ApiClient {
       headers["Authorization"] = `Bearer ${this.accessToken}`;
     }
 
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${this.apiBase}${path}`, {
       ...fetchOptions,
       headers,
     });
@@ -249,7 +262,7 @@ class ApiClient {
 
   /** Resolve an attachment URL for use in <img> / <a> tags. */
   fileUrl(path: string): string {
-    return `${API_BASE}${path}`;
+    return `${this.apiBase}${path}`;
   }
 }
 
