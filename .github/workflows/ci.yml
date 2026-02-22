@@ -245,7 +245,10 @@ jobs:
         working-directory: clients/desktop
 
       - name: Build desktop app
-        run: npm run build
+        # --no-bundle: skip AppImage/linuxdeploy which requires FUSE (unavailable
+        # in Docker containers). The binary still compiles; packaging for Arch
+        # users is handled via AUR rather than a CI-produced bundle.
+        run: npm run build -- --no-bundle
         working-directory: clients/desktop
 
   # ── Desktop App: Build (Arch Linux) ────────────────────────────────────────
