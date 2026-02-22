@@ -3,8 +3,10 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
+use axum_prometheus::PrometheusMetricLayer;
 use tower_http::cors::CorsLayer;
 use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 use together_server::config::Config;
 use together_server::state::AppState;
@@ -13,10 +15,21 @@ use together_server::{db, handlers, websocket};
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter("together_server=debug,tower_http=debug,sqlx=info")
-        .init();
+    // Initialize tracing — JSON in production, human-readable in dev.
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        "together_server=info,tower_http=info,sqlx=warn"
+            .parse()
+            .unwrap()
+    });
+
+    if std::env::var("APP_ENV").as_deref() == Ok("production") {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(filter)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(filter).init();
+    }
 
     info!("🚀 Together Server starting...");
 
@@ -28,6 +41,13 @@ async fn main() {
     let pool = db::create_pool(&config.database_url)
         .await
         .expect("Failed to create database pool");
+
+    // Auto-run pending migrations on startup.
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
+    info!("✅ Database migrations applied");
 
     // Run health check
     db::health_check(&pool)
@@ -65,10 +85,17 @@ async fn main() {
         upload_dir: config.upload_dir.clone(),
     };
 
+    // Prometheus metrics layer
+    let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+
     // Build router
     let app = Router::new()
-        // Health check
+        // Health check + metrics
         .route("/health", get(handlers::health_check))
+        .route(
+            "/metrics",
+            get(move || async move { metric_handle.render() }),
+        )
         // Auth routes
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
@@ -160,6 +187,7 @@ async fn main() {
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
         // Middleware
+        .layer(prometheus_layer)
         .layer(cors)
         .with_state(app_state);
 

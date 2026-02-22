@@ -42,7 +42,8 @@ thiserror = "1"
 
 # Logging and tracing
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+axum-prometheus = "0.7"
 
 # Phase 2: Authentication and API
 jsonwebtoken = "9"           # JWT auth
