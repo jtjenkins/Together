@@ -23,7 +23,6 @@
       ]
     },
     "plugins": [
-      "react-native-webrtc",
       "expo-document-picker",
       [
         "expo-image-picker",
