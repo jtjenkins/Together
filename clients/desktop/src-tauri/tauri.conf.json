@@ -1,10 +1,10 @@
 {
-  "identifier": "com.together.app",
+  "identifier": "com.together.desktop",
   "build": {
     "frontendDist": "../../web/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "cd ../../web && npm run dev",
-    "beforeBuildCommand": "cd ../../web && npm run build"
+    "beforeDevCommand": "cd ../web && npm run dev",
+    "beforeBuildCommand": "cd ../web && npm run build"
   },
   "app": {
     "windows": [
