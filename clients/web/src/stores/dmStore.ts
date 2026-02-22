@@ -57,13 +57,20 @@ export const useDmStore = create<DmState>((set, get) => ({
   },
 
   openOrCreateDm: async (userId) => {
-    const channel = await api.openDmChannel(userId);
-    set((state) => {
-      const exists = state.channels.some((c) => c.id === channel.id);
-      if (exists) return {};
-      return { channels: [channel, ...state.channels] };
-    });
-    return channel;
+    try {
+      const channel = await api.openDmChannel(userId);
+      set((state) => {
+        const exists = state.channels.some((c) => c.id === channel.id);
+        if (exists) return {};
+        return { channels: [channel, ...state.channels] };
+      });
+      return channel;
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError ? err.message : "Failed to open DM";
+      set({ error: message });
+      throw err;
+    }
   },
 
   fetchMessages: async (channelId, before) => {
@@ -104,6 +111,7 @@ export const useDmStore = create<DmState>((set, get) => ({
       const message =
         err instanceof ApiRequestError ? err.message : "Failed to send message";
       set({ error: message });
+      throw err;
     }
   },
 

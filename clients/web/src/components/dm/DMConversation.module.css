@@ -186,3 +186,13 @@
 .sendBtn:hover:not(:disabled) {
   opacity: 0.9;
 }
+
+.errorBanner {
+  background: var(--accent-red, #ed4245);
+  color: #fff;
+  font-size: 13px;
+  padding: 8px 16px;
+  cursor: pointer;
+  text-align: center;
+  flex-shrink: 0;
+}

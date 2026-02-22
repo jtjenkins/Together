@@ -428,7 +428,7 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
 /// database error occurs. Either case is treated as fatal for this
 /// connection's READY handshake.
 async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
-    let user: UserDto = sqlx::query_as::<_, User>(
+    let user: UserDto = match sqlx::query_as::<_, User>(
         "SELECT id, username, email, password_hash, avatar_url, status, custom_status,
                 created_at, updated_at
          FROM users WHERE id = $1",
@@ -436,7 +436,24 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
     .bind(user_id)
     .fetch_optional(&state.pool)
     .await
-    .ok()??
+    {
+        Err(e) => {
+            tracing::error!(
+                user_id = %user_id,
+                error = ?e,
+                "DB error fetching user for READY payload; closing connection"
+            );
+            return None;
+        }
+        Ok(None) => {
+            tracing::warn!(
+                user_id = %user_id,
+                "User not found during READY handshake; token references deleted account"
+            );
+            return None;
+        }
+        Ok(Some(u)) => u,
+    }
     .into();
 
     let servers = match sqlx::query_as::<_, Server>(
@@ -531,11 +548,15 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
 
     // Unread counts: messages created after the user's last read timestamp
     // for channels they belong to (both server channels and DM channels).
+    // Each UNION branch is scoped by JOINing to the appropriate channel table
+    // so that a channel_read_states row for a server channel is never matched
+    // against direct_messages (and vice versa).
     let unread_counts: Vec<UnreadCount> = match sqlx::query_as::<_, UnreadCount>(
         "SELECT
             crs.channel_id,
             COUNT(m.id) AS unread_count
          FROM channel_read_states crs
+         JOIN channels c ON c.id = crs.channel_id
          JOIN messages m ON m.channel_id = crs.channel_id
              AND m.created_at > crs.last_read_at
              AND m.deleted = FALSE
@@ -550,6 +571,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
             crs.channel_id,
             COUNT(dm.id) AS unread_count
          FROM channel_read_states crs
+         JOIN direct_message_channels dmc ON dmc.id = crs.channel_id
          JOIN direct_messages dm ON dm.channel_id = crs.channel_id
              AND dm.created_at > crs.last_read_at
              AND dm.deleted = FALSE
@@ -583,7 +605,17 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         }),
     );
 
-    serde_json::to_string(&payload).ok()
+    match serde_json::to_string(&payload) {
+        Ok(json) => Some(json),
+        Err(e) => {
+            tracing::error!(
+                user_id = %user_id,
+                error = ?e,
+                "Failed to serialize READY payload; this is a programming error"
+            );
+            None
+        }
+    }
 }
 
 // ============================================================================

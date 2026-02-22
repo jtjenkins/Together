@@ -5,7 +5,7 @@
 use axum::{
     body::Body,
     http::{header, Method, Request, StatusCode},
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 use http_body_util::BodyExt;
@@ -121,6 +121,39 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/files/:message_id/*filepath",
             get(handlers::attachments::serve_file),
         )
+        // Reaction routes
+        .route(
+            "/channels/:channel_id/messages/:message_id/reactions",
+            get(handlers::reactions::list_reactions),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/reactions/:emoji",
+            put(handlers::reactions::add_reaction),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/reactions/:emoji",
+            delete(handlers::reactions::remove_reaction),
+        )
+        // Read-state / ack routes
+        .route(
+            "/channels/:channel_id/ack",
+            post(handlers::read_states::ack_channel),
+        )
+        // DM routes
+        .route("/dm-channels", post(handlers::dm::open_dm_channel))
+        .route("/dm-channels", get(handlers::dm::list_dm_channels))
+        .route(
+            "/dm-channels/:id/messages",
+            post(handlers::dm::send_dm_message),
+        )
+        .route(
+            "/dm-channels/:id/messages",
+            get(handlers::dm::list_dm_messages),
+        )
+        .route(
+            "/dm-channels/:id/ack",
+            post(handlers::read_states::ack_dm_channel),
+        )
         // Voice routes
         .route(
             "/channels/:channel_id/voice",
@@ -198,6 +231,16 @@ pub async fn patch_json_authed(
         .header(header::AUTHORIZATION, format!("Bearer {token}"))
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body.to_string()))
+        .unwrap();
+    send(app, req).await
+}
+
+pub async fn put_authed(app: Router, uri: &str, token: &str) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::PUT)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::empty())
         .unwrap();
     send(app, req).await
 }
@@ -334,6 +377,36 @@ pub async fn create_message(app: Router, token: &str, channel_id: &str, content:
         status,
         StatusCode::CREATED,
         "setup create_message failed: {body}"
+    );
+    body
+}
+
+/// Open (or retrieve) a DM channel between the authenticated user and `target_user_id`.
+/// Returns the full response body.
+pub async fn open_dm_channel(app: Router, token: &str, target_user_id: &str) -> Value {
+    let (status, body) = post_json_authed(
+        app,
+        "/dm-channels",
+        token,
+        serde_json::json!({ "user_id": target_user_id }),
+    )
+    .await;
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::OK,
+        "setup open_dm_channel failed ({status}): {body}"
+    );
+    body
+}
+
+/// Send a DM message to a channel and return the full response body.
+pub async fn send_dm_message(app: Router, token: &str, channel_id: &str, content: &str) -> Value {
+    let uri = format!("/dm-channels/{channel_id}/messages");
+    let (status, body) =
+        post_json_authed(app, &uri, token, serde_json::json!({ "content": content })).await;
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "setup send_dm_message failed: {body}"
     );
     body
 }

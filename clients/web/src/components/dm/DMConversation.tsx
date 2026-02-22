@@ -20,6 +20,9 @@ export function DMConversation({ channelId }: DMConversationProps) {
   const markRead = useReadStateStore((s) => s.markRead);
   const user = useAuthStore((s) => s.user);
 
+  const error = useDmStore((s) => s.error);
+  const clearError = useDmStore((s) => s.clearError);
+
   const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevMessageCount = useRef(0);
@@ -31,7 +34,9 @@ export function DMConversation({ channelId }: DMConversationProps) {
     fetchMessages(channelId);
     markRead(channelId);
     // Mark as read on server in background.
-    api.ackDmChannel(channelId).catch(() => {});
+    api.ackDmChannel(channelId).catch((err) => {
+      console.warn("[DMConversation] ack failed", err);
+    });
   }, [channelId, fetchMessages, markRead]);
 
   // Auto-scroll to bottom when new messages arrive.
@@ -58,8 +63,12 @@ export function DMConversation({ channelId }: DMConversationProps) {
   const handleSend = async () => {
     const content = inputValue.trim();
     if (!content) return;
-    setInputValue("");
-    await sendMessage(channelId, content);
+    try {
+      await sendMessage(channelId, content);
+      setInputValue("");
+    } catch {
+      // Error is displayed via the store.error banner; keep input so user can retry.
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -77,6 +86,11 @@ export function DMConversation({ channelId }: DMConversationProps) {
 
   return (
     <div className={styles.container}>
+      {error && (
+        <div className={styles.errorBanner} role="alert" onClick={clearError}>
+          {error} &times;
+        </div>
+      )}
       <div className={styles.header}>
         {channel && (
           <>

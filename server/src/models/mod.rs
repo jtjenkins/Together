@@ -324,11 +324,16 @@ pub struct DirectMessageChannelDto {
     /// The other participant (not the requesting user).
     pub recipient: UserDto,
     pub created_at: DateTime<Utc>,
-    /// Most recent message content preview, if any messages exist.
+    /// Timestamp of the most recent non-deleted message, used for list
+    /// ordering and last-active display. `None` when no messages exist yet.
     pub last_message_at: Option<DateTime<Utc>>,
 }
 
 /// A message sent inside a DM channel.
+///
+/// `author_id` is `None` when the originating user account has been deleted
+/// (the foreign key has `ON DELETE SET NULL`). Clients should render deleted
+/// accounts as "Deleted User".
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct DirectMessage {
     pub id: Uuid,
@@ -336,6 +341,10 @@ pub struct DirectMessage {
     pub author_id: Option<Uuid>,
     pub content: String,
     pub edited_at: Option<DateTime<Utc>>,
+    /// Soft-delete flag. Never serialized to clients — the list endpoint
+    /// always filters `WHERE deleted = FALSE` so clients never receive
+    /// deleted messages.
+    #[serde(skip_serializing)]
     pub deleted: bool,
     pub created_at: DateTime<Utc>,
 }
@@ -349,8 +358,10 @@ pub struct CreateDirectMessageDto {
 // Reaction Models
 // ============================================================================
 
-/// A single emoji reaction on a message.
-#[derive(Debug, Clone, FromRow, Serialize)]
+/// A single emoji reaction on a message (server channel messages only —
+/// DM reactions are not yet supported). Never serialized to clients directly;
+/// only `ReactionCount` aggregates are sent over the wire.
+#[derive(Debug, Clone, FromRow)]
 pub struct MessageReaction {
     pub message_id: Uuid,
     pub user_id: Uuid,
@@ -363,7 +374,9 @@ pub struct MessageReaction {
 pub struct ReactionCount {
     pub emoji: String,
     pub count: i64,
-    /// Whether the requesting user has added this reaction.
+    /// Whether the requesting user has added this reaction at the time of the
+    /// query. Clients must apply `REACTION_ADD`/`REACTION_REMOVE` WebSocket
+    /// delta events to keep this accurate after the initial fetch.
     pub me: bool,
 }
 
@@ -372,6 +385,14 @@ pub struct ReactionCount {
 // ============================================================================
 
 /// Tracks the last-read position for a user in a channel (server or DM).
+///
+/// `channel_id` deliberately has no foreign key constraint so a single table
+/// can track both `channels.id` (server text/voice channels) and
+/// `direct_message_channels.id` (DM channels). Application code is responsible
+/// for verifying that `channel_id` references a real channel before upserting.
+///
+/// Orphaned rows (where the referenced channel has been deleted) are harmless —
+/// they contribute zero to unread counts because no messages reference them.
 #[derive(Debug, Clone, FromRow)]
 pub struct ReadState {
     pub user_id: Uuid,
@@ -380,6 +401,11 @@ pub struct ReadState {
 }
 
 /// Unread summary returned in the READY event.
+///
+/// `unread_count` is always >= 1 (the query uses `HAVING COUNT > 0`).
+/// Channels with no `channel_read_states` row are omitted entirely — this
+/// means "never acknowledged" and "zero unread" are indistinguishable until
+/// the user first acknowledges the channel.
 #[derive(Debug, FromRow, Serialize)]
 pub struct UnreadCount {
     pub channel_id: Uuid,

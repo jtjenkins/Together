@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { DmStackParamList } from "../navigation";
@@ -43,10 +44,20 @@ export function DMChatScreen({ route }: Props) {
     setActiveDmChannel,
     sendDmMessage,
     fetchDmMessages,
+    error,
+    clearError,
   } = useDmStore();
   const markRead = useReadStateStore((s) => s.markRead);
 
   const messages = dmMessages[channelId] ?? [];
+
+  // Show a dismissible alert whenever the store surfaces a DM error.
+  useEffect(() => {
+    if (error) {
+      Alert.alert("Error", error, [{ text: "OK", onPress: clearError }]);
+    }
+  }, [error, clearError]);
+
   const [content, setContent] = useState("");
   const [isSending, setIsSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);

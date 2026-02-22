@@ -58,27 +58,6 @@ fn validation_error(e: validator::ValidationErrors) -> AppError {
     )
 }
 
-/// Query the database for the DM channel shared by exactly these two users.
-/// Returns `None` if no such channel exists yet.
-async fn find_dm_channel(
-    pool: &sqlx::PgPool,
-    user_a: Uuid,
-    user_b: Uuid,
-) -> Result<Option<Uuid>, sqlx::Error> {
-    sqlx::query_scalar::<_, Uuid>(
-        "SELECT dmm1.channel_id
-         FROM direct_message_members dmm1
-         JOIN direct_message_members dmm2
-           ON dmm1.channel_id = dmm2.channel_id AND dmm2.user_id = $2
-         WHERE dmm1.user_id = $1
-         LIMIT 1",
-    )
-    .bind(user_a)
-    .bind(user_b)
-    .fetch_optional(pool)
-    .await
-}
-
 /// Require that `user_id` is a member of the given DM channel.
 async fn require_dm_member(pool: &sqlx::PgPool, channel_id: Uuid, user_id: Uuid) -> AppResult<()> {
     let is_member: bool = sqlx::query_scalar(
@@ -167,6 +146,10 @@ async fn build_channel_dto(
 ///
 /// Idempotent: if a channel already exists between the two users, it is
 /// returned rather than creating a duplicate.
+///
+/// Uses a PostgreSQL advisory transaction lock keyed to the sorted pair of
+/// user UUIDs so that concurrent requests cannot create duplicate channels.
+/// The lock is released automatically when the transaction commits or rolls back.
 pub async fn open_dm_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -190,16 +173,56 @@ pub async fn open_dm_channel(
         return Err(AppError::NotFound("User not found".into()));
     }
 
-    // Return existing channel if found (idempotent).
-    if let Some(channel_id) = find_dm_channel(&state.pool, my_id, their_id).await? {
+    // Begin a transaction to make the check-and-insert atomic.
+    let mut tx = state.pool.begin().await?;
+
+    // Acquire a transaction-scoped advisory lock keyed to the sorted pair of
+    // user UUIDs.  Sorting prevents deadlocks when two users simultaneously
+    // initiate DMs with each other (both requests acquire the same lock key
+    // in the same order, so the second request blocks until the first commits).
+    let (lo, hi) = if my_id < their_id {
+        (my_id, their_id)
+    } else {
+        (their_id, my_id)
+    };
+    let lo_bytes = lo.as_bytes();
+    let hi_bytes = hi.as_bytes();
+    let mut key_bytes = [0u8; 8];
+    for i in 0..8 {
+        key_bytes[i] = lo_bytes[i] ^ hi_bytes[i];
+    }
+    let lock_key = i64::from_le_bytes(key_bytes);
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(lock_key)
+        .execute(&mut *tx)
+        .await?;
+
+    // Re-check for an existing channel while holding the lock so a concurrent
+    // request that ran between our initial check and the lock acquisition does
+    // not result in a duplicate channel.
+    let existing: Option<Uuid> = sqlx::query_scalar(
+        "SELECT dmm1.channel_id
+         FROM direct_message_members dmm1
+         JOIN direct_message_members dmm2
+           ON dmm1.channel_id = dmm2.channel_id AND dmm2.user_id = $2
+         WHERE dmm1.user_id = $1
+         LIMIT 1",
+    )
+    .bind(my_id)
+    .bind(their_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if let Some(channel_id) = existing {
+        tx.commit().await?;
         let dto = build_channel_dto(&state.pool, channel_id, my_id).await?;
         return Ok((StatusCode::OK, Json(dto)));
     }
 
-    // Create new channel.
+    // Create new channel inside the transaction.
     let channel_id: Uuid =
         sqlx::query_scalar("INSERT INTO direct_message_channels DEFAULT VALUES RETURNING id")
-            .fetch_one(&state.pool)
+            .fetch_one(&mut *tx)
             .await?;
 
     sqlx::query(
@@ -208,17 +231,44 @@ pub async fn open_dm_channel(
     .bind(channel_id)
     .bind(my_id)
     .bind(their_id)
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?;
 
-    let dto = build_channel_dto(&state.pool, channel_id, my_id).await?;
+    tx.commit().await?;
 
-    // Notify both participants that a DM channel was created.
-    if let Ok(payload) = serde_json::to_value(&dto) {
-        broadcast_to_user_list(&state, &[my_id, their_id], EVENT_DM_CHANNEL_CREATE, payload).await;
+    // Build perspective-correct DTOs: each participant sees the other as "recipient".
+    let my_dto = build_channel_dto(&state.pool, channel_id, my_id).await?;
+    let their_dto = build_channel_dto(&state.pool, channel_id, their_id).await?;
+
+    // Notify each participant separately so each sees the correct perspective.
+    match serde_json::to_value(&my_dto) {
+        Ok(payload) => {
+            broadcast_to_user_list(&state, &[my_id], EVENT_DM_CHANNEL_CREATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(
+                channel_id = %channel_id,
+                user_id = %my_id,
+                error = ?e,
+                "Failed to serialize DM channel DTO for broadcast; this is a programming error"
+            );
+        }
+    }
+    match serde_json::to_value(&their_dto) {
+        Ok(payload) => {
+            broadcast_to_user_list(&state, &[their_id], EVENT_DM_CHANNEL_CREATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(
+                channel_id = %channel_id,
+                user_id = %their_id,
+                error = ?e,
+                "Failed to serialize DM channel DTO for broadcast; this is a programming error"
+            );
+        }
     }
 
-    Ok((StatusCode::CREATED, Json(dto)))
+    Ok((StatusCode::CREATED, Json(my_dto)))
 }
 
 /// GET /dm-channels — list all DM channels for the authenticated user.
@@ -309,15 +359,36 @@ pub async fn send_dm_message(
     .await?;
 
     // Get both participants to broadcast to.
-    let participant_ids: Vec<Uuid> =
-        sqlx::query_scalar("SELECT user_id FROM direct_message_members WHERE channel_id = $1")
-            .bind(channel_id)
-            .fetch_all(&state.pool)
-            .await
-            .unwrap_or_default();
+    let participant_ids: Vec<Uuid> = match sqlx::query_scalar(
+        "SELECT user_id FROM direct_message_members WHERE channel_id = $1",
+    )
+    .bind(channel_id)
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(ids) => ids,
+        Err(e) => {
+            tracing::warn!(
+                channel_id = %channel_id,
+                error = ?e,
+                "Failed to fetch DM participants; message broadcast will be skipped"
+            );
+            vec![]
+        }
+    };
 
-    if let Ok(payload) = serde_json::to_value(&message) {
-        broadcast_to_user_list(&state, &participant_ids, EVENT_DM_MESSAGE_CREATE, payload).await;
+    match serde_json::to_value(&message) {
+        Ok(payload) => {
+            broadcast_to_user_list(&state, &participant_ids, EVENT_DM_MESSAGE_CREATE, payload)
+                .await;
+        }
+        Err(e) => {
+            tracing::error!(
+                channel_id = %channel_id,
+                error = ?e,
+                "Failed to serialize DM message for broadcast; this is a programming error"
+            );
+        }
     }
 
     Ok((StatusCode::CREATED, Json(message)))

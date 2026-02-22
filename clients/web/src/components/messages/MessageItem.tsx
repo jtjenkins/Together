@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { formatMessageTime } from "../../utils/formatTime";
@@ -40,7 +40,16 @@ export function MessageItem({
   const [reactions, setReactions] = useState<ReactionCount[]>([]);
 
   const isOwnMessage = message.author_id === user?.id;
-  void channelId;
+
+  // Load reactions from server on mount.
+  useEffect(() => {
+    api
+      .listReactions(channelId, message.id)
+      .then(setReactions)
+      .catch(() => {
+        // Non-fatal: reactions will be empty; user can still add new ones.
+      });
+  }, [channelId, message.id]);
 
   const formatBytes = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;

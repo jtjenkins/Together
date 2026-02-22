@@ -45,13 +45,20 @@ export function ReactionBar({
             onReactionsChange([...reactions, { emoji, count: 1, me: true }]);
           }
         }
-      } catch {
-        // Reload reactions from server on error.
+      } catch (err) {
+        // Optimistic update failed — reload reactions from server.
+        console.warn(
+          "[ReactionBar] reaction toggle failed, reloading from server",
+          err,
+        );
         try {
           const fresh = await api.listReactions(channelId, messageId);
           onReactionsChange(fresh);
-        } catch {
-          // Silently ignore; reactions will resync on next page load.
+        } catch (reloadErr) {
+          console.error(
+            "[ReactionBar] failed to reload reactions after toggle error; state may be stale",
+            reloadErr,
+          );
         }
       }
       setShowPicker(false);
