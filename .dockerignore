@@ -1,0 +1,8 @@
+target/
+clients/
+docs/
+scripts/
+*.md
+.git/
+.github/
+server/target/

@@ -1,0 +1,2018 @@
+openapi: 3.1.0
+info:
+  title: Together Server API
+  version: 0.1.0
+  description: |
+    REST API for Together, a self-hosted Discord alternative for small gaming
+    communities.
+
+    **Authentication**
+
+    All protected endpoints require a Bearer JWT access token issued by
+    `POST /auth/login` or `POST /auth/register`. The token is placed in the
+    `Authorization` header:
+
+    ```
+    Authorization: Bearer <access_token>
+    ```
+
+    Access tokens expire after 15 minutes. Use the refresh token (7-day
+    lifetime) to obtain a new access token by re-calling `POST /auth/login`
+    with your credentials, or implement a dedicated token-refresh flow.
+
+    **Error shape**
+
+    All error responses share the same envelope regardless of status code:
+
+    ```json
+    { "error": "Human-readable description of what went wrong." }
+    ```
+
+    **Membership visibility**
+
+    To prevent leaking server and channel existence to non-members, requests
+    from authenticated users who are not members of a server return `404 Not
+    Found` rather than `403 Forbidden`. This applies to all server, channel,
+    message, and voice routes.
+
+  contact:
+    name: Together Project
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+# ---------------------------------------------------------------------------
+# Security scheme
+# ---------------------------------------------------------------------------
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token issued by `/auth/login` or `/auth/register`.
+        Tokens expire after 15 minutes.
+
+  # -------------------------------------------------------------------------
+  # Reusable schemas
+  # -------------------------------------------------------------------------
+  schemas:
+
+    # -- Users ----------------------------------------------------------------
+
+    UserDto:
+      type: object
+      description: Public representation of a user. Never contains password_hash.
+      required:
+        - id
+        - username
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the user.
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+          description: Unique display name chosen at registration.
+          example: "alice"
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: Optional email address. May be null if the user did not provide one.
+          example: "alice@example.com"
+        avatar_url:
+          type: string
+          nullable: true
+          description: URL to the user's avatar image, or null if not set.
+          example: "https://cdn.example.com/avatars/alice.png"
+        status:
+          type: string
+          enum: [online, away, dnd, offline]
+          description: Current presence status.
+          example: "online"
+        custom_status:
+          type: string
+          nullable: true
+          description: Free-text custom status message, or null if not set.
+          example: "Playing Elden Ring"
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when the account was created.
+          example: "2026-01-15T10:30:00Z"
+
+    # -- Authentication -------------------------------------------------------
+
+    AuthResponse:
+      type: object
+      description: |
+        Returned by both `POST /auth/register` (201) and `POST /auth/login`
+        (200). Contains both token types and the authenticated user.
+      required:
+        - access_token
+        - refresh_token
+        - user
+      properties:
+        access_token:
+          type: string
+          description: |
+            Short-lived JWT for API requests. Valid for 15 minutes.
+            Place in `Authorization: Bearer <token>` on every protected request.
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: |
+            Long-lived token for obtaining new access tokens. Valid for 7 days.
+            Store securely; do not expose to untrusted code.
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          $ref: '#/components/schemas/UserDto'
+
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+          description: Desired username. Must be unique across the server.
+          example: "alice"
+        email:
+          type: string
+          format: email
+          description: Optional email address.
+          example: "alice@example.com"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: |
+            Plain-text password. Hashed with bcrypt (12 rounds) before storage.
+            Maximum of 128 characters prevents bcrypt's 72-byte truncation from
+            becoming a denial-of-service vector.
+          example: "s3cur3P@ssword"
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          maxLength: 128
+          description: Registered username.
+          example: "alice"
+        password:
+          type: string
+          maxLength: 128
+          description: Plain-text password.
+          example: "s3cur3P@ssword"
+
+    # -- Users (update) -------------------------------------------------------
+
+    UpdateUserRequest:
+      type: object
+      description: |
+        All fields are optional. Only provided fields are updated; omitted
+        fields retain their current values (COALESCE semantics).
+      properties:
+        avatar_url:
+          type: string
+          nullable: true
+          description: New avatar URL, or null to clear the current avatar.
+          example: "https://cdn.example.com/avatars/alice-new.png"
+        status:
+          type: string
+          enum: [online, away, dnd, offline]
+          description: New presence status.
+          example: "away"
+        custom_status:
+          type: string
+          nullable: true
+          description: New custom status message, or null to clear it.
+          example: "AFK for lunch"
+
+    # -- Servers --------------------------------------------------------------
+
+    ServerDto:
+      type: object
+      description: A community server (analogous to a Discord guild).
+      required:
+        - id
+        - name
+        - owner_id
+        - member_count
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "My Gaming Community"
+        owner_id:
+          type: string
+          format: uuid
+          description: UUID of the user who created and owns this server.
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        icon_url:
+          type: string
+          nullable: true
+          description: URL to the server icon image, or null if not set.
+          example: "https://cdn.example.com/server-icons/community.png"
+        member_count:
+          type: integer
+          format: int64
+          description: Live count of current server members.
+          example: 42
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-10T08:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-01T14:22:00Z"
+
+    CreateServerRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Display name of the new server.
+          example: "My Gaming Community"
+        icon_url:
+          type: string
+          nullable: true
+          description: Optional URL to the server icon.
+          example: "https://cdn.example.com/server-icons/community.png"
+
+    UpdateServerRequest:
+      type: object
+      description: All fields are optional.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: New server name.
+          example: "Renamed Community"
+        icon_url:
+          type: string
+          nullable: true
+          description: New icon URL, or null to clear the current icon.
+          example: "https://cdn.example.com/server-icons/new.png"
+
+    MemberDto:
+      type: object
+      description: A member of a server, combining user identity with membership metadata.
+      required:
+        - user_id
+        - username
+        - status
+        - joined_at
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        username:
+          type: string
+          example: "alice"
+        avatar_url:
+          type: string
+          nullable: true
+          example: "https://cdn.example.com/avatars/alice.png"
+        status:
+          type: string
+          enum: [online, away, dnd, offline]
+          example: "online"
+        nickname:
+          type: string
+          nullable: true
+          description: Server-specific nickname override, or null if not set.
+          example: null
+        joined_at:
+          type: string
+          format: date-time
+          description: When this user joined the server.
+          example: "2026-01-20T12:00:00Z"
+
+    JoinServerResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "Joined server"
+
+    # -- Channels -------------------------------------------------------------
+
+    ChannelDto:
+      type: object
+      description: A text or voice channel within a server.
+      required:
+        - id
+        - server_id
+        - name
+        - type
+        - position
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        server_id:
+          type: string
+          format: uuid
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "general"
+        type:
+          type: string
+          enum: [text, voice]
+          description: |
+            `text` — supports messages and file attachments.
+            `voice` — supports WebRTC voice connections.
+          example: "text"
+        position:
+          type: integer
+          description: |
+            Display order within the server. Lower values sort first.
+            Assigned automatically on creation (MAX(position)+1).
+          example: 0
+        category:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: Optional category label for grouping channels.
+          example: "General"
+        topic:
+          type: string
+          nullable: true
+          maxLength: 1024
+          description: Optional channel topic shown in the header.
+          example: "General discussion for all members."
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-10T08:05:00Z"
+
+    CreateChannelRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "general"
+        type:
+          type: string
+          enum: [text, voice]
+          example: "text"
+        topic:
+          type: string
+          nullable: true
+          maxLength: 1024
+          example: "General discussion for all members."
+        category:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: "General"
+
+    UpdateChannelRequest:
+      type: object
+      description: All fields are optional.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "announcements"
+        topic:
+          type: string
+          nullable: true
+          maxLength: 1024
+          example: "Server announcements only."
+        category:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: "Info"
+        position:
+          type: integer
+          minimum: 0
+          description: New display position.
+          example: 1
+
+    # -- Messages -------------------------------------------------------------
+
+    MessageDto:
+      type: object
+      description: |
+        A chat message in a text channel. Messages are soft-deleted
+        (`deleted = true` in the DB); deleted messages are never returned
+        by the API.
+      required:
+        - id
+        - channel_id
+        - content
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        channel_id:
+          type: string
+          format: uuid
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        author_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            UUID of the message author. Null if the author's account has been
+            deleted (orphaned message scenario).
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          example: "Hey everyone, what are we playing tonight?"
+        reply_to:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            UUID of the message this is a reply to, or null. The referenced
+            message must exist in the same channel and must not be deleted.
+          example: null
+        edited_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the message was last edited, or null if never edited.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-15T19:30:00Z"
+
+    CreateMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          example: "Hey everyone, what are we playing tonight?"
+        reply_to:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            UUID of the message to reply to. Must exist in the same channel
+            and must not be deleted.
+          example: null
+
+    UpdateMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: New message content. Replaces the existing content entirely.
+          example: "Hey everyone, what are we playing tonight? (edited)"
+
+    MessageDeleteEvent:
+      type: object
+      description: |
+        Payload emitted as a `MESSAGE_DELETE` WebSocket event and returned
+        inline by `DELETE /messages/:message_id` broadcasts.
+      required:
+        - id
+        - channel_id
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID of the deleted message.
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        channel_id:
+          type: string
+          format: uuid
+          description: UUID of the channel that contained the message.
+          example: "770e8400-e29b-41d4-a716-446655440002"
+
+    # -- Attachments ----------------------------------------------------------
+
+    AttachmentDto:
+      type: object
+      description: A file attached to a message.
+      required:
+        - id
+        - message_id
+        - filename
+        - file_size
+        - mime_type
+        - url
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "990e8400-e29b-41d4-a716-446655440004"
+        message_id:
+          type: string
+          format: uuid
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        filename:
+          type: string
+          description: Original filename as provided by the uploader.
+          example: "screenshot.png"
+        file_size:
+          type: integer
+          format: int64
+          description: File size in bytes. Maximum enforced by the API is 52,428,800 (50 MB).
+          example: 204800
+        mime_type:
+          type: string
+          description: MIME type detected from the multipart Content-Type header.
+          example: "image/png"
+        url:
+          type: string
+          description: |
+            Relative URL path for retrieving the file via `GET /files/:message_id/*filepath`.
+            Requires the same Bearer token as other protected endpoints.
+          example: "/files/880e8400-e29b-41d4-a716-446655440003/a1b2c3d4_screenshot.png"
+        width:
+          type: integer
+          nullable: true
+          description: Image width in pixels, if the file is an image. Null otherwise.
+          example: 1920
+        height:
+          type: integer
+          nullable: true
+          description: Image height in pixels, if the file is an image. Null otherwise.
+          example: 1080
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-15T19:31:00Z"
+
+    # -- Voice ----------------------------------------------------------------
+
+    VoiceStateDto:
+      type: object
+      description: |
+        A user's current voice channel state. When `channel_id` is null the
+        user has left all voice channels; this shape is used in leave broadcasts.
+      required:
+        - user_id
+        - self_mute
+        - self_deaf
+        - server_mute
+        - server_deaf
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        channel_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The voice channel the user is in, or null if they have left.
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        self_mute:
+          type: boolean
+          description: Whether the user has muted their own microphone.
+          example: false
+        self_deaf:
+          type: boolean
+          description: Whether the user has deafened their own audio output.
+          example: false
+        server_mute:
+          type: boolean
+          description: |
+            Whether a moderator has muted this user server-side. Cannot be
+            changed by the user themselves (excluded from PATCH request body).
+          example: false
+        server_deaf:
+          type: boolean
+          description: |
+            Whether a moderator has deafened this user server-side. Cannot be
+            changed by the user themselves.
+          example: false
+        joined_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the user joined this voice channel, or null on a leave event.
+          example: "2026-02-15T20:00:00Z"
+
+    VoiceParticipantDto:
+      allOf:
+        - $ref: '#/components/schemas/VoiceStateDto'
+        - type: object
+          description: |
+            Extended voice state returned by `GET /channels/:channel_id/voice`.
+            Includes `username` so the client can display participant names
+            without a separate user lookup. Shape matches `VOICE_STATE_UPDATE`
+            WebSocket broadcast events.
+          required:
+            - username
+          properties:
+            username:
+              type: string
+              example: "alice"
+
+    UpdateVoiceStateRequest:
+      type: object
+      description: |
+        At least one field must be present. Unknown fields are rejected
+        (deny_unknown_fields). `server_mute` and `server_deaf` are
+        intentionally excluded to prevent privilege escalation.
+      properties:
+        self_mute:
+          type: boolean
+          description: Set the caller's self-mute state.
+          example: true
+        self_deaf:
+          type: boolean
+          description: Set the caller's self-deaf state.
+          example: false
+
+    # -- Health / Metrics -----------------------------------------------------
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - version
+        - database
+      properties:
+        status:
+          type: string
+          enum: ["ok", "degraded"]
+          example: "ok"
+        service:
+          type: string
+          example: "together-server"
+        version:
+          type: string
+          example: "0.1.0"
+        database:
+          type: string
+          enum: ["ok", "unavailable"]
+          example: "ok"
+
+    # -- Shared error ---------------------------------------------------------
+
+    ErrorResponse:
+      type: object
+      description: |
+        Returned for all error status codes (400, 401, 403, 404, 409, 500).
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable description of what went wrong.
+          example: "Username already taken"
+
+  # -------------------------------------------------------------------------
+  # Reusable responses
+  # -------------------------------------------------------------------------
+  responses:
+    Unauthorized:
+      description: Missing or invalid Bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Invalid or expired token"
+
+    Forbidden:
+      description: |
+        Authenticated but not permitted. Typically means the caller is a
+        server member but lacks the required role (e.g. non-owner attempting
+        an owner-only action).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Only the server owner can delete it"
+
+    NotFound:
+      description: |
+        Resource not found, or the caller is not a member of the server that
+        owns the resource (membership is not disclosed to non-members).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Server not found"
+
+    Conflict:
+      description: The resource already exists or a unique constraint was violated.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Username already taken"
+
+    ValidationError:
+      description: One or more request fields failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Server name must be 1–100 characters"
+
+    InternalError:
+      description: Unexpected server error. Retry with exponential backoff.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Internal server error"
+
+# ---------------------------------------------------------------------------
+# Global security (overridden to empty on public routes)
+# ---------------------------------------------------------------------------
+security:
+  - bearerAuth: []
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+
+  # ==========================================================================
+  # Health & observability
+  # ==========================================================================
+
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Server health check
+      description: |
+        Performs a lightweight database connectivity check (`SELECT 1`).
+        Returns `200 OK` with `"status":"ok"` when the database is reachable.
+        Returns `503 Service Unavailable` with `"status":"degraded"` when the
+        database is not reachable. Use this for load-balancer health probes.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Server and database are healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ok"
+                service: "together-server"
+                version: "0.1.0"
+                database: "ok"
+        '503':
+          description: Database is unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "degraded"
+                service: "together-server"
+                version: "0.1.0"
+                database: "unavailable"
+
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Prometheus metrics
+      description: |
+        Exposes Prometheus-format metrics for scraping. No authentication is
+        required; restrict access at the network or reverse-proxy level in
+        production.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Prometheus text exposition format.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP together_http_requests_total Total HTTP requests
+                # TYPE together_http_requests_total counter
+                together_http_requests_total{method="GET",status="200"} 142
+
+  # ==========================================================================
+  # Authentication
+  # ==========================================================================
+
+  /auth/register:
+    post:
+      operationId: register
+      summary: Register a new account
+      description: |
+        Creates a new user account and immediately issues tokens so the client
+        is logged in after registration.
+
+        The password is hashed with bcrypt (12 rounds) before storage; the
+        plain-text password is never persisted.
+
+        User creation and session creation are wrapped in a single database
+        transaction: if the session insert fails the user row is rolled back
+        so the client cannot end up locked out of an account they never
+        successfully created.
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              username: "alice"
+              email: "alice@example.com"
+              password: "s3cur3P@ssword"
+      responses:
+        '201':
+          description: Account created. Returns tokens and the new user object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Username or email already registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Username already taken"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/login:
+    post:
+      operationId: login
+      summary: Log in to an existing account
+      description: |
+        Validates credentials and returns fresh tokens. On success the user's
+        status is set to `online`.
+
+        Expired sessions are pruned for the user at login time to prevent
+        unbounded session table growth.
+
+        Both `username` and `password` must be provided and non-empty. A
+        deliberately vague error message (`Invalid username or password`) is
+        returned for both unknown-username and wrong-password cases to avoid
+        enumeration attacks.
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: "alice"
+              password: "s3cur3P@ssword"
+      responses:
+        '200':
+          description: Login successful. Returns tokens and the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid username or password"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==========================================================================
+  # Users
+  # ==========================================================================
+
+  /users/@me:
+    get:
+      operationId: getCurrentUser
+      summary: Get the authenticated user's profile
+      description: Returns the full UserDto for the currently authenticated user.
+      tags: [Users]
+      responses:
+        '200':
+          description: The authenticated user's profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User account no longer exists (should not occur in normal operation).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      operationId: updateCurrentUser
+      summary: Update the authenticated user's profile
+      description: |
+        Updates one or more profile fields for the currently authenticated user.
+        All request fields are optional; omitted fields retain their current
+        values (COALESCE semantics).
+
+        Valid status values: `online`, `away`, `dnd`, `offline`.
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            example:
+              status: "away"
+              custom_status: "AFK for lunch"
+      responses:
+        '200':
+          description: Updated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User account no longer exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==========================================================================
+  # Servers
+  # ==========================================================================
+
+  /servers:
+    post:
+      operationId: createServer
+      summary: Create a new server
+      description: |
+        Creates a server and automatically adds the creating user as its owner
+        and first member. The creator cannot leave the server; they must
+        transfer ownership or delete it.
+      tags: [Servers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServerRequest'
+            example:
+              name: "My Gaming Community"
+              icon_url: null
+      responses:
+        '201':
+          description: Server created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      operationId: listServers
+      summary: List servers the authenticated user belongs to
+      description: |
+        Returns all servers the authenticated user is a member of, ordered by
+        creation time ascending.
+      tags: [Servers]
+      responses:
+        '200':
+          description: Array of servers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServerDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /servers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server UUID.
+        example: "660e8400-e29b-41d4-a716-446655440001"
+
+    get:
+      operationId: getServer
+      summary: Get a server by ID
+      description: |
+        Returns the server. The caller must be a member; non-members receive
+        `404 Not Found` to avoid leaking server existence.
+      tags: [Servers]
+      responses:
+        '200':
+          description: Server details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      operationId: updateServer
+      summary: Update a server
+      description: |
+        Updates the server name or icon. Caller must be the server owner.
+        All fields are optional; omitted fields retain their current values.
+      tags: [Servers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateServerRequest'
+            example:
+              name: "Renamed Community"
+      responses:
+        '200':
+          description: Updated server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      operationId: deleteServer
+      summary: Delete a server
+      description: |
+        Permanently deletes the server and all associated data (channels,
+        messages, members) via database CASCADE constraints. Caller must be
+        the server owner.
+      tags: [Servers]
+      responses:
+        '204':
+          description: Server deleted. No body.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /servers/{id}/join:
+    post:
+      operationId: joinServer
+      summary: Join a server
+      description: |
+        Adds the authenticated user to the server as a member. Returns `409
+        Conflict` if the user is already a member.
+      tags: [Servers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Server UUID.
+      responses:
+        '201':
+          description: Successfully joined.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinServerResponse'
+              example:
+                message: "Joined server"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already a member of this server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Already a member of this server"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /servers/{id}/leave:
+    delete:
+      operationId: leaveServer
+      summary: Leave a server
+      description: |
+        Removes the authenticated user from the server. The server owner
+        cannot leave — they must transfer ownership or delete the server.
+      tags: [Servers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Server UUID.
+      responses:
+        '204':
+          description: Successfully left. No body.
+        '400':
+          description: Server owner cannot leave.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Server owner cannot leave — transfer ownership or delete the server"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /servers/{id}/members:
+    get:
+      operationId: listMembers
+      summary: List server members
+      description: |
+        Returns all members of the server, ordered by join time ascending.
+        Caller must be a member; non-members receive `404`.
+      tags: [Servers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Server UUID.
+      responses:
+        '200':
+          description: Array of members.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MemberDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==========================================================================
+  # Channels
+  # ==========================================================================
+
+  /servers/{id}/channels:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server UUID.
+
+    post:
+      operationId: createChannel
+      summary: Create a channel in a server
+      description: |
+        Creates a text or voice channel. Caller must be the server owner.
+
+        Position is assigned automatically as `MAX(position) + 1` for the
+        server in a single atomic INSERT, avoiding TOCTOU races.
+      tags: [Channels]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChannelRequest'
+            example:
+              name: "general"
+              type: "text"
+              topic: "General discussion"
+              category: "Text Channels"
+      responses:
+        '201':
+          description: Channel created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      operationId: listChannels
+      summary: List channels in a server
+      description: |
+        Returns all channels in the server ordered by `position ASC`, then
+        `created_at ASC` as a tiebreaker. Caller must be a member.
+      tags: [Channels]
+      responses:
+        '200':
+          description: Array of channels.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChannelDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /servers/{id}/channels/{channel_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server UUID.
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID.
+
+    get:
+      operationId: getChannel
+      summary: Get a channel by ID
+      description: |
+        Returns a single channel. Caller must be a member of the server;
+        non-members receive `404`.
+      tags: [Channels]
+      responses:
+        '200':
+          description: Channel details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      operationId: updateChannel
+      summary: Update a channel
+      description: |
+        Updates channel properties. Caller must be the server owner. All
+        fields are optional; omitted fields retain their current values.
+      tags: [Channels]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChannelRequest'
+            example:
+              topic: "Updated topic"
+              position: 2
+      responses:
+        '200':
+          description: Updated channel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      operationId: deleteChannel
+      summary: Delete a channel
+      description: |
+        Permanently deletes the channel. All messages within it are removed
+        by the `ON DELETE CASCADE` constraint on `messages.channel_id`. Caller
+        must be the server owner.
+      tags: [Channels]
+      responses:
+        '204':
+          description: Channel deleted. No body.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==========================================================================
+  # Messages
+  # ==========================================================================
+
+  /channels/{channel_id}/messages:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID. Must be a `text` type channel.
+
+    post:
+      operationId: createMessage
+      summary: Send a message
+      description: |
+        Posts a message to a text channel. Caller must be a member of the
+        server that owns the channel.
+
+        If `reply_to` is provided, the referenced message must exist in the
+        same channel and must not have been deleted.
+
+        On success, a `MESSAGE_CREATE` event is broadcast via WebSocket to
+        all connected members of the server.
+      tags: [Messages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMessageRequest'
+            example:
+              content: "Hello, world!"
+              reply_to: null
+      responses:
+        '201':
+          description: Message created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      operationId: listMessages
+      summary: List messages in a channel
+      description: |
+        Returns messages in reverse-chronological order (newest first). Caller
+        must be a member of the server.
+
+        **Cursor pagination**
+
+        Pass `before=<message_uuid>` to retrieve messages that appear before
+        that message in the timeline. The server resolves the cursor to a
+        `(created_at, id)` compound key for a stable total order even when two
+        messages share an identical timestamp.
+
+        If the cursor ID does not exist or belongs to a different channel an
+        empty array is returned (no error).
+
+        **Limits**
+
+        - Default: 50 messages per request.
+        - Maximum: 100 messages per request.
+        - Minimum: 1 message per request.
+        - Deleted messages are excluded.
+      tags: [Messages]
+      parameters:
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: |
+            Cursor: return messages created before the message with this UUID.
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Number of messages to return. Clamped to the range [1, 100].
+          example: 50
+      responses:
+        '200':
+          description: Array of messages, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /messages/{message_id}:
+    parameters:
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Message UUID.
+
+    patch:
+      operationId: updateMessage
+      summary: Edit a message
+      description: |
+        Replaces a message's content. Caller must be the message author and
+        a current member of the server.
+
+        `edited_at` is set to the current timestamp on the updated row.
+
+        On success, a `MESSAGE_UPDATE` event is broadcast via WebSocket to
+        all connected members of the server.
+      tags: [Messages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMessageRequest'
+            example:
+              content: "Hello, world! (edited)"
+      responses:
+        '200':
+          description: Updated message.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      operationId: deleteMessage
+      summary: Delete a message
+      description: |
+        Soft-deletes a message by setting `deleted = true`. The row is
+        retained in the database; the content is no longer accessible through
+        the API. Caller must be either the message author or the server owner.
+
+        On success, a `MESSAGE_DELETE` event is broadcast via WebSocket to
+        all connected members of the server.
+      tags: [Messages]
+      responses:
+        '204':
+          description: Message deleted. No body.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==========================================================================
+  # Attachments
+  # ==========================================================================
+
+  /messages/{message_id}/attachments:
+    parameters:
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Message UUID.
+
+    post:
+      operationId: uploadAttachments
+      summary: Upload attachments to a message
+      description: |
+        Uploads one or more files and attaches them to the specified message.
+        Caller must be the message author and a current member of the server.
+
+        **Request format**
+
+        `Content-Type: multipart/form-data`. Each file must be a field named
+        `files`. Multiple files can be uploaded in a single request by
+        including multiple `files` fields.
+
+        **Constraints**
+
+        - Each file: non-empty, maximum 50 MB (52,428,800 bytes).
+        - Per-message limit: 10 attachments total (existing + new).
+        - Filenames are sanitized (non-alphanumeric characters replaced with
+          `_`, capped at 128 characters) and prefixed with a UUID fragment to
+          avoid collisions.
+
+        **Atomicity**
+
+        All validation is performed in a first pass before any file is
+        written to disk. If a disk write or database insert fails, any files
+        already written in that batch are removed and the transaction is
+        rolled back.
+
+        **File access**
+
+        Use `GET /files/:message_id/*filepath` with the `url` field from the
+        response to retrieve uploaded files.
+      tags: [Attachments]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - files
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: |
+                    One or more files. The field name must be `files` for each
+                    file. Empty files are rejected.
+      responses:
+        '201':
+          description: Attachments uploaded. Returns all newly created attachment records.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AttachmentDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      operationId: listAttachments
+      summary: List attachments for a message
+      description: |
+        Returns all attachments for the specified message, ordered by creation
+        time ascending. Caller must be a member of the server.
+      tags: [Attachments]
+      responses:
+        '200':
+          description: Array of attachments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AttachmentDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /files/{message_id}/{filepath}:
+    get:
+      operationId: serveFile
+      summary: Retrieve an uploaded file
+      description: |
+        Serves an attachment file. Authentication and server membership are
+        checked before the file is returned.
+
+        The `url` field on an `AttachmentDto` gives the complete path to use:
+
+        ```
+        GET /files/880e8400-.../a1b2c3d4_screenshot.png
+        Authorization: Bearer <token>
+        ```
+
+        The attachment URL is validated against the database before serving,
+        so only files successfully recorded in the DB are accessible — orphan
+        files that may exist on disk from a partially failed upload cannot be
+        retrieved.
+
+        Path traversal is rejected at the handler level: stored filenames
+        never contain `/`, so any sub-path in the URL segment returns `404`.
+      tags: [Attachments]
+      parameters:
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the message the file belongs to.
+        - name: filepath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: |
+            Stored filename as it appears in the `url` field of the
+            `AttachmentDto` (e.g. `a1b2c3d4_screenshot.png`).
+      responses:
+        '200':
+          description: |
+            File content. The `Content-Type` header reflects the stored MIME
+            type. `Content-Disposition` is set to `inline` with the original
+            filename.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==========================================================================
+  # Voice
+  # ==========================================================================
+
+  /channels/{channel_id}/voice:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: |
+          Channel UUID. Must be a `voice` type channel; a text channel returns
+          `400 Bad Request`.
+
+    post:
+      operationId: joinVoiceChannel
+      summary: Join a voice channel
+      description: |
+        Places the authenticated user in the specified voice channel. If the
+        user is already in another voice channel this is an atomic switch: the
+        previous voice state is replaced via UPSERT and `self_mute`/`self_deaf`
+        are reset to `false`. `server_mute`/`server_deaf` (moderator-applied)
+        are preserved across channel switches.
+
+        If the user was in a channel on a *different* server a
+        `VOICE_STATE_UPDATE` leave event is broadcast to that server so its
+        members do not see a ghost participant.
+
+        On success, a `VOICE_STATE_UPDATE` event is broadcast to all connected
+        members of the target server.
+
+        After joining, initiate WebRTC signaling to other participants via the
+        WebSocket `VOICE_SIGNAL` opcode.
+      tags: [Voice]
+      responses:
+        '201':
+          description: Joined the voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoiceStateDto'
+        '400':
+          description: Channel is not a voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Channel is not a voice channel"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      operationId: leaveVoiceChannel
+      summary: Leave a voice channel
+      description: |
+        Removes the authenticated user from the voice channel. Returns `404`
+        if the user is not currently in this specific channel.
+
+        On success, a `VOICE_STATE_UPDATE` leave event is broadcast to all
+        connected members of the server.
+      tags: [Voice]
+      responses:
+        '204':
+          description: Left the voice channel. No body.
+        '400':
+          description: Channel is not a voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Not in this voice channel, or channel/server not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Not in this voice channel"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      operationId: updateVoiceState
+      summary: Update self-mute or self-deaf state
+      description: |
+        Updates the caller's `self_mute` and/or `self_deaf` flags in the
+        current voice channel. At least one field must be provided; an empty
+        request body returns `400`.
+
+        `server_mute` and `server_deaf` are excluded from this endpoint to
+        prevent privilege escalation — those are moderator-only controls.
+
+        Returns `404` if the user is not currently in this channel.
+
+        On success, a `VOICE_STATE_UPDATE` event is broadcast to all connected
+        members of the server.
+      tags: [Voice]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVoiceStateRequest'
+            example:
+              self_mute: true
+      responses:
+        '200':
+          description: Updated voice state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoiceStateDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      operationId: listVoiceParticipants
+      summary: List voice channel participants
+      description: |
+        Returns all users currently in the specified voice channel. Each entry
+        includes `username` so the client can display participant names without
+        a separate user lookup. The response shape matches the
+        `VOICE_STATE_UPDATE` WebSocket broadcast events.
+
+        Caller must be a member of the server.
+      tags: [Voice]
+      responses:
+        '200':
+          description: Array of voice participants with usernames.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VoiceParticipantDto'
+        '400':
+          description: Channel is not a voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==========================================================================
+  # WebSocket gateway
+  # ==========================================================================
+
+  /ws:
+    get:
+      operationId: websocketGateway
+      summary: Open a WebSocket gateway connection
+      description: |
+        Upgrades the HTTP connection to a WebSocket. The JWT access token is
+        passed as a query parameter because WebSocket upgrade requests are
+        plain GET requests and cannot carry an `Authorization` header
+        reliably across all browser and client environments.
+
+        ```
+        ws://localhost:8080/ws?token=<access_token>
+        ```
+
+        The token is validated before the upgrade is accepted; an invalid or
+        expired token results in a plain `401` response without any upgrade
+        attempt. Refresh tokens are rejected — only access tokens are accepted.
+
+        After a successful upgrade, the server sends a `READY` event
+        immediately. See the WebSocket protocol reference in
+        `docs/websocket-protocol.md` for the full message format and event
+        catalogue.
+
+        **Security note**: Query-parameter tokens appear in server and proxy
+        access logs. Use short-lived access tokens (15 minutes) to limit
+        exposure. Do not log raw WebSocket upgrade URLs in client-side code.
+      tags: [WebSocket]
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: A valid JWT access token (not a refresh token).
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '101':
+          description: Switching Protocols — WebSocket connection established.
+        '401':
+          description: Invalid, expired, or missing token.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Invalid or expired token"
+
+# ---------------------------------------------------------------------------
+# Tags
+# ---------------------------------------------------------------------------
+tags:
+  - name: Health
+    description: Server liveness and observability endpoints.
+  - name: Authentication
+    description: Account registration and login.
+  - name: Users
+    description: Authenticated user profile management.
+  - name: Servers
+    description: Community server lifecycle and membership.
+  - name: Channels
+    description: Text and voice channels within a server.
+  - name: Messages
+    description: Chat messages within text channels.
+  - name: Attachments
+    description: File uploads attached to messages.
+  - name: Voice
+    description: Voice channel presence and state management.
+  - name: WebSocket
+    description: Real-time event gateway.

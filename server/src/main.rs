@@ -1,10 +1,13 @@
 use axum::{
     extract::DefaultBodyLimit,
+    http::{header, HeaderValue, Method},
     routing::{delete, get, patch, post},
     Router,
 };
-use tower_http::cors::CorsLayer;
+use axum_prometheus::PrometheusMetricLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 use together_server::config::Config;
 use together_server::state::AppState;
@@ -13,10 +16,21 @@ use together_server::{db, handlers, websocket};
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter("together_server=debug,tower_http=debug,sqlx=info")
-        .init();
+    // Initialize tracing — JSON in production, human-readable in dev.
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        "together_server=info,tower_http=info,sqlx=warn"
+            .parse()
+            .unwrap()
+    });
+
+    if std::env::var("APP_ENV").as_deref() == Ok("production") {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(filter)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(filter).init();
+    }
 
     info!("🚀 Together Server starting...");
 
@@ -29,25 +43,44 @@ async fn main() {
         .await
         .expect("Failed to create database pool");
 
+    // Auto-run pending migrations on startup.
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
+    info!("✅ Database migrations applied");
+
     // Run health check
     db::health_check(&pool)
         .await
         .expect("Database health check failed");
     info!("✅ Database health check passed");
 
-    // CORS: permissive in dev, restrictive in production.
-    // Set APP_ENV=production to switch modes; configure ALLOWED_ORIGINS for
-    // cross-origin access in production (see .env.example).
+    // CORS: permissive in dev, origin-restricted in production.
+    // Set APP_ENV=production and ALLOWED_ORIGINS=https://your-domain.com (see .env.example).
     let cors = if config.is_dev {
         info!("🔓 CORS: permissive (dev mode)");
         CorsLayer::permissive()
     } else {
-        tracing::warn!(
-            "🔒 CORS: restrictive (production mode). \
-             Cross-origin requests will be denied. \
-             Set ALLOWED_ORIGINS to allow specific origins."
-        );
+        let origins: Vec<HeaderValue> = config
+            .allowed_origins
+            .iter()
+            .filter_map(|o| o.parse().ok())
+            .collect();
+        if origins.is_empty() {
+            tracing::warn!(
+                "🔒 CORS: no ALLOWED_ORIGINS configured — all cross-origin requests will be denied"
+            );
+        } else {
+            info!(
+                "🔒 CORS: production mode, allowing origins: {:?}",
+                config.allowed_origins
+            );
+        }
         CorsLayer::new()
+            .allow_origin(AllowOrigin::list(origins))
+            .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+            .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
     };
 
     let addr = config.server_addr();
@@ -65,10 +98,17 @@ async fn main() {
         upload_dir: config.upload_dir.clone(),
     };
 
+    // Prometheus metrics layer
+    let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+
     // Build router
     let app = Router::new()
-        // Health check
+        // Health check + metrics
         .route("/health", get(handlers::health_check))
+        .route(
+            "/metrics",
+            get(move || async move { metric_handle.render() }),
+        )
         // Auth routes
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
@@ -160,6 +200,7 @@ async fn main() {
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
         // Middleware
+        .layer(prometheus_layer)
         .layer(cors)
         .with_state(app_state);
 

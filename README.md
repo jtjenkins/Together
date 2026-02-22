@@ -1,230 +1,177 @@
 # Together
 
-A private, non-federated Discord alternative built for gaming communities who want ownership of their communication platform.
+**Self-hosted Discord alternative for small gaming communities.**
 
-## 🎯 Vision
+Own your platform. No data sold, no surprise bans, no feature bloat — just a fast, private chat
+server you control.
 
-Together is designed for gaming groups, clans, and communities who are tired of Discord's:
-- **Privacy concerns** - Your data, your rules
-- **Platform risk** - No more worrying about sudden bans or policy changes
-- **Feature bloat** - Just the essentials that gaming groups actually use
-- **Closed ecosystem** - Full control over your community's platform
+---
 
-> **Key Principle**: Together is NOT federated. It's designed for private, self-hosted instances where communities own their infrastructure.
+## Status
 
-## 📋 Quick Overview
+All 7 development phases are complete.
 
-| Feature | Status | Priority |
-|---------|--------|----------|
-| Text Channels | 🚧 Planned | P0 - MVP |
-| Voice Channels (WebRTC) | 🚧 Planned | P0 - MVP |
-| Role-Based Permissions | 🚧 Planned | P0 - MVP |
-| User Presence/Status | 🚧 Planned | P0 - MVP |
-| Direct Messages | 🚧 Planned | P1 |
-| Emoji Reactions | 🚧 Planned | P1 |
-| File Attachments | 🚧 Planned | P1 |
-| Message Threading | 🚧 Planned | P2 |
-| Screen Sharing | 🚧 Planned | P2 |
-| Discord Bridge/Sync | 🚧 Planned | P3 - Transition |
+| Feature | Status |
+|---|---|
+| Authentication (JWT + bcrypt) | ✅ |
+| Servers & Channels | ✅ |
+| Text Chat (with pagination) | ✅ |
+| Voice (WebRTC SFU) | ✅ |
+| File Uploads (up to 50 MB) | ✅ |
+| Desktop App (Tauri + React) | ✅ |
+| Web App (React + Vite) | ✅ |
+| Mobile App (React Native / Expo) | ✅ |
 
-## 🏗️ Architecture Summary
+---
 
-```
-┌───────────────────────────────────────────────────────────┐
-│                      CLIENT LAYER                          │
-├──────────────┬──────────────┬──────────────────────────────┤
-│   Desktop    │    Web       │   Mobile                     │
-│  (Tauri)     │  (React)     │(React Native)                │
-└──────┬───────┴──────┬───────┴──────┬────────────────────────┘
-       │              │              │
-       └──────────────┴──────────────┘
-                      │
-              WebSocket / HTTPS
-                      │
-┌──────────────────────────────────────────────────────────────┐
-│              TOGETHER SERVER (Rust/Axum)                     │
-│                                                              │
-│  ┌────────────────────────────────────────────────┐        │
-│  │         HTTP/WebSocket Handler                  │        │
-│  │  • Authentication (JWT)                         │        │
-│  │  • Rate limiting                                │        │
-│  │  • Connection management                        │        │
-│  └──────────────────┬─────────────────────────────┘        │
-│                     │                                       │
-│     ┌───────────────┼───────────────┐                      │
-│     ▼               ▼               ▼                      │
-│  ┌────────┐   ┌─────────┐   ┌──────────────┐             │
-│  │  Chat  │   │  Users  │   │ Voice (WebRTC)│             │
-│  │ Module │   │ Module  │   │   SFU Module  │             │
-│  └────────┘   └─────────┘   └──────────────┘             │
-│                                                              │
-└──────────────────────┬───────────────────────────────────────┘
-                       │
-                       ▼
-              ┌────────────────┐
-              │  PostgreSQL    │
-              │                │
-              │  • Users/Auth  │
-              │  • Messages    │
-              │  • Channels    │
-              │  • Sessions    │
-              └────────────────┘
-```
-
-## 📁 Project Structure
-
-```
-Together/
-├── README.md                  # This file
-├── LICENSE                    # Project license
-├── docker-compose.yml         # Single-command deployment
-├── docs/                      # Documentation
-│   ├── architecture.md        # Detailed architecture
-│   ├── roadmap.md             # Implementation roadmap
-│   ├── discord-analysis.md    # Discord feature analysis
-│   └── api/                   # API documentation
-├── server/                    # Rust backend (single binary)
-│   ├── Cargo.toml
-│   ├── src/
-│   │   ├── main.rs            # Entry point
-│   │   ├── auth/              # Authentication
-│   │   ├── chat/              # Chat logic
-│   │   ├── voice/             # WebRTC voice
-│   │   ├── users/             # User management
-│   │   ├── websocket/         # WebSocket handling
-│   │   ├── models/            # Data models
-│   │   └── db/                # Database operations
-│   └── migrations/            # SQL migrations
-├── clients/                   # Client applications
-│   ├── desktop/               # Tauri desktop app
-│   ├── mobile/                # React Native app
-│   └── web/                   # Web client
-└── tools/                     # Utilities
-    └── discord-bridge/        # Discord sync tool
-```
-
-## 🚀 Getting Started
-
-> **Current Status**: Phase 1 (Database Foundation) complete. Backend server and UI clients are planned for future phases.
-
-### Prerequisites
-
-Install Rust (required for database migrations):
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-```
-
-Install sqlx-cli (Rails-like migration tool):
-```bash
-cargo install sqlx-cli --no-default-features --features postgres
-```
-
-### Phase 1: Database Setup (Available Now)
+## Quick Start
 
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/together.git
 cd together
 
-# Start PostgreSQL database
-docker-compose -f docker-compose.dev.yml up -d
+cp .env.example .env
+# Edit .env: set POSTGRES_PASSWORD and generate a JWT_SECRET with:
+#   openssl rand -hex 32
 
-# Wait for database to be ready (2-3 seconds)
-sleep 3
-
-# Run database migrations (like Rails db:migrate)
-cd server && sqlx migrate run
-
-# Verify setup
-sqlx database create  # Creates DB if needed
-sqlx migrate info     # Show migration status
+docker compose up -d
 ```
 
-**Rails-like migration commands:**
+Verify it's running:
+
 ```bash
-cd server
-sqlx migrate run      # Run pending migrations
-sqlx migrate revert   # Rollback last migration
-sqlx migrate info     # Show migration status
-sqlx migrate add name # Create new migration
+curl http://localhost:8080/health
+# {"status":"ok","service":"together-server","version":"0.1.0","database":"ok"}
 ```
 
-**Test credentials** (seed data included):
-- alice@together.local / password123 (Admin)
-- bob@together.local / password123 (Moderator)
-- charlie@together.local / password123 (Member)
+See **[docs/self-hosting.md](docs/self-hosting.md)** for the full deployment guide, including
+backup, restore, TLS, and upgrade instructions.
 
-### Future Phases (Not Yet Implemented)
+---
 
-**Phase 2: Backend Server** (Planned)
-```bash
-cd server
-cargo run
-# Server will run on http://localhost:8080
+## Architecture
+
+Together is a **single Rust binary** backed by PostgreSQL — no microservices, no message queues,
+no Redis.
+
+```
+Clients (Desktop · Web · Mobile)
+          │  HTTPS / WebSocket
+          ▼
+  Together Server (Rust/Axum)
+  ├── REST API (auth, servers, channels, messages, files, voice)
+  ├── WebSocket gateway (real-time events)
+  └── WebRTC signaling relay (voice)
+          │
+          ▼
+     PostgreSQL 16
 ```
 
-**Phase 5: Desktop Client** (Planned)
+Target scale: **20–500 users**, <50 ms message delivery, <200 MB RAM. The architecture has a clear
+migration path to horizontal scaling if your community grows beyond that.
+
+---
+
+## Clients
+
+### Desktop (Tauri + React)
+
 ```bash
 cd clients/desktop
 npm install
 npm run tauri dev
 ```
 
-See [ROADMAP.md](docs/roadmap.md) for full development timeline.
+On first launch, enter your server URL (e.g. `http://localhost:8080`).
 
-## 🛠️ Tech Stack
+### Web (React + Vite)
 
-| Component | Technology | Reason |
-|-----------|------------|--------|
-| **Desktop** | Tauri + React | Tiny bundles (~5MB), native performance |
-| **Mobile** | React Native | Cross-platform, Discord-proven |
-| **Web** | React + Vite | Fast, familiar, easy to deploy |
-| **Backend** | Rust + Axum | Memory safety, async performance |
-| **Voice** | Pion WebRTC | Pure Rust WebRTC stack |
-| **Database** | PostgreSQL 16 | Reliable, feature-rich, handles millions of messages |
-| **WebSockets** | Tokio + Axum | High-performance async I/O |
-| **Deployment** | Docker Compose | Simple, reproducible, single-command |
+```bash
+cd clients/web
+npm install
+VITE_API_URL=http://localhost:8080 npm run dev
+```
 
-## 📊 Comparison with Alternatives
+### Mobile (Expo / React Native)
 
-| Feature | Together | Revolt | Matrix/Element |
-|---------|----------|--------|----------------|
-| Self-hosted | ✅ First-class | ✅ Yes | ✅ Yes |
-| Federation | ❌ No (by design) | ❌ No | ✅ Yes |
-| Voice Quality | 🎯 Priority | ⚠️ Basic | ⚠️ Varies |
-| Mobile Apps | 🎯 Native | ⚠️ Beta | ✅ Yes |
-| Discord-like UX | 🎯 Priority | ✅ Yes | ❌ Different |
-| Deployment | 🎯 Single binary | ⚠️ Multiple services | ⚠️ Complex |
-| Setup Time | 🎯 5 minutes | ~30 minutes | ~1 hour |
-| Memory Usage | 🎯 <200MB | ~500MB | ~1GB+ |
+```bash
+cd clients/mobile
+npm install
+npm run ios      # iOS simulator
+npm run android  # Android emulator
+```
 
-## 📝 Documentation
-
-- **[Architecture](docs/architecture.md)** - System design and technical decisions
-- **[Roadmap](docs/roadmap.md)** - Phased implementation plan
-- **[Discord Feature Analysis](docs/discord-analysis.md)** - What we're copying vs skipping
-- **[Research Notes](docs/research-notes.md)** - What we learned from Revolt, Discord, others
-
-## 🤝 Contributing
-
-This project is in the planning phase. Once development begins:
-
-1. Check the [roadmap](docs/roadmap.md) for current priorities
-2. Read the [architecture doc](docs/architecture.md) for technical context
-3. Join discussions in GitHub Issues
-
-## 📜 License
-
-[AGPL-3.0](LICENSE) - Keeping this open and self-hostable forever.
-
-## 🙏 Acknowledgments
-
-- Inspired by Discord's excellent UX
-- Learned from Revolt's open-source journey
-- WebRTC implementation using Pion
-- Architecture philosophy: Start simple, scale when needed
+The app prompts for a server URL on first launch.
 
 ---
 
-**Together**: *Your community. Your platform. No compromises.*
+## Development
+
+### Server (Rust)
+
+```bash
+cd server
+
+# Start the dev database
+docker compose -f ../docker-compose.dev.yml up -d
+
+# Copy and edit server-specific env
+cp .env.example .env
+
+# Run the server (auto-reloads with cargo-watch)
+~/.cargo/bin/cargo run
+
+# Run tests
+~/.cargo/bin/cargo test
+
+# Lint
+SQLX_OFFLINE=true ~/.cargo/bin/cargo clippy -- -D warnings
+```
+
+### Web client
+
+```bash
+cd clients/web
+npm test
+npm run lint
+```
+
+### Mobile client
+
+```bash
+cd clients/mobile
+npm test
+```
+
+---
+
+## Deployment
+
+Full self-hosting guide: **[docs/self-hosting.md](docs/self-hosting.md)**
+
+Covers: prerequisites, environment configuration, TLS, backup/restore, upgrades, and log
+management.
+
+---
+
+## API Reference
+
+OpenAPI 3.1 spec: **[docs/openapi.yaml](docs/openapi.yaml)**
+
+All endpoints, request/response schemas, authentication requirements, and error shapes are
+documented there. Import into Swagger UI, Insomnia, or Postman.
+
+---
+
+## WebSocket Protocol
+
+Gateway protocol reference: **[docs/websocket-protocol.md](docs/websocket-protocol.md)**
+
+Covers: connection lifecycle, message envelope format, all event types, voice signaling flow, and
+reconnection guidance.
+
+---
+
+## License
+
+[AGPL-3.0](LICENSE) — self-hostable forever.
