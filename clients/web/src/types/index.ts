@@ -1,9 +1,3 @@
-declare global {
-  interface Window {
-    __TAURI_INTERNALS__?: unknown;
-  }
-}
-
 // ─── User Types ──────────────────────────────────────────────
 
 export type UserStatus = "online" | "away" | "dnd" | "offline";

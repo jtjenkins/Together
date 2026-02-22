@@ -8,6 +8,7 @@ import type {
   VoiceStateUpdateEvent,
   VoiceSignalData,
 } from "../types";
+import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
 type EventHandler<T = unknown> = (data: T) => void;
 
@@ -26,13 +27,20 @@ interface EventHandlers {
 type EventName = keyof EventHandlers;
 
 function resolveWsBase(): string {
-  const isTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
   if (isTauri) {
-    const saved = localStorage.getItem("server_url");
+    const saved = localStorage.getItem(SERVER_URL_KEY);
     if (saved) {
-      const url = new URL(saved);
-      const wsScheme = url.protocol === "https:" ? "wss:" : "ws:";
-      return `${wsScheme}//${url.host}/ws`;
+      try {
+        const url = new URL(saved);
+        const wsScheme = url.protocol === "https:" ? "wss:" : "ws:";
+        return `${wsScheme}//${url.host}/ws`;
+      } catch {
+        console.warn(
+          `[Gateway] Stored ${SERVER_URL_KEY} "${saved}" is not a valid URL; discarding.`,
+        );
+        localStorage.removeItem(SERVER_URL_KEY);
+        return "";
+      }
     }
     return "";
   }
@@ -79,11 +87,10 @@ export class WebSocketClient {
   }
 
   setServerUrl(url: string): void {
-    localStorage.setItem("ws_url", url);
-    const parsed = new URL(url);
+    const parsed = new URL(url); // validated by ServerSetup before this is called
     const wsScheme = parsed.protocol === "https:" ? "wss:" : "ws:";
     this.wsBase = `${wsScheme}//${parsed.host}/ws`;
-    if (this._isConnected) {
+    if (this.token) {
       this.cleanup();
       this.doConnect();
     }
@@ -124,6 +131,12 @@ export class WebSocketClient {
 
   private doConnect() {
     if (!this.token) return;
+    if (!this.wsBase) {
+      console.error(
+        "[Gateway] Cannot connect: no server URL configured. Call setServerUrl() before connect().",
+      );
+      return;
+    }
 
     this.cleanup();
 

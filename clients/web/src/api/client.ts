@@ -19,11 +19,11 @@ import type {
   UpdateVoiceStateRequest,
   Attachment,
 } from "../types";
+import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
 function resolveApiBase(): string {
-  const isTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
   if (isTauri) {
-    const saved = localStorage.getItem("server_url");
+    const saved = localStorage.getItem(SERVER_URL_KEY);
     return saved ? `${saved}/api` : "";
   }
   return import.meta.env.VITE_API_URL || "/api";
@@ -42,7 +42,12 @@ class ApiClient {
   }
 
   setServerUrl(url: string): void {
-    localStorage.setItem("server_url", url);
+    try {
+      new URL(url);
+    } catch {
+      throw new TypeError(`[ApiClient] "${url}" is not a valid server URL`);
+    }
+    localStorage.setItem(SERVER_URL_KEY, url);
     this.apiBase = `${url}/api`;
   }
 
@@ -50,6 +55,12 @@ class ApiClient {
     path: string,
     options: RequestInit & { skipContentType?: boolean } = {},
   ): Promise<T> {
+    if (!this.apiBase) {
+      throw new Error(
+        "[ApiClient] No server URL configured. Enter your Together server address to continue.",
+      );
+    }
+
     const { skipContentType, ...fetchOptions } = options;
     const headers: Record<string, string> = {
       ...(skipContentType ? {} : { "Content-Type": "application/json" }),

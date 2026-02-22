@@ -1,17 +1,16 @@
 import { useState } from "react";
-import { api } from "../../api/client";
-import { gateway } from "../../api/websocket";
 import styles from "./ServerSetup.module.css";
 
 interface ServerSetupProps {
-  onComplete: () => void;
+  onComplete: (url: string) => void;
 }
 
 export function ServerSetup({ onComplete }: ServerSetupProps) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -21,16 +20,29 @@ export function ServerSetup({ onComplete }: ServerSetupProps) {
       return;
     }
 
+    let parsed: URL;
     try {
-      new URL(trimmed);
+      parsed = new URL(trimmed);
     } catch {
       setError("Invalid URL. Example: http://localhost:8080");
       return;
     }
 
-    api.setServerUrl(trimmed);
-    gateway.setServerUrl(trimmed);
-    onComplete();
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      setError("URL must use http:// or https://");
+      return;
+    }
+
+    setIsChecking(true);
+    try {
+      await fetch(`${trimmed}/api/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      onComplete(trimmed);
+    } catch {
+      setError("Could not reach the server. Check the URL and try again.");
+      setIsChecking(false);
+    }
   }
 
   return (
@@ -57,11 +69,12 @@ export function ServerSetup({ onComplete }: ServerSetupProps) {
               placeholder="http://localhost:8080"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              disabled={isChecking}
               autoFocus
             />
           </div>
-          <button type="submit" className={styles.submit}>
-            Connect
+          <button type="submit" className={styles.submit} disabled={isChecking}>
+            {isChecking ? "Connecting…" : "Connect"}
           </button>
         </form>
       </div>
