@@ -15,6 +15,8 @@ import { ChannelListScreen } from "../screens/ChannelListScreen";
 import { ChatScreen } from "../screens/ChatScreen";
 import { VoiceScreen } from "../screens/VoiceScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
+import { DMListScreen } from "../screens/DMListScreen";
+import { DMChatScreen } from "../screens/DMChatScreen";
 
 // ─── Param Lists ────────────────────────────────────────────────────────────
 
@@ -31,8 +33,18 @@ export type ServersStackParamList = {
   Voice: { channelId: string; channelName: string; serverId: string };
 };
 
+export type DmStackParamList = {
+  DMList: undefined;
+  DMChat: {
+    channelId: string;
+    recipientUsername: string;
+    recipientId: string;
+  };
+};
+
 export type MainTabParamList = {
   ServersTab: undefined;
+  DirectMessagesTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -40,6 +52,7 @@ export type MainTabParamList = {
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ServersStack = createNativeStackNavigator<ServersStackParamList>();
+const DmStack = createNativeStackNavigator<DmStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 // ─── Servers Sub-Stack ──────────────────────────────────────────────────────
@@ -77,6 +90,31 @@ function ServersNavigator() {
   );
 }
 
+// ─── DM Sub-Stack ───────────────────────────────────────────────────────────
+
+function DmNavigator() {
+  return (
+    <DmStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: "#2a2a3e" },
+        headerTintColor: "#fff",
+        headerTitleStyle: { fontWeight: "600" },
+      }}
+    >
+      <DmStack.Screen
+        name="DMList"
+        component={DMListScreen}
+        options={{ title: "Direct Messages" }}
+      />
+      <DmStack.Screen
+        name="DMChat"
+        component={DMChatScreen}
+        options={({ route }) => ({ title: route.params.recipientUsername })}
+      />
+    </DmStack.Navigator>
+  );
+}
+
 // ─── Main Tabs ──────────────────────────────────────────────────────────────
 
 function MainTabs() {
@@ -95,6 +133,11 @@ function MainTabs() {
         name="ServersTab"
         component={ServersNavigator}
         options={{ title: "Servers", tabBarLabel: "Servers" }}
+      />
+      <Tab.Screen
+        name="DirectMessagesTab"
+        component={DmNavigator}
+        options={{ title: "Messages", tabBarLabel: "Messages" }}
       />
       <Tab.Screen
         name="SettingsTab"

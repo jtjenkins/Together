@@ -3,9 +3,11 @@ import { useChannelStore } from "../../stores/channelStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
 import { useAuthStore } from "../../stores/authStore";
+import { useReadStateStore } from "../../stores/readStateStore";
 import { CreateChannelModal } from "../channels/CreateChannelModal";
 import { EditChannelModal } from "../channels/EditChannelModal";
 import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
+import { api } from "../../api/client";
 import type { Channel } from "../../types";
 import styles from "./ChannelSidebar.module.css";
 
@@ -22,6 +24,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const clearMessages = useMessageStore((s) => s.clearMessages);
   const servers = useServerStore((s) => s.servers);
   const user = useAuthStore((s) => s.user);
+
+  const unreadCounts = useReadStateStore((s) => s.unreadCounts);
+  const markRead = useReadStateStore((s) => s.markRead);
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -42,6 +47,8 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     if (id !== activeChannelId) {
       clearMessages();
       setActiveChannel(id);
+      markRead(id);
+      api.ackChannel(id).catch(() => {});
     }
   };
 
@@ -87,19 +94,27 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                 </button>
               )}
             </div>
-            {chans.map((channel) => (
-              <button
-                key={channel.id}
-                className={`${styles.channel} ${channel.id === activeChannelId ? styles.active : ""}`}
-                onClick={() => handleSelectChannel(channel.id)}
-                onContextMenu={(e) => handleContextMenu(e, channel)}
-              >
-                <span className={styles.channelIcon}>
-                  {channel.type === "text" ? "#" : "\u{1F50A}"}
-                </span>
-                <span className={styles.channelName}>{channel.name}</span>
-              </button>
-            ))}
+            {chans.map((channel) => {
+              const unread = unreadCounts[channel.id] ?? 0;
+              return (
+                <button
+                  key={channel.id}
+                  className={`${styles.channel} ${channel.id === activeChannelId ? styles.active : ""} ${unread > 0 && channel.id !== activeChannelId ? styles.unread : ""}`}
+                  onClick={() => handleSelectChannel(channel.id)}
+                  onContextMenu={(e) => handleContextMenu(e, channel)}
+                >
+                  <span className={styles.channelIcon}>
+                    {channel.type === "text" ? "#" : "\u{1F50A}"}
+                  </span>
+                  <span className={styles.channelName}>{channel.name}</span>
+                  {unread > 0 && channel.id !== activeChannelId && (
+                    <span className={styles.unreadBadge}>
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         ))}
 

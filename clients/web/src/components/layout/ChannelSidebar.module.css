@@ -99,9 +99,31 @@
 }
 
 .channelName {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.channel.unread .channelName {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.unreadBadge {
+  background: var(--status-dnd, #ed4245);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .empty {

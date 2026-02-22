@@ -11,6 +11,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ServersStackParamList } from "../navigation";
 import { useChannelStore } from "../stores/channelStore";
 import { useServerStore } from "../stores/serverStore";
+import { useReadStateStore } from "../stores/readStateStore";
+import { api } from "../api/client";
 import type { Channel } from "../types";
 
 type Props = NativeStackScreenProps<ServersStackParamList, "ChannelList">;
@@ -20,6 +22,8 @@ export function ChannelListScreen({ route, navigation }: Props) {
   const { channels, isLoading, error, fetchChannels, setActiveChannel } =
     useChannelStore();
   const setActiveServer = useServerStore((s) => s.setActiveServer);
+  const unreadCounts = useReadStateStore((s) => s.unreadCounts);
+  const markRead = useReadStateStore((s) => s.markRead);
 
   useEffect(() => {
     setActiveServer(serverId);
@@ -41,6 +45,10 @@ export function ChannelListScreen({ route, navigation }: Props) {
   const handleChannelPress = (channel: Channel) => {
     setActiveChannel(channel.id);
     if (channel.type === "text") {
+      markRead(channel.id);
+      api.ackChannel(channel.id).catch((err) => {
+        console.warn("[ChannelListScreen] ack failed", err);
+      });
       navigation.navigate("Chat", {
         channelId: channel.id,
         channelName: channel.name,
@@ -76,17 +84,34 @@ export function ChannelListScreen({ route, navigation }: Props) {
             <Text style={styles.sectionTitle}>{section.title}</Text>
           </View>
         )}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.channelItem}
-            onPress={() => handleChannelPress(item)}
-          >
-            <Text style={styles.channelPrefix}>
-              {item.type === "text" ? "#" : "🔊"}
-            </Text>
-            <Text style={styles.channelName}>{item.name}</Text>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const unread = unreadCounts[item.id] ?? 0;
+          return (
+            <TouchableOpacity
+              style={styles.channelItem}
+              onPress={() => handleChannelPress(item)}
+            >
+              <Text style={styles.channelPrefix}>
+                {item.type === "text" ? "#" : "🔊"}
+              </Text>
+              <Text
+                style={[
+                  styles.channelName,
+                  unread > 0 && styles.channelNameUnread,
+                ]}
+              >
+                {item.name}
+              </Text>
+              {unread > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {unread > 99 ? "99+" : unread}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        }}
         ListEmptyComponent={
           <Text style={styles.empty}>No channels in this server yet.</Text>
         }
@@ -139,6 +164,25 @@ const styles = StyleSheet.create({
   channelName: {
     color: "#dcddde",
     fontSize: 16,
+    flex: 1,
+  },
+  channelNameUnread: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  badge: {
+    backgroundColor: "#ed4245",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
   },
   empty: {
     color: "#72767d",

@@ -1,0 +1,100 @@
+import { useState, useCallback } from "react";
+import { api } from "../../api/client";
+import type { ReactionCount } from "../../types";
+import styles from "./ReactionBar.module.css";
+
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
+
+interface ReactionBarProps {
+  messageId: string;
+  channelId: string;
+  reactions: ReactionCount[];
+  onReactionsChange: (reactions: ReactionCount[]) => void;
+}
+
+export function ReactionBar({
+  messageId,
+  channelId,
+  reactions,
+  onReactionsChange,
+}: ReactionBarProps) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  const toggleReaction = useCallback(
+    async (emoji: string) => {
+      const existing = reactions.find((r) => r.emoji === emoji);
+      try {
+        if (existing?.me) {
+          await api.removeReaction(channelId, messageId, emoji);
+          onReactionsChange(
+            reactions
+              .map((r) =>
+                r.emoji === emoji ? { ...r, count: r.count - 1, me: false } : r,
+              )
+              .filter((r) => r.count > 0),
+          );
+        } else {
+          await api.addReaction(channelId, messageId, emoji);
+          if (existing) {
+            onReactionsChange(
+              reactions.map((r) =>
+                r.emoji === emoji ? { ...r, count: r.count + 1, me: true } : r,
+              ),
+            );
+          } else {
+            onReactionsChange([...reactions, { emoji, count: 1, me: true }]);
+          }
+        }
+      } catch {
+        // Reload reactions from server on error.
+        try {
+          const fresh = await api.listReactions(channelId, messageId);
+          onReactionsChange(fresh);
+        } catch {
+          // Silently ignore; reactions will resync on next page load.
+        }
+      }
+      setShowPicker(false);
+    },
+    [channelId, messageId, reactions, onReactionsChange],
+  );
+
+  return (
+    <div className={styles.wrapper}>
+      {reactions.map((r) => (
+        <button
+          key={r.emoji}
+          className={`${styles.reaction} ${r.me ? styles.active : ""}`}
+          onClick={() => toggleReaction(r.emoji)}
+          title={`${r.count} reaction${r.count !== 1 ? "s" : ""}`}
+        >
+          <span className={styles.emoji}>{r.emoji}</span>
+          <span className={styles.count}>{r.count}</span>
+        </button>
+      ))}
+
+      <div className={styles.pickerWrapper}>
+        <button
+          className={styles.addBtn}
+          onClick={() => setShowPicker((v) => !v)}
+          title="Add reaction"
+        >
+          &#128578;+
+        </button>
+        {showPicker && (
+          <div className={styles.picker}>
+            {QUICK_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                className={styles.pickerEmoji}
+                onClick={() => toggleReaction(emoji)}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -3,7 +3,8 @@ import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { formatMessageTime } from "../../utils/formatTime";
 import { api } from "../../api/client";
-import type { Message } from "../../types";
+import { ReactionBar } from "./ReactionBar";
+import type { Message, ReactionCount } from "../../types";
 import styles from "./MessageItem.module.css";
 
 interface MessageItemProps {
@@ -36,6 +37,7 @@ export function MessageItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [showActions, setShowActions] = useState(false);
+  const [reactions, setReactions] = useState<ReactionCount[]>([]);
 
   const isOwnMessage = message.author_id === user?.id;
   void channelId;
@@ -219,6 +221,17 @@ export function MessageItem({
           </div>
         )}
       </div>
+
+      {(reactions.length > 0 || showActions) && (
+        <div className={styles.reactionArea}>
+          <ReactionBar
+            messageId={message.id}
+            channelId={channelId}
+            reactions={reactions}
+            onReactionsChange={setReactions}
+          />
+        </div>
+      )}
     </div>
   );
 }

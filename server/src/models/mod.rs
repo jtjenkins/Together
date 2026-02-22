@@ -305,3 +305,83 @@ pub struct Attachment {
     pub height: Option<i32>,
     pub created_at: DateTime<Utc>,
 }
+
+// ============================================================================
+// Direct Message Models
+// ============================================================================
+
+/// A private channel shared between exactly two users.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct DirectMessageChannel {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A DM channel enriched with participant info for API responses.
+#[derive(Debug, Serialize)]
+pub struct DirectMessageChannelDto {
+    pub id: Uuid,
+    /// The other participant (not the requesting user).
+    pub recipient: UserDto,
+    pub created_at: DateTime<Utc>,
+    /// Most recent message content preview, if any messages exist.
+    pub last_message_at: Option<DateTime<Utc>>,
+}
+
+/// A message sent inside a DM channel.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct DirectMessage {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub author_id: Option<Uuid>,
+    pub content: String,
+    pub edited_at: Option<DateTime<Utc>>,
+    pub deleted: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateDirectMessageDto {
+    pub content: String,
+}
+
+// ============================================================================
+// Reaction Models
+// ============================================================================
+
+/// A single emoji reaction on a message.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct MessageReaction {
+    pub message_id: Uuid,
+    pub user_id: Uuid,
+    pub emoji: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Aggregated reaction count for a single emoji on a message.
+#[derive(Debug, Serialize)]
+pub struct ReactionCount {
+    pub emoji: String,
+    pub count: i64,
+    /// Whether the requesting user has added this reaction.
+    pub me: bool,
+}
+
+// ============================================================================
+// Read State Models
+// ============================================================================
+
+/// Tracks the last-read position for a user in a channel (server or DM).
+#[derive(Debug, Clone, FromRow)]
+pub struct ReadState {
+    pub user_id: Uuid,
+    pub channel_id: Uuid,
+    pub last_read_at: DateTime<Utc>,
+}
+
+/// Unread summary returned in the READY event.
+#[derive(Debug, FromRow, Serialize)]
+pub struct UnreadCount {
+    pub channel_id: Uuid,
+    pub unread_count: i64,
+}

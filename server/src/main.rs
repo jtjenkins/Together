@@ -165,6 +165,39 @@ async fn main() {
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
         )
+        // Reaction routes (protected, nested under channel message)
+        .route(
+            "/channels/:channel_id/messages/:message_id/reactions",
+            get(handlers::reactions::list_reactions),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/reactions/:emoji",
+            axum::routing::put(handlers::reactions::add_reaction),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/reactions/:emoji",
+            delete(handlers::reactions::remove_reaction),
+        )
+        // Read-state / ack routes
+        .route(
+            "/channels/:channel_id/ack",
+            post(handlers::read_states::ack_channel),
+        )
+        // DM routes (protected, user-scoped)
+        .route("/dm-channels", post(handlers::dm::open_dm_channel))
+        .route("/dm-channels", get(handlers::dm::list_dm_channels))
+        .route(
+            "/dm-channels/:id/messages",
+            post(handlers::dm::send_dm_message),
+        )
+        .route(
+            "/dm-channels/:id/messages",
+            get(handlers::dm::list_dm_messages),
+        )
+        .route(
+            "/dm-channels/:id/ack",
+            post(handlers::read_states::ack_dm_channel),
+        )
         // Attachment routes (protected, nested under message)
         .route(
             "/messages/:message_id/attachments",

@@ -1,4 +1,6 @@
+import { useAuthStore } from "../../stores/authStore";
 import { useServerStore } from "../../stores/serverStore";
+import { useDmStore } from "../../stores/dmStore";
 import type { MemberDto, UserStatus } from "../../types";
 import styles from "./MemberSidebar.module.css";
 
@@ -7,6 +9,17 @@ function StatusIndicator({ status }: { status: UserStatus }) {
 }
 
 function MemberItem({ member }: { member: MemberDto }) {
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const openOrCreateDm = useDmStore((s) => s.openOrCreateDm);
+  const setActiveDmChannel = useDmStore((s) => s.setActiveDmChannel);
+  const setActiveServer = useServerStore((s) => s.setActiveServer);
+
+  const handleMessage = async () => {
+    const channel = await openOrCreateDm(member.user_id);
+    setActiveDmChannel(channel.id);
+    setActiveServer(null);
+  };
+
   return (
     <div
       className={`${styles.member} ${member.status === "offline" ? styles.offline : ""}`}
@@ -26,6 +39,15 @@ function MemberItem({ member }: { member: MemberDto }) {
           {member.nickname || member.username}
         </span>
       </div>
+      {currentUserId !== member.user_id && (
+        <button
+          className={styles.dmBtn}
+          onClick={handleMessage}
+          title={`Message ${member.nickname || member.username}`}
+        >
+          &#9993;
+        </button>
+      )}
     </div>
   );
 }

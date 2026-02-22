@@ -4,11 +4,17 @@ import { useAuthStore } from "../stores/authStore";
 import { useServerStore } from "../stores/serverStore";
 import { useMessageStore } from "../stores/messageStore";
 import { useChannelStore } from "../stores/channelStore";
+import { useDmStore } from "../stores/dmStore";
+import { useReadStateStore } from "../stores/readStateStore";
 import type {
   ReadyEvent,
   Message,
   PresenceUpdateEvent,
   MessageDeleteEvent,
+  DmChannelCreateEvent,
+  DmMessageCreateEvent,
+  ReactionAddEvent,
+  ReactionRemoveEvent,
 } from "../types";
 
 export function useWebSocket() {
@@ -23,11 +29,16 @@ export function useWebSocket() {
       gateway.on("READY", (data: ReadyEvent) => {
         setUser(data.user);
         setServers(data.servers);
+        useDmStore.getState().setDmChannels(data.dm_channels ?? []);
+        useReadStateStore.getState().setUnreadCounts(data.unread_counts ?? []);
       }),
 
       gateway.on("MESSAGE_CREATE", (msg: Message) => {
-        if (msg.channel_id === useChannelStore.getState().activeChannelId) {
+        const activeChannelId = useChannelStore.getState().activeChannelId;
+        if (msg.channel_id === activeChannelId) {
           useMessageStore.getState().addMessage(msg);
+        } else {
+          useReadStateStore.getState().incrementUnread(msg.channel_id);
         }
       }),
 
@@ -45,6 +56,32 @@ export function useWebSocket() {
 
       gateway.on("PRESENCE_UPDATE", (event: PresenceUpdateEvent) => {
         updateMemberPresence(event.user_id, event.status, event.custom_status);
+      }),
+
+      gateway.on("DM_CHANNEL_CREATE", (data: DmChannelCreateEvent) => {
+        useDmStore.getState().addDmChannel({
+          id: data.id,
+          recipient: data.recipient,
+          created_at: data.created_at,
+          last_message_at: data.last_message_at,
+        });
+      }),
+
+      gateway.on("DM_MESSAGE_CREATE", (data: DmMessageCreateEvent) => {
+        useDmStore.getState().addDmMessage(data);
+        const activeDmChannelId = useDmStore.getState().activeDmChannelId;
+        if (data.channel_id !== activeDmChannelId) {
+          useReadStateStore.getState().incrementUnread(data.channel_id);
+        }
+      }),
+
+      gateway.on("REACTION_ADD", (_data: ReactionAddEvent) => {
+        // Reaction state is managed locally in ChatScreen via listReactions;
+        // no global store update required for MVP.
+      }),
+
+      gateway.on("REACTION_REMOVE", (_data: ReactionRemoveEvent) => {
+        // Same as REACTION_ADD — local screen state handles re-fetch.
       }),
 
       gateway.on("connected", () => {
