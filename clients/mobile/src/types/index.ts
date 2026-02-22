@@ -1,0 +1,218 @@
+// ─── User Types ──────────────────────────────────────────────
+
+export type UserStatus = "online" | "away" | "dnd" | "offline";
+
+export interface UserDto {
+  id: string;
+  username: string;
+  email: string | null;
+  avatar_url: string | null;
+  status: UserStatus;
+  custom_status: string | null;
+  created_at: string;
+}
+
+export interface UpdateUserDto {
+  avatar_url?: string | null;
+  status?: UserStatus;
+  custom_status?: string | null;
+}
+
+// ─── Auth Types ──────────────────────────────────────────────
+
+export interface RegisterRequest {
+  username: string;
+  email?: string;
+  password: string;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  user: UserDto;
+}
+
+// ─── Server Types ────────────────────────────────────────────
+
+export interface ServerDto {
+  id: string;
+  name: string;
+  owner_id: string;
+  icon_url: string | null;
+  member_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateServerRequest {
+  name: string;
+  icon_url?: string;
+}
+
+export interface UpdateServerRequest {
+  name?: string;
+  icon_url?: string;
+}
+
+// ─── Member Types ────────────────────────────────────────────
+
+export interface MemberDto {
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  status: UserStatus;
+  nickname: string | null;
+  joined_at: string;
+}
+
+// ─── Channel Types ───────────────────────────────────────────
+
+export type ChannelType = "text" | "voice";
+
+export interface Channel {
+  id: string;
+  server_id: string;
+  name: string;
+  type: ChannelType;
+  position: number;
+  category: string | null;
+  topic: string | null;
+  created_at: string;
+}
+
+export interface CreateChannelRequest {
+  name: string;
+  type: ChannelType;
+  topic?: string;
+  category?: string;
+}
+
+export interface UpdateChannelRequest {
+  name?: string;
+  topic?: string;
+  category?: string;
+  position?: number;
+}
+
+// ─── Message Types ───────────────────────────────────────────
+
+export interface Message {
+  id: string;
+  channel_id: string;
+  author_id: string | null;
+  content: string;
+  reply_to: string | null;
+  edited_at: string | null;
+  deleted: boolean;
+  created_at: string;
+}
+
+export interface CreateMessageRequest {
+  content: string;
+  reply_to?: string;
+}
+
+export interface UpdateMessageRequest {
+  content: string;
+}
+
+export interface ListMessagesQuery {
+  before?: string;
+  limit?: number;
+}
+
+// ─── Voice Types ─────────────────────────────────────────────
+
+export interface VoiceParticipant {
+  user_id: string;
+  username: string;
+  channel_id: string | null;
+  self_mute: boolean;
+  self_deaf: boolean;
+  server_mute: boolean;
+  server_deaf: boolean;
+  joined_at: string | null;
+}
+
+export interface UpdateVoiceStateRequest {
+  self_mute?: boolean;
+  self_deaf?: boolean;
+}
+
+export interface VoiceStateUpdateEvent {
+  user_id: string;
+  username: string;
+  channel_id: string | null;
+  self_mute: boolean;
+  self_deaf: boolean;
+  server_mute: boolean;
+  server_deaf: boolean;
+  joined_at: string | null;
+}
+
+type VoiceSignalBase = {
+  to_user_id?: string;
+  from_user_id?: string;
+};
+
+export type VoiceSignalData =
+  | (VoiceSignalBase & { type: "offer"; sdp: string })
+  | (VoiceSignalBase & { type: "answer"; sdp: string })
+  | (VoiceSignalBase & { type: "candidate"; candidate: string });
+
+// ─── Attachment Types ─────────────────────────────────────────
+
+type AttachmentBase = {
+  id: string;
+  message_id: string;
+  filename: string;
+  file_size: number;
+  mime_type: string;
+  url: string;
+  created_at: string;
+};
+
+export type Attachment = AttachmentBase &
+  ({ width: number; height: number } | { width: null; height: null });
+
+// ─── WebSocket Types ─────────────────────────────────────────
+
+export type GatewayOp =
+  | "DISPATCH"
+  | "HEARTBEAT"
+  | "HEARTBEAT_ACK"
+  | "PRESENCE_UPDATE"
+  | "VOICE_SIGNAL";
+
+export interface GatewayMessage {
+  op: GatewayOp;
+  t: string | null;
+  d: unknown;
+}
+
+export interface ReadyEvent {
+  user: UserDto;
+  servers: ServerDto[];
+}
+
+export interface PresenceUpdateEvent {
+  user_id: string;
+  status: UserStatus;
+  custom_status: string | null;
+}
+
+export interface MessageDeleteEvent {
+  id: string;
+  channel_id: string;
+}
+
+// ─── API Error ───────────────────────────────────────────────
+
+export interface ApiError {
+  error: string;
+}

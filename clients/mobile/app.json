@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Together",
+    "slug": "together-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.together.mobile",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Together needs microphone access for voice channels."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.together.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "plugins": [
+      "expo-document-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Together needs photo access to set your avatar."
+        }
+      ]
+    ]
+  }
+}
