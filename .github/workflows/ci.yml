@@ -253,6 +253,10 @@ jobs:
     name: Desktop Build (Arch Linux)
     runs-on: ubuntu-latest
     needs: [web-build]
+    env:
+      # The Actions runner sets HOME=/github/home but the container runs as
+      # root (HOME=/root). rustup and cargo-cache both fail when these differ.
+      HOME: /root
     container:
       image: archlinux:latest
 
