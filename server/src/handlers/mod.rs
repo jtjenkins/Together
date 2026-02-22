@@ -13,7 +13,13 @@ use serde_json::{json, Value};
 use crate::state::AppState;
 
 pub async fn health_check(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
-    let db_ok = sqlx::query("SELECT 1").execute(&state.pool).await.is_ok();
+    let db_ok = match sqlx::query("SELECT 1").execute(&state.pool).await {
+        Ok(_) => true,
+        Err(e) => {
+            tracing::warn!(error = ?e, "Health check: database query failed");
+            false
+        }
+    };
 
     let http_status = if db_ok {
         StatusCode::OK

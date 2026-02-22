@@ -26,7 +26,7 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
-      RUST_LOG: together_server=info,tower_http=info,sqlx=warn
+      RUST_LOG: ${RUST_LOG:-together_server=info,tower_http=info,sqlx=warn}
     ports:
       - "${BIND_PORT:-8080}:8080"
     volumes:

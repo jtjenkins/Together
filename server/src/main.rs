@@ -1,10 +1,11 @@
 use axum::{
     extract::DefaultBodyLimit,
+    http::{header, HeaderValue, Method},
     routing::{delete, get, patch, post},
     Router,
 };
 use axum_prometheus::PrometheusMetricLayer;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -55,19 +56,31 @@ async fn main() {
         .expect("Database health check failed");
     info!("✅ Database health check passed");
 
-    // CORS: permissive in dev, restrictive in production.
-    // Set APP_ENV=production to switch modes; configure ALLOWED_ORIGINS for
-    // cross-origin access in production (see .env.example).
+    // CORS: permissive in dev, origin-restricted in production.
+    // Set APP_ENV=production and ALLOWED_ORIGINS=https://your-domain.com (see .env.example).
     let cors = if config.is_dev {
         info!("🔓 CORS: permissive (dev mode)");
         CorsLayer::permissive()
     } else {
-        tracing::warn!(
-            "🔒 CORS: restrictive (production mode). \
-             Cross-origin requests will be denied. \
-             Set ALLOWED_ORIGINS to allow specific origins."
-        );
+        let origins: Vec<HeaderValue> = config
+            .allowed_origins
+            .iter()
+            .filter_map(|o| o.parse().ok())
+            .collect();
+        if origins.is_empty() {
+            tracing::warn!(
+                "🔒 CORS: no ALLOWED_ORIGINS configured — all cross-origin requests will be denied"
+            );
+        } else {
+            info!(
+                "🔒 CORS: production mode, allowing origins: {:?}",
+                config.allowed_origins
+            );
+        }
         CorsLayer::new()
+            .allow_origin(AllowOrigin::list(origins))
+            .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+            .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
     };
 
     let addr = config.server_addr();

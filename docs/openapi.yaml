@@ -687,13 +687,23 @@ components:
       required:
         - status
         - service
+        - version
+        - database
       properties:
         status:
           type: string
+          enum: ["ok", "degraded"]
           example: "ok"
         service:
           type: string
           example: "together-server"
+        version:
+          type: string
+          example: "0.1.0"
+        database:
+          type: string
+          enum: ["ok", "unavailable"]
+          example: "ok"
 
     # -- Shared error ---------------------------------------------------------
 
@@ -792,13 +802,15 @@ paths:
       operationId: healthCheck
       summary: Server health check
       description: |
-        Returns `200 OK` if the server process is running. Does not perform a
-        database connectivity check. Use this for load-balancer liveness probes.
+        Performs a lightweight database connectivity check (`SELECT 1`).
+        Returns `200 OK` with `"status":"ok"` when the database is reachable.
+        Returns `503 Service Unavailable` with `"status":"degraded"` when the
+        database is not reachable. Use this for load-balancer health probes.
       tags: [Health]
       security: []
       responses:
         '200':
-          description: Server is running.
+          description: Server and database are healthy.
           content:
             application/json:
               schema:
@@ -806,6 +818,19 @@ paths:
               example:
                 status: "ok"
                 service: "together-server"
+                version: "0.1.0"
+                database: "ok"
+        '503':
+          description: Database is unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "degraded"
+                service: "together-server"
+                version: "0.1.0"
+                database: "unavailable"
 
   /metrics:
     get:

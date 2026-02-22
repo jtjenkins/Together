@@ -13,6 +13,9 @@ pub struct Config {
     pub is_dev: bool,
     /// Root directory for uploaded files (from UPLOAD_DIR, default: ./data/uploads).
     pub upload_dir: PathBuf,
+    /// Allowed CORS origins in production (parsed from ALLOWED_ORIGINS, comma-separated).
+    /// Empty means no cross-origin requests are allowed.
+    pub allowed_origins: Vec<String>,
 }
 
 /// Manual Debug impl — never prints jwt_secret or database credentials in plaintext.
@@ -59,6 +62,14 @@ impl Config {
             upload_dir: PathBuf::from(
                 env::var("UPLOAD_DIR").unwrap_or_else(|_| "./data/uploads".to_string()),
             ),
+            allowed_origins: env::var("ALLOWED_ORIGINS")
+                .map(|s| {
+                    s.split(',')
+                        .map(|o| o.trim().to_string())
+                        .filter(|o| !o.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default(),
         })
     }
 

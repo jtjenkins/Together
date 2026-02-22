@@ -14,6 +14,7 @@ RUN mkdir src && echo 'fn main(){}' > src/main.rs && \
 # Copy actual source + build artefacts sqlx needs
 COPY server/src ./src
 COPY server/.sqlx ./.sqlx
+COPY server/migrations ./migrations
 ENV SQLX_OFFLINE=true
 RUN touch src/main.rs && cargo build --release
 
@@ -24,7 +25,6 @@ RUN apt-get update && apt-get install -y libssl3 ca-certificates && \
 
 WORKDIR /app
 COPY --from=builder /app/target/release/together-server ./together-server
-COPY server/migrations ./migrations
 
 RUN mkdir -p /app/uploads
 EXPOSE 8080
