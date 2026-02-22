@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { api, ApiRequestError } from "../api/client";
 
 const mockFetch = vi.fn();
@@ -7,6 +7,7 @@ globalThis.fetch = mockFetch;
 beforeEach(() => {
   mockFetch.mockReset();
   api.setToken(null);
+  localStorage.clear();
 });
 
 describe("ApiClient", () => {
@@ -332,6 +333,48 @@ describe("ApiClient", () => {
 
       const result = await api.deleteMessage("msg-1");
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe("setServerUrl", () => {
+    afterEach(() => {
+      // Reset apiBase back to the env-based default between sub-tests
+      localStorage.clear();
+    });
+
+    it("should update the URL used for subsequent requests", async () => {
+      api.setServerUrl("http://myserver.example.com");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([]),
+      });
+
+      await api.listServers();
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain("http://myserver.example.com/api");
+    });
+
+    it("should persist the URL to localStorage", () => {
+      api.setServerUrl("http://myserver.example.com");
+      expect(localStorage.getItem("server_url")).toBe(
+        "http://myserver.example.com",
+      );
+    });
+
+    it("should also update the URL used for file attachments", async () => {
+      api.setServerUrl("http://myserver.example.com");
+      api.setToken("tok");
+
+      // fileUrl is a synchronous helper — just inspect its return value
+      const url = api.fileUrl("/uploads/abc.png");
+      expect(url).toBe("http://myserver.example.com/api/uploads/abc.png");
+    });
+
+    it("should throw TypeError for an invalid URL string", () => {
+      expect(() => api.setServerUrl("not-a-url")).toThrow(TypeError);
     });
   });
 

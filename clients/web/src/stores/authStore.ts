@@ -116,7 +116,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await api.getCurrentUser();
       gateway.connect(token);
       set({ user, isAuthenticated: true, isLoading: false });
-    } catch {
+    } catch (err) {
+      if (
+        !(
+          err instanceof ApiRequestError &&
+          (err.status === 401 || err.status === 403)
+        )
+      ) {
+        console.error("[Auth] Unexpected session restore failure:", err);
+      }
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_KEY);
       api.setToken(null);

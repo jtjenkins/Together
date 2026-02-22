@@ -8,6 +8,7 @@ import type {
   VoiceStateUpdateEvent,
   VoiceSignalData,
 } from "../types";
+import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
 type EventHandler<T = unknown> = (data: T) => void;
 
@@ -25,9 +26,29 @@ interface EventHandlers {
 
 type EventName = keyof EventHandlers;
 
-const WS_BASE =
-  import.meta.env.VITE_WS_URL ||
-  `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`;
+function resolveWsBase(): string {
+  if (isTauri) {
+    const saved = localStorage.getItem(SERVER_URL_KEY);
+    if (saved) {
+      try {
+        const url = new URL(saved);
+        const wsScheme = url.protocol === "https:" ? "wss:" : "ws:";
+        return `${wsScheme}//${url.host}/ws`;
+      } catch {
+        console.warn(
+          `[Gateway] Stored ${SERVER_URL_KEY} "${saved}" is not a valid URL; discarding.`,
+        );
+        localStorage.removeItem(SERVER_URL_KEY);
+        return "";
+      }
+    }
+    return "";
+  }
+  return (
+    import.meta.env.VITE_WS_URL ||
+    `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`
+  );
+}
 
 const HEARTBEAT_INTERVAL = 30000;
 
@@ -40,6 +61,7 @@ export class WebSocketClient {
   private token: string | null = null;
   private handlers: Partial<Record<EventName, Set<EventHandler<never>>>> = {};
   private _isConnected = false;
+  private wsBase: string = resolveWsBase();
 
   get isConnected(): boolean {
     return this._isConnected;
@@ -62,6 +84,16 @@ export class WebSocketClient {
     this.handlers[event]?.forEach((handler) => {
       (handler as EventHandler)(data);
     });
+  }
+
+  setServerUrl(url: string): void {
+    const parsed = new URL(url); // validated by ServerSetup before this is called
+    const wsScheme = parsed.protocol === "https:" ? "wss:" : "ws:";
+    this.wsBase = `${wsScheme}//${parsed.host}/ws`;
+    if (this.token) {
+      this.cleanup();
+      this.doConnect();
+    }
   }
 
   connect(token: string) {
@@ -99,10 +131,16 @@ export class WebSocketClient {
 
   private doConnect() {
     if (!this.token) return;
+    if (!this.wsBase) {
+      console.error(
+        "[Gateway] Cannot connect: no server URL configured. Call setServerUrl() before connect().",
+      );
+      return;
+    }
 
     this.cleanup();
 
-    const url = `${WS_BASE}?token=${encodeURIComponent(this.token)}`;
+    const url = `${this.wsBase}?token=${encodeURIComponent(this.token)}`;
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {

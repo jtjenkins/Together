@@ -19,11 +19,19 @@ import type {
   UpdateVoiceStateRequest,
   Attachment,
 } from "../types";
+import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
+function resolveApiBase(): string {
+  if (isTauri) {
+    const saved = localStorage.getItem(SERVER_URL_KEY);
+    return saved ? `${saved}/api` : "";
+  }
+  return import.meta.env.VITE_API_URL || "/api";
+}
 
 class ApiClient {
   private accessToken: string | null = null;
+  private apiBase: string = resolveApiBase();
 
   setToken(token: string | null) {
     this.accessToken = token;
@@ -33,10 +41,26 @@ class ApiClient {
     return this.accessToken;
   }
 
+  setServerUrl(url: string): void {
+    try {
+      new URL(url);
+    } catch {
+      throw new TypeError(`[ApiClient] "${url}" is not a valid server URL`);
+    }
+    localStorage.setItem(SERVER_URL_KEY, url);
+    this.apiBase = `${url}/api`;
+  }
+
   private async request<T>(
     path: string,
     options: RequestInit & { skipContentType?: boolean } = {},
   ): Promise<T> {
+    if (!this.apiBase) {
+      throw new Error(
+        "[ApiClient] No server URL configured. Enter your Together server address to continue.",
+      );
+    }
+
     const { skipContentType, ...fetchOptions } = options;
     const headers: Record<string, string> = {
       ...(skipContentType ? {} : { "Content-Type": "application/json" }),
@@ -47,7 +71,7 @@ class ApiClient {
       headers["Authorization"] = `Bearer ${this.accessToken}`;
     }
 
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${this.apiBase}${path}`, {
       ...fetchOptions,
       headers,
     });
@@ -249,7 +273,7 @@ class ApiClient {
 
   /** Resolve an attachment URL for use in <img> / <a> tags. */
   fileUrl(path: string): string {
-    return `${API_BASE}${path}`;
+    return `${this.apiBase}${path}`;
   }
 }
 
