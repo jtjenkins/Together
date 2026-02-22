@@ -33,7 +33,7 @@ export function DMSidebar() {
           <div className={styles.empty}>
             <p>No direct messages yet</p>
             <p className={styles.emptyHint}>
-              Open a DM from a server member's profile
+              Open a DM from a server member&apos;s profile
             </p>
           </div>
         )}
