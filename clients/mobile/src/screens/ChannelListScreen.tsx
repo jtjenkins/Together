@@ -17,7 +17,7 @@ type Props = NativeStackScreenProps<ServersStackParamList, "ChannelList">;
 
 export function ChannelListScreen({ route, navigation }: Props) {
   const { serverId } = route.params;
-  const { channels, isLoading, fetchChannels, setActiveChannel } =
+  const { channels, isLoading, error, fetchChannels, setActiveChannel } =
     useChannelStore();
   const setActiveServer = useServerStore((s) => s.setActiveServer);
 
@@ -65,6 +65,9 @@ export function ChannelListScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      {error && channels.length === 0 && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
@@ -142,5 +145,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 40,
     fontSize: 15,
+  },
+  errorText: {
+    color: "#ff4444",
+    padding: 16,
+    textAlign: "center",
   },
 });

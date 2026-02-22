@@ -100,7 +100,7 @@ export function ChatScreen({ route }: Props) {
 
   const handleLoadMore = useCallback(() => {
     if (!isLoading && hasMore && messages.length > 0) {
-      fetchMessages(channelId, messages[messages.length - 1].id);
+      fetchMessages(channelId, messages[0].id);
     }
   }, [isLoading, hasMore, messages, channelId, fetchMessages]);
 
@@ -139,8 +139,9 @@ export function ChatScreen({ route }: Props) {
         const existing = new Set(prev.map((f) => f.name));
         return [...prev, ...files.filter((f) => !existing.has(f.name))];
       });
-    } catch {
-      // User cancelled or picker failed
+    } catch (err) {
+      console.error("[ChatScreen] DocumentPicker failed", err);
+      Alert.alert("Error", "Could not open file picker. Please try again.");
     }
   };
 

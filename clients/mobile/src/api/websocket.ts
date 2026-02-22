@@ -23,6 +23,7 @@ interface EventHandlers {
   VOICE_SIGNAL: EventHandler<VoiceSignalData>;
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
+  permanently_disconnected: EventHandler<void>;
 }
 
 type EventName = keyof EventHandlers;
@@ -99,6 +100,7 @@ export class WebSocketClient {
 
   disconnect() {
     this.token = null;
+    // Set reconnect counter to max to prevent scheduleReconnect() from retrying after intentional close.
     this.reconnectAttempts = this.maxReconnectAttempts;
     this.cleanup();
   }
@@ -210,6 +212,7 @@ export class WebSocketClient {
         console.error(
           `[Gateway] Connection lost — gave up after ${this.maxReconnectAttempts} reconnect attempts`,
         );
+        this.emit("permanently_disconnected");
       }
       return;
     }

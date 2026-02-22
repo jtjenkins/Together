@@ -142,8 +142,8 @@ export const useServerStore = create<ServerState>((set, get) => ({
     try {
       const members = await api.listMembers(serverId);
       set({ members });
-    } catch {
-      // Non-critical — silently fail
+    } catch (err) {
+      console.error("[ServerStore] fetchMembers failed for", serverId, err);
     }
   },
 

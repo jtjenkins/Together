@@ -2,8 +2,9 @@
  * useWebRTC (React Native) — manages WebRTC peer connections for a voice channel.
  *
  * Uses react-native-webrtc instead of browser WebRTC APIs.
- * Remote audio plays automatically through the device speaker when tracks
- * are received via ontrack — no HTMLAudioElement equivalent is needed.
+ * Remote audio is received via ontrack and rendered by react-native-webrtc.
+ * On iOS, audio routes to the earpiece by default; configure AVAudioSession
+ * (via expo-av Audio.setAudioModeAsync) to force speaker output if needed.
  */
 import { useEffect, useRef, useCallback } from "react";
 import {
@@ -47,6 +48,7 @@ export function useWebRTC({
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
   const offeredPeersRef = useRef<Set<string>>(new Set());
+  const isDeafenedRef = useRef(isDeafened);
 
   const closePeer = useCallback((peerId: string) => {
     const pc = peersRef.current.get(peerId);
@@ -57,6 +59,15 @@ export function useWebRTC({
     remoteStreamsRef.current.delete(peerId);
   }, []);
 
+  // Keep isDeafenedRef in sync so createPeer's ontrack closure always reads
+  // the current value without needing isDeafened in its dependency array.
+  useEffect(() => {
+    isDeafenedRef.current = isDeafened;
+  }, [isDeafened]);
+
+  // react-native-webrtc 124.x TypeScript types are incomplete: addTrack,
+  // ontrack, onicecandidate, and onconnectionstatechange are not declared
+  // on RTCPeerConnection. Cast through `any` until upstream types are updated.
   const createPeer = useCallback(
     (peerId: string, localStream: MediaStream | null) => {
       if (peersRef.current.has(peerId)) return peersRef.current.get(peerId)!;
@@ -78,7 +89,7 @@ export function useWebRTC({
           remoteStreamsRef.current.set(peerId, event.streams[0]);
           // Apply current deafen state to incoming tracks
           event.streams[0].getAudioTracks().forEach((track) => {
-            track.enabled = !isDeafened;
+            track.enabled = !isDeafenedRef.current;
           });
         }
       };
@@ -107,7 +118,7 @@ export function useWebRTC({
 
       return pc;
     },
-    [closePeer, isDeafened],
+    [closePeer],
   );
 
   // Acquire local audio stream
@@ -219,6 +230,8 @@ export function useWebRTC({
               `[WebRTC] Failed to set remote answer from ${fromId}`,
               err,
             );
+            onError?.("Failed to establish voice connection with a peer");
+            closePeer(fromId);
           }
         }
       } else if (signal.type === "candidate") {
@@ -233,13 +246,14 @@ export function useWebRTC({
               `[WebRTC] Failed to add ICE candidate from ${fromId}`,
               err,
             );
+            onError?.("Failed to process ICE candidate from a peer");
           }
         }
       }
     });
 
     return unsub;
-  }, [enabled, myUserId, createPeer, onError]);
+  }, [enabled, myUserId, createPeer, closePeer, onError]);
 
   // Close peers that have left the channel
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Alert } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -18,7 +18,10 @@ export default function App() {
       })
       .catch((err) => {
         console.error("[App] Storage init failed", err);
-        // Show the app anyway — it will prompt for server setup
+        Alert.alert(
+          "Startup Error",
+          "Failed to initialize storage. The app may not work correctly.",
+        );
         setReady(true);
       });
   }, []);

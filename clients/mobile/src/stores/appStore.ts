@@ -22,6 +22,7 @@ export const useAppStore = create<AppState>()(() => ({
   },
 
   clearServerUrl: () => {
+    gateway.disconnect();
     storage.removeItem(SERVER_URL_KEY);
     useAppStore.setState({ serverUrl: null });
   },

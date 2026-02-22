@@ -17,10 +17,6 @@ export function useWebSocket() {
   const updateMemberPresence = useServerStore((s) => s.updateMemberPresence);
   const fetchMembers = useServerStore((s) => s.fetchMembers);
   const activeServerId = useServerStore((s) => s.activeServerId);
-  const activeChannelId = useChannelStore((s) => s.activeChannelId);
-  const addMessage = useMessageStore((s) => s.addMessage);
-  const updateMessage = useMessageStore((s) => s.updateMessage);
-  const removeMessage = useMessageStore((s) => s.removeMessage);
 
   useEffect(() => {
     const unsubs = [
@@ -30,20 +26,20 @@ export function useWebSocket() {
       }),
 
       gateway.on("MESSAGE_CREATE", (msg: Message) => {
-        if (msg.channel_id === activeChannelId) {
-          addMessage(msg);
+        if (msg.channel_id === useChannelStore.getState().activeChannelId) {
+          useMessageStore.getState().addMessage(msg);
         }
       }),
 
       gateway.on("MESSAGE_UPDATE", (msg: Message) => {
-        if (msg.channel_id === activeChannelId) {
-          updateMessage(msg);
+        if (msg.channel_id === useChannelStore.getState().activeChannelId) {
+          useMessageStore.getState().updateMessage(msg);
         }
       }),
 
       gateway.on("MESSAGE_DELETE", (event: MessageDeleteEvent) => {
-        if (event.channel_id === activeChannelId) {
-          removeMessage(event);
+        if (event.channel_id === useChannelStore.getState().activeChannelId) {
+          useMessageStore.getState().removeMessage(event);
         }
       }),
 
@@ -56,20 +52,14 @@ export function useWebSocket() {
           fetchMembers(activeServerId);
         }
       }),
+
+      gateway.on("permanently_disconnected", () => {
+        console.error("[WebSocket] Permanently disconnected after max retries");
+      }),
     ];
 
     return () => {
       unsubs.forEach((unsub) => unsub());
     };
-  }, [
-    setUser,
-    setServers,
-    addMessage,
-    updateMessage,
-    removeMessage,
-    updateMemberPresence,
-    fetchMembers,
-    activeServerId,
-    activeChannelId,
-  ]);
+  }, [setUser, setServers, updateMemberPresence, fetchMembers, activeServerId]);
 }

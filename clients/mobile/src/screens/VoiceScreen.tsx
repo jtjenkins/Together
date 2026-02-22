@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -41,12 +41,18 @@ export function VoiceScreen({ route, navigation }: Props) {
 
   const isConnected = connectedChannelId === channelId;
 
+  const isConnectedRef = useRef(false);
+  useEffect(() => {
+    isConnectedRef.current = isConnected;
+  }, [isConnected]);
+
   const fetchParticipants = useCallback(async () => {
     try {
       const list = await api.listVoiceParticipants(channelId);
       setParticipants(list);
     } catch (err) {
       console.warn("[VoiceScreen] Failed to fetch participants", err);
+      setRtcError("Could not load participants.");
     }
   }, [channelId]);
 
@@ -105,12 +111,9 @@ export function VoiceScreen({ route, navigation }: Props) {
   // Disconnect when navigating away
   useEffect(() => {
     return () => {
-      if (isConnected) {
-        leave().catch(() => {});
-      }
+      if (isConnectedRef.current) leave().catch(() => {});
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [leave]);
 
   useWebRTC({
     enabled: isConnected,
@@ -149,21 +152,31 @@ export function VoiceScreen({ route, navigation }: Props) {
 
     try {
       await join(channelId);
+    } catch {
+      // Error shown via voiceError from store
+      return;
+    }
+    try {
       const list = await api.listVoiceParticipants(channelId);
       setParticipants(list);
       setInitialPeers(
         list.filter((p) => p.user_id !== user?.id).map((p) => p.user_id),
       );
     } catch {
-      // Error shown via voiceError from store
+      setRtcError("Joined voice, but could not load participants.");
     }
   };
 
   const handleLeave = async () => {
-    await leave();
-    setInitialPeers([]);
-    await fetchParticipants();
-    navigation.goBack();
+    try {
+      await leave();
+      setInitialPeers([]);
+      await fetchParticipants();
+    } catch (err) {
+      console.error("[VoiceScreen] handleLeave error", err);
+    } finally {
+      navigation.goBack();
+    }
   };
 
   const handleToggleMute = async () => {
@@ -172,6 +185,9 @@ export function VoiceScreen({ route, navigation }: Props) {
       await toggleMute();
     } catch (err) {
       console.error("[VoiceScreen] toggleMute failed", err);
+      setRtcError(
+        err instanceof Error ? err.message : "Failed to update mute state",
+      );
     }
   };
 
@@ -181,6 +197,9 @@ export function VoiceScreen({ route, navigation }: Props) {
       await toggleDeafen();
     } catch (err) {
       console.error("[VoiceScreen] toggleDeafen failed", err);
+      setRtcError(
+        err instanceof Error ? err.message : "Failed to update deafen state",
+      );
     }
   };
 

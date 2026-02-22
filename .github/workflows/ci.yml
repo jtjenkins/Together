@@ -272,6 +272,9 @@ jobs:
       - name: TypeScript typecheck
         run: npm run typecheck
 
+      - name: Run tests
+        run: npm test
+
   # ── Desktop App: Build (Arch Linux) ────────────────────────────────────────
   desktop-build-arch:
     name: Desktop Build (Arch Linux)
