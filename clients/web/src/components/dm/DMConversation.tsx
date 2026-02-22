@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useDmStore } from "../../stores/dmStore";
 import { useReadStateStore } from "../../stores/readStateStore";
 import { useAuthStore } from "../../stores/authStore";
@@ -28,7 +28,10 @@ export function DMConversation({ channelId }: DMConversationProps) {
   const prevMessageCount = useRef(0);
 
   const channel = channels.find((c) => c.id === channelId);
-  const messages = messagesByChannel[channelId] ?? [];
+  const messages = useMemo(
+    () => messagesByChannel[channelId] ?? [],
+    [messagesByChannel, channelId],
+  );
 
   useEffect(() => {
     fetchMessages(channelId);
