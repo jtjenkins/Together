@@ -44,9 +44,10 @@ export function useWebSocket() {
           useReadStateStore.getState().incrementUnread(msg.channel_id);
           const currentUserId = useAuthStore.getState().user?.id ?? null;
           const isMentioned =
-            msg.mention_everyone ||
-            (currentUserId !== null &&
-              msg.mention_user_ids.includes(currentUserId));
+            msg.author_id !== currentUserId &&
+            (msg.mention_everyone ||
+              (currentUserId !== null &&
+                msg.mention_user_ids.includes(currentUserId)));
           if (isMentioned) {
             useReadStateStore.getState().incrementMention(msg.channel_id);
           }
