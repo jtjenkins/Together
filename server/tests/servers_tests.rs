@@ -417,6 +417,122 @@ async fn owner_cannot_leave_server() {
 }
 
 // ============================================================================
+// GET /servers/browse — discover public servers
+// ============================================================================
+
+#[tokio::test]
+async fn browse_servers_returns_only_public() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    // Create a public server.
+    let public_server =
+        common::create_server(app.clone(), &owner_token, "Public Browse Guild").await;
+    let public_id = public_server["id"].as_str().unwrap();
+
+    // Create a private server (default is_public = false).
+    let private_server =
+        common::create_server(app.clone(), &owner_token, "Private Browse Guild").await;
+    let private_id = private_server["id"].as_str().unwrap();
+
+    // Make only the first one public.
+    common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{public_id}"),
+        &owner_token,
+        json!({ "is_public": true }),
+    )
+    .await;
+
+    // Browse as a different user.
+    let viewer_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let (status, body) = common::get_authed(app, "/servers/browse", &viewer_token).await;
+
+    assert_eq!(status, StatusCode::OK);
+    let list = body.as_array().unwrap();
+    // Public server appears in results.
+    assert!(list.iter().any(|s| s["id"] == public_id));
+    // Private server does not appear.
+    assert!(!list.iter().any(|s| s["id"] == private_id));
+}
+
+#[tokio::test]
+async fn browse_servers_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let (status, _) = common::get_no_auth(app, "/servers/browse").await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn make_server_public_via_update() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    let server = common::create_server(app.clone(), &token, "Soon Public Guild").await;
+    let id = server["id"].as_str().unwrap();
+
+    // Initially not in browse results.
+    let (_, body) = common::get_authed(app.clone(), "/servers/browse", &token).await;
+    assert!(!body.as_array().unwrap().iter().any(|s| s["id"] == id));
+
+    // Make it public via PATCH.
+    let (status, body) = common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{id}"),
+        &token,
+        json!({ "is_public": true }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["is_public"], true);
+
+    // Now appears in browse.
+    let (_, body) = common::get_authed(app, "/servers/browse", &token).await;
+    assert!(body.as_array().unwrap().iter().any(|s| s["id"] == id));
+}
+
+#[tokio::test]
+async fn non_owner_cannot_make_server_public() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &owner_token, "Owner-Only Guild").await;
+    let id = server["id"].as_str().unwrap();
+
+    // Non-owner joins.
+    let member_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{id}/join"),
+        &member_token,
+        json!({}),
+    )
+    .await;
+
+    // Non-owner attempts to make server public.
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/servers/{id}"),
+        &member_token,
+        json!({ "is_public": true }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ============================================================================
 // GET /servers/:id/members — list members
 // ============================================================================
 

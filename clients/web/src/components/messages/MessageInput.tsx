@@ -174,6 +174,15 @@ export function MessageInput({ channelId }: MessageInputProps) {
           maxLength={4000}
           aria-label="Message input"
         />
+        <button
+          type="submit"
+          className={styles.sendBtn}
+          disabled={!content.trim() && pendingFiles.length === 0}
+          aria-label="Send message"
+          title="Send message"
+        >
+          ↑
+        </button>
       </form>
     </div>
   );

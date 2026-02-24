@@ -44,6 +44,7 @@ export interface ServerDto {
   name: string;
   owner_id: string;
   icon_url: string | null;
+  is_public: boolean;
   member_count: number;
   created_at: string;
   updated_at: string;
@@ -52,11 +53,13 @@ export interface ServerDto {
 export interface CreateServerRequest {
   name: string;
   icon_url?: string;
+  is_public?: boolean;
 }
 
 export interface UpdateServerRequest {
   name?: string;
   icon_url?: string;
+  is_public?: boolean;
 }
 
 // ─── Member Types ────────────────────────────────────────────

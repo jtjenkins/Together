@@ -61,6 +61,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
         // Server routes
         .route("/servers", post(handlers::servers::create_server))
         .route("/servers", get(handlers::servers::list_servers))
+        .route("/servers/browse", get(handlers::servers::browse_servers))
         .route("/servers/:id", get(handlers::servers::get_server))
         .route("/servers/:id", patch(handlers::servers::update_server))
         .route("/servers/:id", delete(handlers::servers::delete_server))

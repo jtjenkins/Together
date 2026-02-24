@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ServerSidebar } from "./ServerSidebar";
 import { ChannelSidebar } from "./ChannelSidebar";
 import { DMSidebar } from "../dm/DMSidebar";
@@ -23,11 +23,16 @@ export function AppLayout() {
   const activeThreadId = useMessageStore((s) => s.activeThreadId);
   const openThread = useMessageStore((s) => s.openThread);
   const closeThread = useMessageStore((s) => s.closeThread);
+  const [showBrowse, setShowBrowse] = useState(false);
 
   useWebSocket();
 
   useEffect(() => {
-    fetchServers();
+    fetchServers().then(() => {
+      if (useServerStore.getState().servers.length === 0) {
+        setShowBrowse(true);
+      }
+    });
   }, [fetchServers]);
 
   const activeChannel = channels.find((c) => c.id === activeChannelId);
@@ -37,7 +42,7 @@ export function AppLayout() {
 
   return (
     <div className={styles.layout}>
-      <ServerSidebar />
+      <ServerSidebar showBrowse={showBrowse} onShowBrowse={setShowBrowse} />
       {showDmView ? (
         <>
           <DMSidebar />

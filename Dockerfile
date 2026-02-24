@@ -1,5 +1,5 @@
 # ── Build Stage ──────────────────────────────────────────────────────────────
-FROM rust:1.83-slim AS builder
+FROM rust:1.88-slim AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && \
@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && \
 
 # Copy manifests first for dependency cache layer
 COPY server/Cargo.toml server/Cargo.lock ./
-RUN mkdir src && echo 'fn main(){}' > src/main.rs && \
+RUN mkdir src && echo 'fn main(){}' > src/main.rs && echo '' > src/lib.rs && \
     SQLX_OFFLINE=true cargo build --release && \
     rm -rf src
 
@@ -16,7 +16,7 @@ COPY server/src ./src
 COPY server/.sqlx ./.sqlx
 COPY server/migrations ./migrations
 ENV SQLX_OFFLINE=true
-RUN touch src/main.rs && cargo build --release
+RUN find src -name "*.rs" -exec touch {} + && cargo build --release
 
 # ── Runtime Stage ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim

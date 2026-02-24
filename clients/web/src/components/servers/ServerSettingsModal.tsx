@@ -17,6 +17,7 @@ export function ServerSettingsModal({
 }: ServerSettingsModalProps) {
   const [name, setName] = useState(server.name);
   const [iconUrl, setIconUrl] = useState(server.icon_url || "");
+  const [isPublic, setIsPublic] = useState(server.is_public);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const updateServer = useServerStore((s) => s.updateServer);
@@ -31,6 +32,7 @@ export function ServerSettingsModal({
       await updateServer(server.id, {
         name: name.trim(),
         icon_url: iconUrl.trim() || undefined,
+        is_public: isPublic,
       });
       onClose();
     } catch (err) {
@@ -71,6 +73,16 @@ export function ServerSettingsModal({
             onChange={(e) => setIconUrl(e.target.value)}
             placeholder="https://example.com/icon.png"
           />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+            />
+            List this server in Browse Servers
+          </label>
         </div>
         <div className={styles.info}>
           <span>Members: {server.member_count}</span>

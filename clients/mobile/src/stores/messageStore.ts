@@ -65,8 +65,10 @@ export const useMessageStore = create<MessageState>((set) => ({
     set({ isLoading: true });
     try {
       const fetched = await api.listMessages(channelId, { before, limit: 50 });
+      // API returns newest-first (DESC); reverse so the store is oldest-first.
+      const ordered = [...fetched].reverse();
       set((state) => {
-        const newMessages = before ? [...fetched, ...state.messages] : fetched;
+        const newMessages = before ? [...ordered, ...state.messages] : ordered;
         return {
           messages: newMessages,
           hasMore: fetched.length === 50,
@@ -75,17 +77,17 @@ export const useMessageStore = create<MessageState>((set) => ({
       });
       // Batch-fetch attachments for all loaded messages in parallel
       const results = await Promise.allSettled(
-        fetched.map((m) => api.listAttachments(m.id)),
+        ordered.map((m) => api.listAttachments(m.id)),
       );
       set((state) => {
         const updates: Record<string, Attachment[]> = {};
         results.forEach((r, i) => {
           if (r.status === "fulfilled" && r.value.length > 0) {
-            updates[fetched[i].id] = r.value;
+            updates[ordered[i].id] = r.value;
           } else if (r.status === "rejected") {
             console.warn(
               "[MessageStore] Failed to load attachments for",
-              fetched[i].id,
+              ordered[i].id,
               r.reason,
             );
           }

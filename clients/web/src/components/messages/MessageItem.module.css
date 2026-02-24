@@ -311,3 +311,66 @@
 .threadCount {
   font-size: 12px;
 }
+
+/* ── Own messages (right-aligned bubble) ─── */
+
+.own {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.own .replyBar {
+  flex-direction: row-reverse;
+  padding: 2px 56px 4px 0;
+}
+
+.own .body {
+  flex-direction: row-reverse;
+  max-width: 70%;
+}
+
+.own .header {
+  flex-direction: row-reverse;
+}
+
+.own .text {
+  background: var(--accent-primary);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 18px 18px 4px 18px;
+  display: inline-block;
+}
+
+.own.compact .text {
+  border-radius: 4px 18px 4px 18px;
+}
+
+.own .mention {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.own .mentionSelf {
+  background: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
+.own .actions {
+  left: 16px;
+  right: auto;
+}
+
+.own .reactionArea {
+  padding-left: 0;
+  padding-right: 52px;
+}
+
+.own .threadFooter {
+  margin-left: 0;
+  margin-right: 56px;
+}
+
+.own .deletedContent {
+  padding: 4px 56px 4px 0;
+}

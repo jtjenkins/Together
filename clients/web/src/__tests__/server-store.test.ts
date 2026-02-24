@@ -12,6 +12,7 @@ vi.mock("../api/client", () => ({
     joinServer: vi.fn(),
     leaveServer: vi.fn(),
     listMembers: vi.fn(),
+    browseServers: vi.fn(),
   },
   ApiRequestError: class extends Error {
     status: number;
@@ -27,6 +28,7 @@ const mockServer = (overrides: Partial<ServerDto> = {}): ServerDto => ({
   name: "Test Server",
   owner_id: "user-1",
   icon_url: null,
+  is_public: false,
   member_count: 1,
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-01T00:00:00Z",
@@ -40,6 +42,9 @@ beforeEach(() => {
     members: [],
     isLoading: false,
     error: null,
+    discoverableServers: [],
+    isBrowseLoading: false,
+    browseError: null,
   });
   vi.clearAllMocks();
 });
