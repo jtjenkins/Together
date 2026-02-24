@@ -6,9 +6,14 @@ import styles from "./MessageList.module.css";
 interface MessageListProps {
   messages: Message[];
   channelId: string;
+  onOpenThread?: (messageId: string) => void;
 }
 
-export function MessageList({ messages, channelId }: MessageListProps) {
+export function MessageList({
+  messages,
+  channelId,
+  onOpenThread,
+}: MessageListProps) {
   const members = useServerStore((s) => s.members);
 
   const getAuthorName = (authorId: string | null): string => {
@@ -74,6 +79,7 @@ export function MessageList({ messages, channelId }: MessageListProps) {
               ? messages.find((m) => m.id === message.reply_to)?.content
               : undefined
           }
+          onOpenThread={onOpenThread}
         />
       ))}
     </div>

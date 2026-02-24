@@ -13,6 +13,7 @@ import type {
   UpdateChannelRequest,
   Message,
   CreateMessageRequest,
+  CreateThreadReplyRequest,
   UpdateMessageRequest,
   ListMessagesQuery,
   VoiceParticipant,
@@ -320,6 +321,33 @@ class ApiClient {
 
   ackDmChannel(channelId: string): Promise<void> {
     return this.request(`/dm-channels/${channelId}/ack`, { method: "POST" });
+  }
+
+  // ─── Threads ───────────────────────────────────────────────
+
+  listThreadReplies(
+    channelId: string,
+    messageId: string,
+    query?: { before?: string; limit?: number },
+  ): Promise<Message[]> {
+    const params = new URLSearchParams();
+    if (query?.before) params.set("before", query.before);
+    if (query?.limit) params.set("limit", String(query.limit));
+    const qs = params.toString();
+    return this.request(
+      `/channels/${channelId}/messages/${messageId}/thread${qs ? `?${qs}` : ""}`,
+    );
+  }
+
+  createThreadReply(
+    channelId: string,
+    messageId: string,
+    data: CreateThreadReplyRequest,
+  ): Promise<Message> {
+    return this.request(
+      `/channels/${channelId}/messages/${messageId}/thread`,
+      { method: "POST", body: JSON.stringify(data) },
+    );
   }
 
   // ─── Reactions ─────────────────────────────────────────────

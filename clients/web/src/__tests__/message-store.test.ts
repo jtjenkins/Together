@@ -29,6 +29,8 @@ const mockMsg = (overrides: Partial<Message> = {}): Message => ({
   reply_to: null,
   mention_user_ids: [],
   mention_everyone: false,
+  thread_id: null,
+  thread_reply_count: 0,
   edited_at: null,
   deleted: false,
   created_at: "2024-01-01T00:00:00Z",
@@ -55,6 +57,8 @@ beforeEach(() => {
     error: null,
     replyingTo: null,
     attachmentCache: {},
+    threadCache: {},
+    activeThreadId: null,
   });
   vi.clearAllMocks();
   vi.mocked(api.listAttachments).mockResolvedValue([]);

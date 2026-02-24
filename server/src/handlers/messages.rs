@@ -16,7 +16,10 @@ use crate::{
     state::AppState,
     websocket::{
         broadcast_to_server,
-        events::{EVENT_MESSAGE_CREATE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_UPDATE},
+        events::{
+            EVENT_MESSAGE_CREATE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_UPDATE,
+            EVENT_THREAD_MESSAGE_CREATE,
+        },
     },
 };
 
@@ -154,7 +157,8 @@ pub async fn create_message(
         "INSERT INTO messages (channel_id, author_id, content, reply_to, mention_user_ids, mention_everyone)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id, channel_id, author_id, content, reply_to,
-                   mention_user_ids, mention_everyone, edited_at, deleted, created_at",
+                   mention_user_ids, mention_everyone, thread_id,
+                   0 AS thread_reply_count, edited_at, deleted, created_at",
     )
     .bind(channel_id)
     .bind(auth.user_id())
@@ -196,19 +200,28 @@ pub async fn list_messages(
 
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
 
+    // Thread replies are excluded from the main channel list (thread_id IS NULL).
+    // A subquery supplies the live reply count for each root message.
     let messages = if let Some(before_id) = query.before {
         // Compound cursor: (created_at, id) gives a total order even when
         // two messages land in the same microsecond.
         sqlx::query_as::<_, Message>(
-            "SELECT id, channel_id, author_id, content, reply_to,
-                    mention_user_ids, mention_everyone, edited_at, deleted, created_at
-             FROM messages
-             WHERE channel_id = $1
-               AND deleted = FALSE
-               AND (created_at, id) < (
+            "SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to,
+                    m.mention_user_ids, m.mention_everyone, m.thread_id,
+                    COALESCE(
+                      (SELECT COUNT(*)::int FROM messages t
+                       WHERE t.thread_id = m.id AND t.deleted = FALSE),
+                      0
+                    ) AS thread_reply_count,
+                    m.edited_at, m.deleted, m.created_at
+             FROM messages m
+             WHERE m.channel_id = $1
+               AND m.thread_id IS NULL
+               AND m.deleted = FALSE
+               AND (m.created_at, m.id) < (
                    SELECT created_at, id FROM messages WHERE id = $2
                )
-             ORDER BY created_at DESC, id DESC
+             ORDER BY m.created_at DESC, m.id DESC
              LIMIT $3",
         )
         .bind(channel_id)
@@ -218,11 +231,17 @@ pub async fn list_messages(
         .await?
     } else {
         sqlx::query_as::<_, Message>(
-            "SELECT id, channel_id, author_id, content, reply_to,
-                    mention_user_ids, mention_everyone, edited_at, deleted, created_at
-             FROM messages
-             WHERE channel_id = $1 AND deleted = FALSE
-             ORDER BY created_at DESC, id DESC
+            "SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to,
+                    m.mention_user_ids, m.mention_everyone, m.thread_id,
+                    COALESCE(
+                      (SELECT COUNT(*)::int FROM messages t
+                       WHERE t.thread_id = m.id AND t.deleted = FALSE),
+                      0
+                    ) AS thread_reply_count,
+                    m.edited_at, m.deleted, m.created_at
+             FROM messages m
+             WHERE m.channel_id = $1 AND m.thread_id IS NULL AND m.deleted = FALSE
+             ORDER BY m.created_at DESC, m.id DESC
              LIMIT $2",
         )
         .bind(channel_id)
@@ -298,7 +317,8 @@ pub async fn update_message(
              mention_user_ids = $3, mention_everyone = $4
          WHERE id = $2 AND deleted = FALSE
          RETURNING id, channel_id, author_id, content, reply_to,
-                   mention_user_ids, mention_everyone, edited_at, deleted, created_at",
+                   mention_user_ids, mention_everyone, thread_id,
+                   0 AS thread_reply_count, edited_at, deleted, created_at",
     )
     .bind(&dto.content)
     .bind(message_id)
@@ -368,4 +388,166 @@ pub async fn delete_message(
     .await;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /channels/:channel_id/messages/:message_id/thread — post a reply into a thread.
+///
+/// The parent message must be a root message (`thread_id IS NULL`). Thread replies
+/// cannot themselves be threaded (no nested threads). Returns 400 if the parent is
+/// already a thread reply.
+pub async fn create_thread_reply(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
+    Json(req): Json<CreateMessageRequest>,
+) -> AppResult<(StatusCode, Json<Message>)> {
+    req.validate().map_err(validation_error)?;
+
+    let parent = fetch_message(&state.pool, message_id).await?;
+
+    // Reject attempts to thread off a thread reply.
+    if parent.thread_id.is_some() {
+        return Err(AppError::Validation(
+            "Cannot create a thread from a thread reply".into(),
+        ));
+    }
+
+    // Verify the parent message belongs to the requested channel.
+    if parent.channel_id != channel_id {
+        return Err(AppError::NotFound("Message not found".into()));
+    }
+
+    let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
+    require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    // Parse @mentions (same logic as create_message).
+    let mention_everyone = req.content.split_whitespace().any(|word| {
+        word.strip_prefix('@')
+            .map(|name| {
+                name.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_') == "everyone"
+            })
+            .unwrap_or(false)
+    });
+    let mention_words: Vec<&str> = req
+        .content
+        .split_whitespace()
+        .filter_map(|word| {
+            word.strip_prefix('@')
+                .map(|name| name.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_'))
+        })
+        .filter(|name| !name.is_empty() && *name != "everyone")
+        .collect();
+    let mention_user_ids: Vec<uuid::Uuid> = if mention_words.is_empty() {
+        vec![]
+    } else {
+        sqlx::query_scalar(
+            "SELECT sm.user_id FROM server_members sm
+             JOIN users u ON u.id = sm.user_id
+             WHERE sm.server_id = $1 AND u.username = ANY($2)",
+        )
+        .bind(channel.server_id)
+        .bind(&mention_words as &[&str])
+        .fetch_all(&state.pool)
+        .await?
+    };
+
+    let message = sqlx::query_as::<_, Message>(
+        "INSERT INTO messages
+           (channel_id, author_id, content, thread_id, mention_user_ids, mention_everyone)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, channel_id, author_id, content, reply_to,
+                   mention_user_ids, mention_everyone, thread_id,
+                   0 AS thread_reply_count, edited_at, deleted, created_at",
+    )
+    .bind(channel_id)
+    .bind(auth.user_id())
+    .bind(&req.content)
+    .bind(message_id)
+    .bind(&mention_user_ids as &[uuid::Uuid])
+    .bind(mention_everyone)
+    .fetch_one(&state.pool)
+    .await?;
+
+    // Broadcast THREAD_MESSAGE_CREATE to all connected server members.
+    match serde_json::to_value(&message) {
+        Ok(payload) => {
+            broadcast_to_server(
+                &state,
+                channel.server_id,
+                EVENT_THREAD_MESSAGE_CREATE,
+                payload,
+            )
+            .await;
+        }
+        Err(e) => {
+            tracing::error!(
+                message_id = %message.id,
+                error = ?e,
+                "Failed to serialize thread reply for broadcast"
+            );
+        }
+    }
+
+    Ok((StatusCode::CREATED, Json(message)))
+}
+
+/// GET /channels/:channel_id/messages/:message_id/thread — list thread replies.
+///
+/// Replies are returned in ascending order (oldest first) — threads read top-to-bottom.
+/// Cursor pagination via `before=<uuid>` (still descending-compatible: pass the oldest
+/// reply ID seen to load older replies). The `thread_reply_count` field defaults to 0
+/// on these rows (it's only meaningful on root messages in the channel list).
+pub async fn list_thread_replies(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
+    Query(query): Query<ListMessagesQuery>,
+) -> AppResult<Json<Vec<Message>>> {
+    let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
+    require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    // Verify the parent message exists and belongs to this channel.
+    let parent = fetch_message(&state.pool, message_id).await?;
+    if parent.channel_id != channel_id {
+        return Err(AppError::NotFound("Message not found".into()));
+    }
+
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
+
+    let replies = if let Some(before_id) = query.before {
+        sqlx::query_as::<_, Message>(
+            "SELECT id, channel_id, author_id, content, reply_to,
+                    mention_user_ids, mention_everyone, thread_id,
+                    0 AS thread_reply_count, edited_at, deleted, created_at
+             FROM messages
+             WHERE thread_id = $1
+               AND deleted = FALSE
+               AND (created_at, id) < (
+                   SELECT created_at, id FROM messages WHERE id = $2
+               )
+             ORDER BY created_at ASC, id ASC
+             LIMIT $3",
+        )
+        .bind(message_id)
+        .bind(before_id)
+        .bind(limit)
+        .fetch_all(&state.pool)
+        .await?
+    } else {
+        sqlx::query_as::<_, Message>(
+            "SELECT id, channel_id, author_id, content, reply_to,
+                    mention_user_ids, mention_everyone, thread_id,
+                    0 AS thread_reply_count, edited_at, deleted, created_at
+             FROM messages
+             WHERE thread_id = $1 AND deleted = FALSE
+             ORDER BY created_at ASC, id ASC
+             LIMIT $2",
+        )
+        .bind(message_id)
+        .bind(limit)
+        .fetch_all(&state.pool)
+        .await?
+    };
+
+    Ok(Json(replies))
 }

@@ -31,6 +31,8 @@ function makeMessage(id: string, channelId = "ch-1", content = "Hello") {
     reply_to: null,
     mention_user_ids: [] as string[],
     mention_everyone: false,
+    thread_id: null,
+    thread_reply_count: 0,
     edited_at: null,
     deleted: false,
     created_at: `2024-01-0${id}`,
@@ -45,6 +47,8 @@ function resetStore() {
     error: null,
     replyingTo: null,
     attachmentCache: {},
+    threadCache: {},
+    activeThreadId: null,
   });
 }
 

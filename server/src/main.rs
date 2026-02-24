@@ -165,6 +165,15 @@ async fn main() {
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
         )
+        // Thread routes (protected, nested under channel message)
+        .route(
+            "/channels/:channel_id/messages/:message_id/thread",
+            get(handlers::messages::list_thread_replies),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/thread",
+            post(handlers::messages::create_thread_reply),
+        )
         // Reaction routes (protected, nested under channel message)
         .route(
             "/channels/:channel_id/messages/:message_id/reactions",

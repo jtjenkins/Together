@@ -186,6 +186,14 @@ pub struct Message {
     pub reply_to: Option<Uuid>,
     pub mention_user_ids: Vec<Uuid>,
     pub mention_everyone: bool,
+    /// Set on thread replies; `None` on root messages.
+    #[sqlx(default)]
+    pub thread_id: Option<Uuid>,
+    /// Number of non-deleted thread replies on a root message.
+    /// Populated only by `list_messages` via a subquery; defaults to 0
+    /// on insert RETURNING and thread-reply list queries.
+    #[sqlx(default)]
+    pub thread_reply_count: i32,
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted: bool,
     pub created_at: DateTime<Utc>,

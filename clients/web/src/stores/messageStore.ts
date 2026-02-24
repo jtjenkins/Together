@@ -16,6 +16,12 @@ interface MessageState {
   /** Attachments keyed by message ID — populated after upload. */
   attachmentCache: Record<string, Attachment[]>;
 
+  // ── Thread state ──────────────────────────────────────────
+  /** Thread replies keyed by root message ID. */
+  threadCache: Record<string, Message[]>;
+  /** ID of the root message whose thread panel is open; null when closed. */
+  activeThreadId: string | null;
+
   fetchMessages: (channelId: string, before?: string) => Promise<void>;
   sendMessage: (
     channelId: string,
@@ -31,6 +37,18 @@ interface MessageState {
   cacheAttachments: (messageId: string, attachments: Attachment[]) => void;
   clearMessages: () => void;
   clearError: () => void;
+
+  // ── Thread actions ────────────────────────────────────────
+  openThread: (messageId: string) => void;
+  closeThread: () => void;
+  fetchThreadReplies: (channelId: string, messageId: string) => Promise<void>;
+  sendThreadReply: (
+    channelId: string,
+    messageId: string,
+    content: string,
+  ) => Promise<void>;
+  /** Called when a THREAD_MESSAGE_CREATE WebSocket event arrives. */
+  addThreadMessage: (msg: Message) => void;
 }
 
 export const useMessageStore = create<MessageState>((set) => ({
@@ -40,6 +58,8 @@ export const useMessageStore = create<MessageState>((set) => ({
   error: null,
   replyingTo: null,
   attachmentCache: {},
+  threadCache: {},
+  activeThreadId: null,
 
   fetchMessages: async (channelId, before) => {
     set({ isLoading: true });
@@ -173,7 +193,88 @@ export const useMessageStore = create<MessageState>((set) => ({
     })),
 
   clearMessages: () =>
-    set({ messages: [], hasMore: true, replyingTo: null, attachmentCache: {} }),
+    set({
+      messages: [],
+      hasMore: true,
+      replyingTo: null,
+      attachmentCache: {},
+      threadCache: {},
+      activeThreadId: null,
+    }),
 
   clearError: () => set({ error: null }),
+
+  // ── Thread actions ────────────────────────────────────────
+
+  openThread: (messageId) => set({ activeThreadId: messageId }),
+
+  closeThread: () => set({ activeThreadId: null }),
+
+  fetchThreadReplies: async (channelId, messageId) => {
+    try {
+      const replies = await api.listThreadReplies(channelId, messageId);
+      set((state) => ({
+        threadCache: { ...state.threadCache, [messageId]: replies },
+      }));
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to load thread replies";
+      set({ error: message });
+    }
+  },
+
+  sendThreadReply: async (channelId, messageId, content) => {
+    try {
+      const reply = await api.createThreadReply(channelId, messageId, {
+        content,
+      });
+      set((state) => ({
+        threadCache: {
+          ...state.threadCache,
+          [messageId]: [...(state.threadCache[messageId] ?? []), reply],
+        },
+        // Bump the reply count on the root message optimistically.
+        messages: state.messages.map((m) =>
+          m.id === messageId
+            ? { ...m, thread_reply_count: m.thread_reply_count + 1 }
+            : m,
+        ),
+      }));
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to send thread reply";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  addThreadMessage: (msg) => {
+    if (!msg.thread_id) return;
+    const rootId = msg.thread_id;
+    set((state) => {
+      // Only append if the thread panel is loaded (cache entry exists).
+      const existing = state.threadCache[rootId];
+      const updatedCache = existing
+        ? {
+            ...state.threadCache,
+            [rootId]: existing.some((r) => r.id === msg.id)
+              ? existing
+              : [...existing, msg],
+          }
+        : state.threadCache;
+
+      // Increment reply count on the root message in the channel list.
+      const updatedMessages = state.messages.map((m) =>
+        m.id === rootId
+          ? { ...m, thread_reply_count: m.thread_reply_count + 1 }
+          : m,
+      );
+
+      return { threadCache: updatedCache, messages: updatedMessages };
+    });
+  },
 }));

@@ -283,3 +283,31 @@
   background: rgba(250, 166, 26, 0.3);
   color: #faa61a;
 }
+
+/* ── Thread footer ────────────────────────── */
+
+.threadFooter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 2px 56px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(88, 101, 242, 0.08);
+  color: var(--accent-primary);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.threadFooter:hover {
+  background: rgba(88, 101, 242, 0.18);
+}
+
+.threadIcon {
+  font-size: 13px;
+}
+
+.threadCount {
+  font-size: 12px;
+}

@@ -49,6 +49,8 @@ interface MessageItemProps {
   channelId: string;
   replyAuthorName?: string;
   replyContent?: string;
+  /** Called when the user opens the thread panel for this message. */
+  onOpenThread?: (messageId: string) => void;
 }
 
 export function MessageItem({
@@ -59,6 +61,7 @@ export function MessageItem({
   channelId,
   replyAuthorName,
   replyContent,
+  onOpenThread,
 }: MessageItemProps) {
   const user = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
@@ -243,6 +246,15 @@ export function MessageItem({
             >
               &#8617;
             </button>
+            {!message.thread_id && onOpenThread && (
+              <button
+                className={styles.actionBtn}
+                onClick={() => onOpenThread(message.id)}
+                title="Start Thread"
+              >
+                &#128172;
+              </button>
+            )}
             {isOwnMessage && (
               <>
                 <button
@@ -277,6 +289,19 @@ export function MessageItem({
             onReactionsChange={setReactions}
           />
         </div>
+      )}
+
+      {!message.thread_id && message.thread_reply_count > 0 && onOpenThread && (
+        <button
+          className={styles.threadFooter}
+          onClick={() => onOpenThread(message.id)}
+        >
+          <span className={styles.threadIcon}>&#128172;</span>
+          <span className={styles.threadCount}>
+            {message.thread_reply_count}{" "}
+            {message.thread_reply_count === 1 ? "reply" : "replies"}
+          </span>
+        </button>
       )}
     </div>
   );

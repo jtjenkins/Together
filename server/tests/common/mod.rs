@@ -108,6 +108,15 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
         )
+        // Thread routes
+        .route(
+            "/channels/:channel_id/messages/:message_id/thread",
+            get(handlers::messages::list_thread_replies),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/thread",
+            post(handlers::messages::create_thread_reply),
+        )
         // Attachment routes
         .route(
             "/messages/:message_id/attachments",
