@@ -29,6 +29,8 @@ function makeMessage(id: string, channelId = "ch-1", content = "Hello") {
     author_id: "u1",
     content,
     reply_to: null,
+    mention_user_ids: [] as string[],
+    mention_everyone: false,
     edited_at: null,
     deleted: false,
     created_at: `2024-01-0${id}`,

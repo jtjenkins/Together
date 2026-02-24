@@ -21,6 +21,13 @@ use crate::{
     state::AppState,
 };
 
+/// Per-channel mention count returned in the READY payload.
+#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+struct MentionCount {
+    channel_id: Uuid,
+    count: i64,
+}
+
 // ============================================================================
 // Query params
 // ============================================================================
@@ -595,6 +602,33 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         }
     };
 
+    // Mention counts: server-channel messages created after the user's last read
+    // that contain this user's ID in mention_user_ids OR have mention_everyone set.
+    let mention_counts: Vec<MentionCount> = match sqlx::query_as::<_, MentionCount>(
+        "SELECT crs.channel_id, COUNT(*) AS count
+         FROM messages m
+         JOIN channel_read_states crs
+           ON crs.channel_id = m.channel_id AND crs.user_id = $1
+         WHERE m.deleted = FALSE
+           AND m.created_at > crs.last_read_at
+           AND ($1 = ANY(m.mention_user_ids) OR m.mention_everyone = TRUE)
+         GROUP BY crs.channel_id",
+    )
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error   = ?e,
+                "Failed to fetch mention counts for READY payload; client will not see mention badges"
+            );
+            vec![]
+        }
+    };
+
     let payload = GatewayMessage::dispatch(
         EVENT_READY,
         json!({
@@ -602,6 +636,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
             "servers": servers,
             "dm_channels": dm_channels,
             "unread_counts": unread_counts,
+            "mention_counts": mention_counts,
         }),
     );
 

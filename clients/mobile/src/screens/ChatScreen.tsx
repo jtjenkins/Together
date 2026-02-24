@@ -44,6 +44,42 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString();
 }
 
+/** Split content on @word boundaries and return an array of Text-compatible spans. */
+function renderMentionSpans(
+  content: string,
+  memberUsernames: Set<string>,
+  currentUsername: string | null,
+): React.ReactNode[] {
+  return content.split(/(@\w+)/g).map((part, i) => {
+    const stripped = part.startsWith("@") ? part.slice(1) : null;
+    if (stripped !== null) {
+      if (stripped === "everyone" || memberUsernames.has(stripped)) {
+        const isSelf = stripped !== "everyone" && stripped === currentUsername;
+        return (
+          <Text key={i} style={isSelf ? mentionSelfStyle : mentionStyle}>
+            {part}
+          </Text>
+        );
+      }
+    }
+    return <Text key={i}>{part}</Text>;
+  });
+}
+
+const mentionStyle = {
+  backgroundColor: "rgba(88,101,242,0.15)",
+  color: "#7289da",
+  fontWeight: "500" as const,
+  borderRadius: 3,
+};
+
+const mentionSelfStyle = {
+  backgroundColor: "rgba(250,166,26,0.3)",
+  color: "#faa61a",
+  fontWeight: "500" as const,
+  borderRadius: 3,
+};
+
 function shouldShowHeader(msg: Message, prev: Message | null): boolean {
   if (!prev) return true;
   if (prev.author_id !== msg.author_id) return true;
@@ -483,7 +519,11 @@ export function ChatScreen({ route }: Props) {
               <>
                 {item.content !== "\u200b" && (
                   <Text style={isOwn ? styles.contentOwn : styles.content}>
-                    {item.content}
+                    {renderMentionSpans(
+                      item.content,
+                      new Set(members.map((m) => m.username)),
+                      user?.username ?? null,
+                    )}
                   </Text>
                 )}
                 {renderAttachments(item.id)}

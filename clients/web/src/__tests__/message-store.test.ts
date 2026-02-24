@@ -27,6 +27,8 @@ const mockMsg = (overrides: Partial<Message> = {}): Message => ({
   author_id: "user-1",
   content: "Hello world",
   reply_to: null,
+  mention_user_ids: [],
+  mention_everyone: false,
   edited_at: null,
   deleted: false,
   created_at: "2024-01-01T00:00:00Z",
