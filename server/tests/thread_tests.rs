@@ -201,6 +201,158 @@ async fn cannot_thread_from_thread_reply() {
 }
 
 // ============================================================================
+// non_member_cannot_read_thread_replies
+// ============================================================================
+
+#[tokio::test]
+async fn non_member_cannot_read_thread_replies() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (owner_token, _, cid) = setup(app.clone()).await;
+
+    let root = common::create_message(app.clone(), &owner_token, &cid, "Root").await;
+    let root_id = root["id"].as_str().unwrap();
+
+    // Register a non-member user.
+    let outsider_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    // Outsider should get 404 (not 403) to avoid leaking channel existence.
+    let (status, _) = common::get_authed(
+        app,
+        &format!("/channels/{cid}/messages/{root_id}/thread"),
+        &outsider_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "expected 404, got {status}");
+}
+
+// ============================================================================
+// unauthenticated_cannot_read_thread_replies
+// ============================================================================
+
+#[tokio::test]
+async fn unauthenticated_cannot_read_thread_replies() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (token, _, cid) = setup(app.clone()).await;
+
+    let root = common::create_message(app.clone(), &token, &cid, "Root").await;
+    let root_id = root["id"].as_str().unwrap();
+
+    let (status, _) =
+        common::get_no_auth(app, &format!("/channels/{cid}/messages/{root_id}/thread")).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "expected 401, got {status}"
+    );
+}
+
+// ============================================================================
+// thread_reply_for_nonexistent_parent_returns_404
+// ============================================================================
+
+#[tokio::test]
+async fn thread_reply_for_nonexistent_parent_returns_404() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (token, _, cid) = setup(app.clone()).await;
+
+    let fake_id = uuid::Uuid::new_v4();
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/channels/{cid}/messages/{fake_id}/thread"),
+        &token,
+        json!({ "content": "Reply to nobody" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "expected 404, got {status}");
+}
+
+// ============================================================================
+// thread_reply_rejected_for_wrong_channel
+// ============================================================================
+
+#[tokio::test]
+async fn thread_reply_rejected_for_wrong_channel() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (token, sid, cid_a) = setup(app.clone()).await;
+
+    // Create a second channel in the same server.
+    let channel_b = common::create_channel(app.clone(), &token, &sid, "second-channel").await;
+    let cid_b = channel_b["id"].as_str().unwrap();
+
+    // Post a root message in channel A.
+    let root = common::create_message(app.clone(), &token, &cid_a, "Root in A").await;
+    let root_id = root["id"].as_str().unwrap();
+
+    // Try to thread via channel B — must return 404 (cross-channel).
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/channels/{cid_b}/messages/{root_id}/thread"),
+        &token,
+        json!({ "content": "Cross-channel reply attempt" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "expected 404, got {status}");
+}
+
+// ============================================================================
+// thread_cursor_pagination
+// ============================================================================
+
+#[tokio::test]
+async fn thread_cursor_pagination() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (token, _, cid) = setup(app.clone()).await;
+
+    let root = common::create_message(app.clone(), &token, &cid, "Root").await;
+    let root_id = root["id"].as_str().unwrap();
+
+    // Post 5 replies.
+    for i in 1..=5u32 {
+        common::post_json_authed(
+            app.clone(),
+            &format!("/channels/{cid}/messages/{root_id}/thread"),
+            &token,
+            json!({ "content": format!("Reply {i}") }),
+        )
+        .await;
+    }
+
+    // Fetch the first 2 replies (no cursor).
+    let (status, body) = common::get_authed(
+        app.clone(),
+        &format!("/channels/{cid}/messages/{root_id}/thread?limit=2"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "page 1 failed: {body}");
+    let page1 = body.as_array().unwrap();
+    assert_eq!(page1.len(), 2, "expected 2 on page 1");
+    assert_eq!(page1[0]["content"], "Reply 1");
+    assert_eq!(page1[1]["content"], "Reply 2");
+
+    // Use the last seen reply ID as cursor to get the next page.
+    let cursor_id = page1[1]["id"].as_str().unwrap();
+    let (status, body) = common::get_authed(
+        app,
+        &format!("/channels/{cid}/messages/{root_id}/thread?limit=2&before={cursor_id}"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "page 2 failed: {body}");
+    let page2 = body.as_array().unwrap();
+    assert_eq!(page2.len(), 2, "expected 2 on page 2");
+    assert_eq!(page2[0]["content"], "Reply 3");
+    assert_eq!(page2[1]["content"], "Reply 4");
+}
+
+// ============================================================================
 // thread_reply_mentions_work
 // ============================================================================
 

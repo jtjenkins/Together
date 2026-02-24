@@ -38,6 +38,20 @@ pub struct CreateMessageRequest {
     pub reply_to: Option<Uuid>,
 }
 
+/// Request body for posting a reply into a thread.
+///
+/// Intentionally excludes `reply_to` — thread replies are always children of
+/// the root message identified by the URL parameter, never quote-replies.
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateThreadReplyRequest {
+    #[validate(length(
+        min = 1,
+        max = 4000,
+        message = "Message content must be 1–4 000 characters"
+    ))]
+    pub content: String,
+}
+
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateMessageRequest {
     #[validate(length(
@@ -311,6 +325,8 @@ pub async fn update_message(
 
     // AND deleted = FALSE guards against editing a message that was soft-deleted
     // between the fetch above and this update (TOCTOU).
+    // The thread_reply_count subquery returns the live count so the broadcast
+    // carries the correct value (not a hardcoded 0).
     let updated = sqlx::query_as::<_, Message>(
         "UPDATE messages
          SET content = $1, edited_at = NOW(),
@@ -318,7 +334,12 @@ pub async fn update_message(
          WHERE id = $2 AND deleted = FALSE
          RETURNING id, channel_id, author_id, content, reply_to,
                    mention_user_ids, mention_everyone, thread_id,
-                   0 AS thread_reply_count, edited_at, deleted, created_at",
+                   COALESCE(
+                     (SELECT COUNT(*)::int FROM messages t
+                      WHERE t.thread_id = messages.id AND t.deleted = FALSE),
+                     0
+                   ) AS thread_reply_count,
+                   edited_at, deleted, created_at",
     )
     .bind(&dto.content)
     .bind(message_id)
@@ -399,11 +420,21 @@ pub async fn create_thread_reply(
     State(state): State<AppState>,
     auth: AuthUser,
     Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
-    Json(req): Json<CreateMessageRequest>,
+    Json(req): Json<CreateThreadReplyRequest>,
 ) -> AppResult<(StatusCode, Json<Message>)> {
     req.validate().map_err(validation_error)?;
 
+    // Auth check first — fetch the channel and verify membership before
+    // reading any message data, to avoid leaking message existence to non-members.
+    let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
+    require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
     let parent = fetch_message(&state.pool, message_id).await?;
+
+    // Verify the parent message belongs to the requested channel.
+    if parent.channel_id != channel_id {
+        return Err(AppError::NotFound("Message not found".into()));
+    }
 
     // Reject attempts to thread off a thread reply.
     if parent.thread_id.is_some() {
@@ -411,14 +442,6 @@ pub async fn create_thread_reply(
             "Cannot create a thread from a thread reply".into(),
         ));
     }
-
-    // Verify the parent message belongs to the requested channel.
-    if parent.channel_id != channel_id {
-        return Err(AppError::NotFound("Message not found".into()));
-    }
-
-    let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
-    require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
     // Parse @mentions (same logic as create_message).
     let mention_everyone = req.content.split_whitespace().any(|word| {
@@ -494,9 +517,12 @@ pub async fn create_thread_reply(
 /// GET /channels/:channel_id/messages/:message_id/thread — list thread replies.
 ///
 /// Replies are returned in ascending order (oldest first) — threads read top-to-bottom.
-/// Cursor pagination via `before=<uuid>` (still descending-compatible: pass the oldest
-/// reply ID seen to load older replies). The `thread_reply_count` field defaults to 0
-/// on these rows (it's only meaningful on root messages in the channel list).
+/// Cursor pagination via `before=<uuid>`: pass the ID of the *newest* reply already
+/// displayed to receive the next page of older replies (used when scrolling up). Replies
+/// that come *after* the cursor in time are not returned; this is appropriate for
+/// history loading. Pass no cursor for the initial load (returns the first page
+/// ordered oldest-first). The `thread_reply_count` field defaults to 0 on these rows
+/// (it is only meaningful on root messages in the channel list).
 pub async fn list_thread_replies(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -515,6 +541,10 @@ pub async fn list_thread_replies(
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
 
     let replies = if let Some(before_id) = query.before {
+        // Compound cursor: scope the subquery to this thread to prevent
+        // cross-thread timestamp leakage.  ASC order with `>` means "replies
+        // that arrived after the cursor" — correct for forward pagination in a
+        // thread displayed oldest-first.
         sqlx::query_as::<_, Message>(
             "SELECT id, channel_id, author_id, content, reply_to,
                     mention_user_ids, mention_everyone, thread_id,
@@ -522,8 +552,9 @@ pub async fn list_thread_replies(
              FROM messages
              WHERE thread_id = $1
                AND deleted = FALSE
-               AND (created_at, id) < (
-                   SELECT created_at, id FROM messages WHERE id = $2
+               AND (created_at, id) > (
+                   SELECT created_at, id FROM messages
+                   WHERE id = $2 AND thread_id = $1
                )
              ORDER BY created_at ASC, id ASC
              LIMIT $3",

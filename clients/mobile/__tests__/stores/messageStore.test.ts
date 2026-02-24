@@ -9,6 +9,8 @@ jest.mock("../../src/api/client", () => ({
     deleteMessage: jest.fn(),
     uploadAttachments: jest.fn(),
     listAttachments: jest.fn(),
+    listThreadReplies: jest.fn(),
+    createThreadReply: jest.fn(),
   },
   ApiRequestError: class ApiRequestError extends Error {
     status: number;
@@ -57,6 +59,8 @@ beforeEach(() => {
   resetStore();
   // Return empty attachments by default
   mockApi.listAttachments.mockResolvedValue([]);
+  mockApi.listThreadReplies.mockResolvedValue([]);
+  mockApi.createThreadReply.mockResolvedValue(makeMessage("reply-default"));
 });
 
 describe("messageStore", () => {
@@ -156,6 +160,167 @@ describe("messageStore", () => {
       mockApi.updateMessage.mockResolvedValueOnce(updated);
       await useMessageStore.getState().editMessage("5", "Updated");
       expect(useMessageStore.getState().messages[0].content).toBe("Updated");
+    });
+  });
+
+  describe("threads", () => {
+    describe("openThread / closeThread", () => {
+      it("sets activeThreadId on openThread", () => {
+        useMessageStore.getState().openThread("msg-1");
+        expect(useMessageStore.getState().activeThreadId).toBe("msg-1");
+      });
+
+      it("clears activeThreadId on closeThread", () => {
+        useMessageStore.setState({ activeThreadId: "msg-1" });
+        useMessageStore.getState().closeThread();
+        expect(useMessageStore.getState().activeThreadId).toBeNull();
+      });
+    });
+
+    describe("fetchThreadReplies", () => {
+      it("populates threadCache on success", async () => {
+        const replies = [{ ...makeMessage("r1"), thread_id: "root-1" }];
+        mockApi.listThreadReplies.mockResolvedValueOnce(replies);
+
+        await useMessageStore.getState().fetchThreadReplies("ch-1", "root-1");
+
+        expect(useMessageStore.getState().threadCache["root-1"]).toEqual(
+          replies,
+        );
+        expect(useMessageStore.getState().isLoading).toBe(false);
+      });
+
+      it("sets error and clears isLoading on failure", async () => {
+        mockApi.listThreadReplies.mockRejectedValueOnce(
+          new ApiRequestError(500, "Server error"),
+        );
+
+        await useMessageStore.getState().fetchThreadReplies("ch-1", "root-1");
+
+        expect(useMessageStore.getState().error).toBe("Server error");
+        expect(useMessageStore.getState().isLoading).toBe(false);
+      });
+
+      it("clears prior error before fetching", async () => {
+        useMessageStore.setState({ error: "old error" });
+        let resolvePromise!: () => void;
+        mockApi.listThreadReplies.mockReturnValueOnce(
+          new Promise<never[]>((res) => {
+            resolvePromise = () => res([]);
+          }),
+        );
+
+        const promise = useMessageStore
+          .getState()
+          .fetchThreadReplies("ch-1", "root-1");
+        expect(useMessageStore.getState().error).toBeNull();
+        resolvePromise();
+        await promise;
+      });
+    });
+
+    describe("sendThreadReply", () => {
+      it("appends reply to threadCache and bumps root count", async () => {
+        const root = makeMessage("root-1");
+        const reply = {
+          ...makeMessage("reply-1"),
+          thread_id: "root-1",
+          thread_reply_count: 0,
+        };
+        useMessageStore.setState({
+          messages: [root],
+          threadCache: { "root-1": [] },
+        });
+        mockApi.createThreadReply.mockResolvedValueOnce(reply);
+
+        await useMessageStore
+          .getState()
+          .sendThreadReply("ch-1", "root-1", "Hello thread");
+
+        const state = useMessageStore.getState();
+        expect(state.threadCache["root-1"]).toContainEqual(reply);
+        expect(
+          state.messages.find((m) => m.id === "root-1")?.thread_reply_count,
+        ).toBe(1);
+      });
+
+      it("throws and sets error on API failure", async () => {
+        mockApi.createThreadReply.mockRejectedValueOnce(
+          new ApiRequestError(400, "Bad request"),
+        );
+
+        await expect(
+          useMessageStore.getState().sendThreadReply("ch-1", "root-1", "Hello"),
+        ).rejects.toBeDefined();
+
+        expect(useMessageStore.getState().error).toBe("Bad request");
+      });
+    });
+
+    describe("addThreadMessage", () => {
+      it("appends message to threadCache when cache entry exists", () => {
+        const root = makeMessage("root-1");
+        const reply = { ...makeMessage("reply-1"), thread_id: "root-1" };
+        useMessageStore.setState({
+          messages: [root],
+          threadCache: { "root-1": [] },
+        });
+
+        useMessageStore.getState().addThreadMessage(reply);
+
+        expect(useMessageStore.getState().threadCache["root-1"]).toContainEqual(
+          reply,
+        );
+        expect(useMessageStore.getState().messages[0].thread_reply_count).toBe(
+          1,
+        );
+      });
+
+      it("does not double-count when message already in cache", () => {
+        const root = { ...makeMessage("root-1"), thread_reply_count: 1 };
+        const reply = { ...makeMessage("reply-1"), thread_id: "root-1" };
+        useMessageStore.setState({
+          messages: [root],
+          threadCache: { "root-1": [reply] },
+        });
+
+        useMessageStore.getState().addThreadMessage(reply);
+
+        expect(useMessageStore.getState().threadCache["root-1"]).toHaveLength(
+          1,
+        );
+        expect(useMessageStore.getState().messages[0].thread_reply_count).toBe(
+          1,
+        );
+      });
+
+      it("still increments count even when thread is not open", () => {
+        const root = makeMessage("root-1");
+        const reply = { ...makeMessage("reply-1"), thread_id: "root-1" };
+        useMessageStore.setState({ messages: [root], threadCache: {} });
+
+        useMessageStore.getState().addThreadMessage(reply);
+
+        expect(
+          useMessageStore.getState().threadCache["root-1"],
+        ).toBeUndefined();
+        expect(useMessageStore.getState().messages[0].thread_reply_count).toBe(
+          1,
+        );
+      });
+
+      it("warns and ignores messages with null thread_id", () => {
+        const msg = makeMessage("msg-1");
+        const warnSpy = jest
+          .spyOn(console, "warn")
+          .mockImplementation(() => undefined);
+
+        useMessageStore.getState().addThreadMessage(msg);
+
+        expect(warnSpy).toHaveBeenCalled();
+        expect(useMessageStore.getState().threadCache).toEqual({});
+        warnSpy.mockRestore();
+      });
     });
   });
 });

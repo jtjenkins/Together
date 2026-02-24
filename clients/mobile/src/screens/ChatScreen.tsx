@@ -290,7 +290,11 @@ export function ChatScreen({ route, navigation }: Props) {
     const isOwn = msg.author_id === user?.id;
     const isRoot = !msg.thread_id;
 
-    type ActionItem = { label: string; action: () => void; destructive?: boolean };
+    type ActionItem = {
+      label: string;
+      action: () => void;
+      destructive?: boolean;
+    };
     const actionItems: ActionItem[] = [
       { label: "Reply", action: () => setReplyingTo(msg) },
       { label: "React", action: () => setReactionPickerMessageId(msg.id) },
@@ -327,10 +331,14 @@ export function ChatScreen({ route, navigation }: Props) {
     ];
 
     if (Platform.OS === "ios") {
+      const destructiveIdx = actionItems.findIndex((a) => a.destructive);
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options: [...actionItems.map((a) => a.label), "Cancel"],
-          destructiveButtonIndex: actionItems.findIndex((a) => a.destructive),
+          // Pass undefined (not -1) when there is no destructive action;
+          // iOS treats -1 as an invalid index and may behave unexpectedly.
+          destructiveButtonIndex:
+            destructiveIdx >= 0 ? destructiveIdx : undefined,
           cancelButtonIndex: actionItems.length,
         },
         (idx) => {
@@ -343,7 +351,9 @@ export function ChatScreen({ route, navigation }: Props) {
       Alert.alert("Message", undefined, [
         ...actionItems.map((a) => ({
           text: a.label,
-          style: a.destructive ? ("destructive" as const) : ("default" as const),
+          style: a.destructive
+            ? ("destructive" as const)
+            : ("default" as const),
           onPress: a.action,
         })),
         { text: "Cancel", style: "cancel" as const },

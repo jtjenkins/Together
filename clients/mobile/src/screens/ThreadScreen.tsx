@@ -14,6 +14,7 @@ import type { ServersStackParamList } from "../navigation";
 import { useMessageStore } from "../stores/messageStore";
 import { useAuthStore } from "../stores/authStore";
 import { useServerStore } from "../stores/serverStore";
+import { ApiRequestError } from "../api/client";
 import type { Message } from "../types";
 
 type Props = NativeStackScreenProps<ServersStackParamList, "Thread">;
@@ -47,9 +48,7 @@ export function ThreadScreen({ route }: Props) {
 
   useEffect(() => {
     setIsLoading(true);
-    fetchThreadReplies(channelId, messageId).finally(() =>
-      setIsLoading(false),
-    );
+    fetchThreadReplies(channelId, messageId).finally(() => setIsLoading(false));
   }, [channelId, messageId, fetchThreadReplies]);
 
   const getAuthorName = useCallback(
@@ -69,9 +68,14 @@ export function ThreadScreen({ route }: Props) {
       await sendThreadReply(channelId, messageId, trimmed);
       setReplyText("");
       // Scroll to end after sending
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch {
-      Alert.alert("Error", "Failed to send reply.");
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        100,
+      );
+    } catch (err) {
+      const msg =
+        err instanceof ApiRequestError ? err.message : "Failed to send reply.";
+      Alert.alert("Error", msg);
     } finally {
       setIsSending(false);
     }
@@ -120,11 +124,7 @@ export function ThreadScreen({ route }: Props) {
 
       {/* Thread replies */}
       {isLoading ? (
-        <ActivityIndicator
-          size="large"
-          color="#7289da"
-          style={styles.loader}
-        />
+        <ActivityIndicator size="large" color="#7289da" style={styles.loader} />
       ) : (
         <FlatList
           ref={flatListRef}

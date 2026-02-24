@@ -211,17 +211,19 @@ export const useMessageStore = create<MessageState>((set) => ({
   closeThread: () => set({ activeThreadId: null }),
 
   fetchThreadReplies: async (channelId, messageId) => {
+    set({ isLoading: true, error: null });
     try {
       const replies = await api.listThreadReplies(channelId, messageId);
       set((state) => ({
         threadCache: { ...state.threadCache, [messageId]: replies },
+        isLoading: false,
       }));
     } catch (err) {
       const message =
         err instanceof ApiRequestError
           ? err.message
           : "Failed to load thread replies";
-      set({ error: message });
+      set({ error: message, isLoading: false });
     }
   },
 
@@ -253,26 +255,35 @@ export const useMessageStore = create<MessageState>((set) => ({
   },
 
   addThreadMessage: (msg) => {
-    if (!msg.thread_id) return;
+    if (!msg.thread_id) {
+      console.warn(
+        "[MessageStore] Received THREAD_MESSAGE_CREATE with null thread_id",
+        msg,
+      );
+      return;
+    }
     const rootId = msg.thread_id;
     set((state) => {
       // Only append if the thread panel is loaded (cache entry exists).
       const existing = state.threadCache[rootId];
+      const alreadyCached = existing?.some((r) => r.id === msg.id) ?? false;
       const updatedCache = existing
         ? {
             ...state.threadCache,
-            [rootId]: existing.some((r) => r.id === msg.id)
-              ? existing
-              : [...existing, msg],
+            [rootId]: alreadyCached ? existing : [...existing, msg],
           }
         : state.threadCache;
 
-      // Increment reply count on the root message in the channel list.
-      const updatedMessages = state.messages.map((m) =>
-        m.id === rootId
-          ? { ...m, thread_reply_count: m.thread_reply_count + 1 }
-          : m,
-      );
+      // Only increment the reply count if the message was not already in the
+      // cache (i.e. it was not sent by the current user via sendThreadReply,
+      // which already incremented the count optimistically).
+      const updatedMessages = alreadyCached
+        ? state.messages
+        : state.messages.map((m) =>
+            m.id === rootId
+              ? { ...m, thread_reply_count: m.thread_reply_count + 1 }
+              : m,
+          );
 
       return { threadCache: updatedCache, messages: updatedMessages };
     });

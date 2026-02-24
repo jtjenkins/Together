@@ -19,10 +19,13 @@ export function ThreadPanel({
   const sendThreadReply = useMessageStore((s) => s.sendThreadReply);
   const threadCache = useMessageStore((s) => s.threadCache);
   const messages = useMessageStore((s) => s.messages);
+  const isLoading = useMessageStore((s) => s.isLoading);
+  const storeError = useMessageStore((s) => s.error);
   const members = useServerStore((s) => s.members);
 
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const replies = threadCache[rootMessageId] ?? [];
@@ -55,9 +58,12 @@ export function ThreadPanel({
     const content = inputValue.trim();
     if (!content || isSending) return;
     setIsSending(true);
+    setSendError(null);
     try {
       await sendThreadReply(channelId, rootMessageId, content);
       setInputValue("");
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to send reply");
     } finally {
       setIsSending(false);
     }
@@ -97,8 +103,12 @@ export function ThreadPanel({
 
       <div className={styles.divider} />
 
+      {storeError && <p className={styles.error}>{storeError}</p>}
+
       <div className={styles.replies} ref={scrollRef}>
-        {replies.length === 0 ? (
+        {isLoading ? (
+          <p className={styles.loading}>Loading replies…</p>
+        ) : replies.length === 0 ? (
           <p className={styles.empty}>
             No replies yet. Start the conversation!
           </p>
@@ -124,6 +134,8 @@ export function ThreadPanel({
           })
         )}
       </div>
+
+      {sendError && <p className={styles.error}>{sendError}</p>}
 
       <div className={styles.inputArea}>
         <textarea
