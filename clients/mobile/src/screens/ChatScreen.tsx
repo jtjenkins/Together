@@ -1,4 +1,10 @@
-import React, { useEffect, useCallback, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useCallback,
+  useRef,
+  useState,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -96,6 +102,10 @@ export function ChatScreen({ route }: Props) {
   const { channelId, serverId } = route.params;
   const user = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
+  const memberUsernameSet = useMemo(
+    () => new Set(members.map((m) => m.username)),
+    [members],
+  );
   const markRead = useReadStateStore((s) => s.markRead);
   const {
     messages,
@@ -521,7 +531,7 @@ export function ChatScreen({ route }: Props) {
                   <Text style={isOwn ? styles.contentOwn : styles.content}>
                     {renderMentionSpans(
                       item.content,
-                      new Set(members.map((m) => m.username)),
+                      memberUsernameSet,
                       user?.username ?? null,
                     )}
                   </Text>

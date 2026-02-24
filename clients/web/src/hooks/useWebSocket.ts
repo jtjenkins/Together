@@ -18,7 +18,6 @@ import type {
 
 export function useWebSocket() {
   const setUser = useAuthStore((s) => s.setUser);
-  const user = useAuthStore((s) => s.user);
   const setServers = useServerStore((s) => s.setServers);
   const updateMemberPresence = useServerStore((s) => s.updateMemberPresence);
   const fetchMembers = useServerStore((s) => s.fetchMembers);
@@ -53,9 +52,11 @@ export function useWebSocket() {
           addMessage(msg);
         } else {
           incrementUnread(msg.channel_id);
+          const currentUserId = useAuthStore.getState().user?.id;
           const isMentioned =
             msg.mention_everyone ||
-            (user?.id != null && msg.mention_user_ids.includes(user.id));
+            (currentUserId != null &&
+              msg.mention_user_ids.includes(currentUserId));
           if (isMentioned) {
             incrementMention(msg.channel_id);
           }
@@ -106,7 +107,6 @@ export function useWebSocket() {
     };
   }, [
     setUser,
-    user,
     setServers,
     addMessage,
     updateMessage,

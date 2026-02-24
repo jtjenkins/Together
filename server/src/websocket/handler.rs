@@ -611,6 +611,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
            ON crs.channel_id = m.channel_id AND crs.user_id = $1
          WHERE m.deleted = FALSE
            AND m.created_at > crs.last_read_at
+           AND m.author_id != $1
            AND ($1 = ANY(m.mention_user_ids) OR m.mention_everyone = TRUE)
          GROUP BY crs.channel_id",
     )
