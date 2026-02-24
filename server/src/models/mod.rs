@@ -184,6 +184,8 @@ pub struct Message {
     pub author_id: Option<Uuid>,
     pub content: String,
     pub reply_to: Option<Uuid>,
+    pub mention_user_ids: Vec<Uuid>,
+    pub mention_everyone: bool,
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted: bool,
     pub created_at: DateTime<Utc>,

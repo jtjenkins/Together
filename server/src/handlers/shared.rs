@@ -8,7 +8,8 @@ use crate::{
 /// Fetch a non-deleted message by ID, returning 404 if not found or deleted.
 pub async fn fetch_message(pool: &sqlx::PgPool, message_id: Uuid) -> AppResult<Message> {
     sqlx::query_as::<_, Message>(
-        "SELECT id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at
+        "SELECT id, channel_id, author_id, content, reply_to,
+                mention_user_ids, mention_everyone, edited_at, deleted, created_at
          FROM messages WHERE id = $1 AND deleted = FALSE",
     )
     .bind(message_id)

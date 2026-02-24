@@ -24,6 +24,8 @@ export function ChannelListScreen({ route, navigation }: Props) {
   const setActiveServer = useServerStore((s) => s.setActiveServer);
   const unreadCounts = useReadStateStore((s) => s.unreadCounts);
   const markRead = useReadStateStore((s) => s.markRead);
+  const mentionCounts = useReadStateStore((s) => s.mentionCounts);
+  const clearMentions = useReadStateStore((s) => s.clearMentions);
 
   useEffect(() => {
     setActiveServer(serverId);
@@ -46,6 +48,7 @@ export function ChannelListScreen({ route, navigation }: Props) {
     setActiveChannel(channel.id);
     if (channel.type === "text") {
       markRead(channel.id);
+      clearMentions(channel.id);
       api.ackChannel(channel.id).catch((err) => {
         console.warn("[ChannelListScreen] ack failed", err);
       });
@@ -86,6 +89,7 @@ export function ChannelListScreen({ route, navigation }: Props) {
         )}
         renderItem={({ item }) => {
           const unread = unreadCounts[item.id] ?? 0;
+          const mentions = mentionCounts[item.id] ?? 0;
           return (
             <TouchableOpacity
               style={styles.channelItem}
@@ -102,6 +106,11 @@ export function ChannelListScreen({ route, navigation }: Props) {
               >
                 {item.name}
               </Text>
+              {mentions > 0 && (
+                <View style={styles.mentionBadge}>
+                  <Text style={styles.mentionBadgeText}>@</Text>
+                </View>
+              )}
               {unread > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
@@ -180,6 +189,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   badgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  mentionBadge: {
+    backgroundColor: "#ed4245",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 4,
+  },
+  mentionBadgeText: {
     color: "#fff",
     fontSize: 11,
     fontWeight: "700",

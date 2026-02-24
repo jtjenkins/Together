@@ -34,6 +34,8 @@ export function useWebSocket() {
 
   const setUnreadCounts = useReadStateStore((s) => s.setUnreadCounts);
   const incrementUnread = useReadStateStore((s) => s.incrementUnread);
+  const setMentionCounts = useReadStateStore((s) => s.setMentionCounts);
+  const incrementMention = useReadStateStore((s) => s.incrementMention);
 
   useEffect(() => {
     const unsubs = [
@@ -42,6 +44,7 @@ export function useWebSocket() {
         setServers(data.servers);
         if (data.dm_channels) setDmChannels(data.dm_channels);
         if (data.unread_counts) setUnreadCounts(data.unread_counts);
+        if (data.mention_counts) setMentionCounts(data.mention_counts);
       }),
 
       gateway.on("MESSAGE_CREATE", (msg: Message) => {
@@ -49,6 +52,15 @@ export function useWebSocket() {
           addMessage(msg);
         } else {
           incrementUnread(msg.channel_id);
+          const currentUserId = useAuthStore.getState().user?.id;
+          const isMentioned =
+            msg.author_id !== currentUserId &&
+            (msg.mention_everyone ||
+              (currentUserId != null &&
+                msg.mention_user_ids.includes(currentUserId)));
+          if (isMentioned) {
+            incrementMention(msg.channel_id);
+          }
         }
       }),
 
@@ -110,5 +122,7 @@ export function useWebSocket() {
     activeDmChannelId,
     setUnreadCounts,
     incrementUnread,
+    setMentionCounts,
+    incrementMention,
   ]);
 }

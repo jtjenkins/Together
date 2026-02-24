@@ -1,11 +1,45 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
+import { useServerStore } from "../../stores/serverStore";
 import { formatMessageTime } from "../../utils/formatTime";
 import { api } from "../../api/client";
 import { ReactionBar } from "./ReactionBar";
-import type { Message, ReactionCount } from "../../types";
+import type { MemberDto, Message, ReactionCount } from "../../types";
 import styles from "./MessageItem.module.css";
+
+/** Split content on @word boundaries and wrap matched mentions in styled spans. */
+function renderMentions(
+  content: string,
+  members: MemberDto[],
+  currentUserId: string | null,
+): React.ReactNode {
+  return content.split(/(@\w+)/g).map((part, i) => {
+    const stripped = part.startsWith("@") ? part.slice(1) : null;
+    if (stripped !== null) {
+      if (stripped === "everyone") {
+        return (
+          <span key={i} className={styles.mention}>
+            {part}
+          </span>
+        );
+      }
+      const matched = members.find((m) => m.username === stripped);
+      if (matched) {
+        const isSelf = matched.user_id === currentUserId;
+        return (
+          <span
+            key={i}
+            className={`${styles.mention} ${isSelf ? styles.mentionSelf : ""}`}
+          >
+            {part}
+          </span>
+        );
+      }
+    }
+    return part;
+  });
+}
 
 interface MessageItemProps {
   message: Message;
@@ -27,6 +61,7 @@ export function MessageItem({
   replyContent,
 }: MessageItemProps) {
   const user = useAuthStore((s) => s.user);
+  const members = useServerStore((s) => s.members);
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
   const setReplyingTo = useMessageStore((s) => s.setReplyingTo);
@@ -148,7 +183,9 @@ export function MessageItem({
           ) : (
             <>
               {message.content !== "\u200b" && (
-                <div className={styles.text}>{message.content}</div>
+                <div className={styles.text}>
+                  {renderMentions(message.content, members, user?.id ?? null)}
+                </div>
               )}
               {attachments.length > 0 && (
                 <div className={styles.attachments}>

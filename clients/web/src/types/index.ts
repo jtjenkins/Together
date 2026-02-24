@@ -107,6 +107,8 @@ export interface Message {
   author_id: string | null;
   content: string;
   reply_to: string | null;
+  mention_user_ids: string[];
+  mention_everyone: boolean;
   edited_at: string | null;
   deleted: boolean;
   created_at: string;
@@ -234,11 +236,17 @@ export interface UnreadCount {
 
 // ─── WebSocket Event Payloads ─────────────────────────────
 
+export interface MentionCount {
+  channel_id: string;
+  count: number;
+}
+
 export interface ReadyEvent {
   user: UserDto;
   servers: ServerDto[];
   dm_channels: DirectMessageChannel[];
   unread_counts: UnreadCount[];
+  mention_counts: MentionCount[];
 }
 
 export interface DmChannelCreateEvent extends DirectMessageChannel {}

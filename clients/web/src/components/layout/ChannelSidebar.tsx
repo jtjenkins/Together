@@ -27,6 +27,8 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
 
   const unreadCounts = useReadStateStore((s) => s.unreadCounts);
   const markRead = useReadStateStore((s) => s.markRead);
+  const mentionCounts = useReadStateStore((s) => s.mentionCounts);
+  const clearMentions = useReadStateStore((s) => s.clearMentions);
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -48,6 +50,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
       clearMessages();
       setActiveChannel(id);
       markRead(id);
+      clearMentions(id);
       api.ackChannel(id).catch(() => {});
     }
   };
@@ -96,10 +99,12 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
             </div>
             {chans.map((channel) => {
               const unread = unreadCounts[channel.id] ?? 0;
+              const mentions = mentionCounts[channel.id] ?? 0;
+              const isActive = channel.id === activeChannelId;
               return (
                 <button
                   key={channel.id}
-                  className={`${styles.channel} ${channel.id === activeChannelId ? styles.active : ""} ${unread > 0 && channel.id !== activeChannelId ? styles.unread : ""}`}
+                  className={`${styles.channel} ${isActive ? styles.active : ""} ${unread > 0 && !isActive ? styles.unread : ""}`}
                   onClick={() => handleSelectChannel(channel.id)}
                   onContextMenu={(e) => handleContextMenu(e, channel)}
                 >
@@ -107,7 +112,10 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                     {channel.type === "text" ? "#" : "\u{1F50A}"}
                   </span>
                   <span className={styles.channelName}>{channel.name}</span>
-                  {unread > 0 && channel.id !== activeChannelId && (
+                  {mentions > 0 && !isActive && (
+                    <span className={styles.mentionBadge}>@</span>
+                  )}
+                  {unread > 0 && !isActive && (
                     <span className={styles.unreadBadge}>
                       {unread > 99 ? "99+" : unread}
                     </span>

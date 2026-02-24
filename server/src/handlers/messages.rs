@@ -115,15 +115,53 @@ pub async fn create_message(
         reply_to: req.reply_to,
     };
 
+    // Parse @mention tokens from content.
+    // Use token-level check to avoid matching mid-word (e.g. "email@everyone.com").
+    let mention_everyone = dto.content.split_whitespace().any(|word| {
+        word.strip_prefix('@')
+            .map(|name| {
+                name.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_') == "everyone"
+            })
+            .unwrap_or(false)
+    });
+    let mention_words: Vec<&str> = dto
+        .content
+        .split_whitespace()
+        .filter_map(|word| {
+            // Strip trailing punctuation so "@alice!" resolves to "alice".
+            word.strip_prefix('@')
+                .map(|name| name.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_'))
+        })
+        .filter(|name| !name.is_empty() && *name != "everyone")
+        .collect();
+
+    // Resolve @username tokens to user IDs among current server members.
+    let mention_user_ids: Vec<uuid::Uuid> = if mention_words.is_empty() {
+        vec![]
+    } else {
+        sqlx::query_scalar(
+            "SELECT sm.user_id FROM server_members sm
+             JOIN users u ON u.id = sm.user_id
+             WHERE sm.server_id = $1 AND u.username = ANY($2)",
+        )
+        .bind(channel.server_id)
+        .bind(&mention_words as &[&str])
+        .fetch_all(&state.pool)
+        .await?
+    };
+
     let message = sqlx::query_as::<_, Message>(
-        "INSERT INTO messages (channel_id, author_id, content, reply_to)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at",
+        "INSERT INTO messages (channel_id, author_id, content, reply_to, mention_user_ids, mention_everyone)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, channel_id, author_id, content, reply_to,
+                   mention_user_ids, mention_everyone, edited_at, deleted, created_at",
     )
     .bind(channel_id)
     .bind(auth.user_id())
     .bind(&dto.content)
     .bind(dto.reply_to)
+    .bind(&mention_user_ids as &[uuid::Uuid])
+    .bind(mention_everyone)
     .fetch_one(&state.pool)
     .await?;
 
@@ -162,7 +200,8 @@ pub async fn list_messages(
         // Compound cursor: (created_at, id) gives a total order even when
         // two messages land in the same microsecond.
         sqlx::query_as::<_, Message>(
-            "SELECT id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at
+            "SELECT id, channel_id, author_id, content, reply_to,
+                    mention_user_ids, mention_everyone, edited_at, deleted, created_at
              FROM messages
              WHERE channel_id = $1
                AND deleted = FALSE
@@ -179,7 +218,8 @@ pub async fn list_messages(
         .await?
     } else {
         sqlx::query_as::<_, Message>(
-            "SELECT id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at
+            "SELECT id, channel_id, author_id, content, reply_to,
+                    mention_user_ids, mention_everyone, edited_at, deleted, created_at
              FROM messages
              WHERE channel_id = $1 AND deleted = FALSE
              ORDER BY created_at DESC, id DESC
@@ -219,16 +259,51 @@ pub async fn update_message(
         content: req.content,
     };
 
+    // Re-parse @mentions from the new content (same logic as create_message).
+    let mention_everyone = dto.content.split_whitespace().any(|word| {
+        word.strip_prefix('@')
+            .map(|name| {
+                name.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_') == "everyone"
+            })
+            .unwrap_or(false)
+    });
+    let mention_words: Vec<&str> = dto
+        .content
+        .split_whitespace()
+        .filter_map(|word| {
+            word.strip_prefix('@')
+                .map(|name| name.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_'))
+        })
+        .filter(|name| !name.is_empty() && *name != "everyone")
+        .collect();
+    let mention_user_ids: Vec<uuid::Uuid> = if mention_words.is_empty() {
+        vec![]
+    } else {
+        sqlx::query_scalar(
+            "SELECT sm.user_id FROM server_members sm
+             JOIN users u ON u.id = sm.user_id
+             WHERE sm.server_id = $1 AND u.username = ANY($2)",
+        )
+        .bind(channel.server_id)
+        .bind(&mention_words as &[&str])
+        .fetch_all(&state.pool)
+        .await?
+    };
+
     // AND deleted = FALSE guards against editing a message that was soft-deleted
     // between the fetch above and this update (TOCTOU).
     let updated = sqlx::query_as::<_, Message>(
         "UPDATE messages
-         SET content = $1, edited_at = NOW()
+         SET content = $1, edited_at = NOW(),
+             mention_user_ids = $3, mention_everyone = $4
          WHERE id = $2 AND deleted = FALSE
-         RETURNING id, channel_id, author_id, content, reply_to, edited_at, deleted, created_at",
+         RETURNING id, channel_id, author_id, content, reply_to,
+                   mention_user_ids, mention_everyone, edited_at, deleted, created_at",
     )
     .bind(&dto.content)
     .bind(message_id)
+    .bind(&mention_user_ids as &[uuid::Uuid])
+    .bind(mention_everyone)
     .fetch_optional(&state.pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;

@@ -31,6 +31,9 @@ export function useWebSocket() {
         setServers(data.servers);
         useDmStore.getState().setDmChannels(data.dm_channels ?? []);
         useReadStateStore.getState().setUnreadCounts(data.unread_counts ?? []);
+        useReadStateStore
+          .getState()
+          .setMentionCounts(data.mention_counts ?? []);
       }),
 
       gateway.on("MESSAGE_CREATE", (msg: Message) => {
@@ -39,6 +42,15 @@ export function useWebSocket() {
           useMessageStore.getState().addMessage(msg);
         } else {
           useReadStateStore.getState().incrementUnread(msg.channel_id);
+          const currentUserId = useAuthStore.getState().user?.id ?? null;
+          const isMentioned =
+            msg.author_id !== currentUserId &&
+            (msg.mention_everyone ||
+              (currentUserId !== null &&
+                msg.mention_user_ids.includes(currentUserId)));
+          if (isMentioned) {
+            useReadStateStore.getState().incrementMention(msg.channel_id);
+          }
         }
       }),
 

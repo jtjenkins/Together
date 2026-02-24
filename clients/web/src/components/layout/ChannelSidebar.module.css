@@ -126,6 +126,21 @@
   margin-left: auto;
 }
 
+.mentionBadge {
+  background: var(--status-dnd, #ed4245);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .empty {
   display: flex;
   flex-direction: column;
