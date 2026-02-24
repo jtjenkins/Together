@@ -316,11 +316,7 @@ describe("messageStore", () => {
 
         await useMessageStore.getState().fetchThreadReplies("ch-1", "root-1");
 
-        expect(api.listThreadReplies).toHaveBeenCalledWith(
-          "ch-1",
-          "root-1",
-          undefined,
-        );
+        expect(api.listThreadReplies).toHaveBeenCalledWith("ch-1", "root-1");
         expect(useMessageStore.getState().threadCache["root-1"]).toEqual(
           replies,
         );
