@@ -18,6 +18,9 @@ import type {
   VoiceParticipant,
   UpdateVoiceStateRequest,
   Attachment,
+  DirectMessageChannel,
+  DirectMessage,
+  ReactionCount,
 } from "../types";
 import { storage } from "../utils/storage";
 import { SERVER_URL_KEY } from "../utils/platform";
@@ -284,6 +287,78 @@ class ApiClient {
 
   listAttachments(messageId: string): Promise<Attachment[]> {
     return this.request(`/messages/${messageId}/attachments`);
+  }
+
+  // ─── DM Channels ───────────────────────────────────────────
+
+  openDmChannel(userId: string): Promise<DirectMessageChannel> {
+    return this.request("/dm-channels", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    });
+  }
+
+  listDmChannels(): Promise<DirectMessageChannel[]> {
+    return this.request("/dm-channels");
+  }
+
+  sendDmMessage(channelId: string, content: string): Promise<DirectMessage> {
+    return this.request(`/dm-channels/${channelId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  listDmMessages(channelId: string, before?: string): Promise<DirectMessage[]> {
+    const params = new URLSearchParams();
+    if (before) params.set("before", before);
+    const qs = params.toString();
+    return this.request(
+      `/dm-channels/${channelId}/messages${qs ? `?${qs}` : ""}`,
+    );
+  }
+
+  ackDmChannel(channelId: string): Promise<void> {
+    return this.request(`/dm-channels/${channelId}/ack`, { method: "POST" });
+  }
+
+  // ─── Reactions ─────────────────────────────────────────────
+
+  addReaction(
+    channelId: string,
+    messageId: string,
+    emoji: string,
+  ): Promise<void> {
+    return this.request(
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+      { method: "PUT" },
+    );
+  }
+
+  removeReaction(
+    channelId: string,
+    messageId: string,
+    emoji: string,
+  ): Promise<void> {
+    return this.request(
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  listReactions(
+    channelId: string,
+    messageId: string,
+  ): Promise<ReactionCount[]> {
+    return this.request(
+      `/channels/${channelId}/messages/${messageId}/reactions`,
+    );
+  }
+
+  // ─── Read States ───────────────────────────────────────────
+
+  ackChannel(channelId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/ack`, { method: "POST" });
   }
 
   /** Resolve an attachment URL for use in Image sources. */

@@ -195,9 +195,78 @@ export interface GatewayMessage {
   d: unknown;
 }
 
+// ─── DM Types ─────────────────────────────────────────────────
+
+export interface DirectMessageChannel {
+  id: string;
+  recipient: UserDto;
+  created_at: string;
+  last_message_at: string | null;
+}
+
+export interface DirectMessage {
+  id: string;
+  channel_id: string;
+  author_id: string | null;
+  content: string;
+  edited_at: string | null;
+  deleted: boolean;
+  created_at: string;
+}
+
+// ─── Reaction Types ───────────────────────────────────────────
+
+export interface ReactionCount {
+  emoji: string;
+  count: number;
+  me: boolean;
+}
+
+// ─── Unread Types ─────────────────────────────────────────────
+
+export interface UnreadCount {
+  channel_id: string;
+  unread_count: number;
+}
+
+// ─── WebSocket Event Types ────────────────────────────────────
+
+export interface DmChannelCreateEvent {
+  id: string;
+  recipient: UserDto;
+  created_at: string;
+  last_message_at: string | null;
+}
+
+export interface DmMessageCreateEvent {
+  id: string;
+  channel_id: string;
+  author_id: string | null;
+  content: string;
+  edited_at: string | null;
+  deleted: boolean;
+  created_at: string;
+}
+
+export interface ReactionAddEvent {
+  message_id: string;
+  channel_id: string;
+  user_id: string;
+  emoji: string;
+}
+
+export interface ReactionRemoveEvent {
+  message_id: string;
+  channel_id: string;
+  user_id: string;
+  emoji: string;
+}
+
 export interface ReadyEvent {
   user: UserDto;
   servers: ServerDto[];
+  dm_channels: DirectMessageChannel[];
+  unread_counts: UnreadCount[];
 }
 
 export interface PresenceUpdateEvent {

@@ -7,6 +7,10 @@ import type {
   MessageDeleteEvent,
   VoiceStateUpdateEvent,
   VoiceSignalData,
+  DmChannelCreateEvent,
+  DmMessageCreateEvent,
+  ReactionAddEvent,
+  ReactionRemoveEvent,
 } from "../types";
 import { storage } from "../utils/storage";
 import { SERVER_URL_KEY } from "../utils/platform";
@@ -21,6 +25,10 @@ interface EventHandlers {
   PRESENCE_UPDATE: EventHandler<PresenceUpdateEvent>;
   VOICE_STATE_UPDATE: EventHandler<VoiceStateUpdateEvent>;
   VOICE_SIGNAL: EventHandler<VoiceSignalData>;
+  DM_CHANNEL_CREATE: EventHandler<DmChannelCreateEvent>;
+  DM_MESSAGE_CREATE: EventHandler<DmMessageCreateEvent>;
+  REACTION_ADD: EventHandler<ReactionAddEvent>;
+  REACTION_REMOVE: EventHandler<ReactionRemoveEvent>;
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
   permanently_disconnected: EventHandler<void>;

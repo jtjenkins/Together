@@ -4,11 +4,16 @@ import { useAuthStore } from "../stores/authStore";
 import { useServerStore } from "../stores/serverStore";
 import { useMessageStore } from "../stores/messageStore";
 import { useChannelStore } from "../stores/channelStore";
+import { useDmStore } from "../stores/dmStore";
+import { useReadStateStore } from "../stores/readStateStore";
 import type {
   ReadyEvent,
   Message,
   PresenceUpdateEvent,
   MessageDeleteEvent,
+  DirectMessageChannel,
+  DirectMessage,
+  ReactionEvent,
 } from "../types";
 
 export function useWebSocket() {
@@ -22,16 +27,28 @@ export function useWebSocket() {
   const updateMessage = useMessageStore((s) => s.updateMessage);
   const removeMessage = useMessageStore((s) => s.removeMessage);
 
+  const setDmChannels = useDmStore((s) => s.setChannels);
+  const addDmChannel = useDmStore((s) => s.addChannel);
+  const addDmMessage = useDmStore((s) => s.addMessage);
+  const activeDmChannelId = useDmStore((s) => s.activeDmChannelId);
+
+  const setUnreadCounts = useReadStateStore((s) => s.setUnreadCounts);
+  const incrementUnread = useReadStateStore((s) => s.incrementUnread);
+
   useEffect(() => {
     const unsubs = [
       gateway.on("READY", (data: ReadyEvent) => {
         setUser(data.user);
         setServers(data.servers);
+        if (data.dm_channels) setDmChannels(data.dm_channels);
+        if (data.unread_counts) setUnreadCounts(data.unread_counts);
       }),
 
       gateway.on("MESSAGE_CREATE", (msg: Message) => {
         if (msg.channel_id === activeChannelId) {
           addMessage(msg);
+        } else {
+          incrementUnread(msg.channel_id);
         }
       }),
 
@@ -50,6 +67,22 @@ export function useWebSocket() {
       gateway.on("PRESENCE_UPDATE", (event: PresenceUpdateEvent) => {
         updateMemberPresence(event.user_id, event.status, event.custom_status);
       }),
+
+      gateway.on("DM_CHANNEL_CREATE", (channel: DirectMessageChannel) => {
+        addDmChannel(channel);
+      }),
+
+      gateway.on("DM_MESSAGE_CREATE", (msg: DirectMessage) => {
+        addDmMessage(msg);
+        if (msg.channel_id !== activeDmChannelId) {
+          incrementUnread(msg.channel_id);
+        }
+      }),
+
+      // Reaction events are handled by the ReactionBar component via its own
+      // store subscription — no action needed here at the app level.
+      gateway.on("REACTION_ADD", (_event: ReactionEvent) => {}),
+      gateway.on("REACTION_REMOVE", (_event: ReactionEvent) => {}),
 
       gateway.on("connected", () => {
         if (activeServerId) {
@@ -71,5 +104,11 @@ export function useWebSocket() {
     fetchMembers,
     activeServerId,
     activeChannelId,
+    setDmChannels,
+    addDmChannel,
+    addDmMessage,
+    activeDmChannelId,
+    setUnreadCounts,
+    incrementUnread,
   ]);
 }

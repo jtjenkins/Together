@@ -1,7 +1,10 @@
 pub mod attachments;
 pub mod auth;
 pub mod channels;
+pub mod dm;
 pub mod messages;
+pub mod reactions;
+pub mod read_states;
 pub mod servers;
 pub mod shared;
 pub mod users;

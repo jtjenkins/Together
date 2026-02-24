@@ -17,7 +17,7 @@ use super::events::{
 };
 use crate::{
     auth::{validate_token, TokenType},
-    models::{Server, User, UserDto, VoiceStateDto},
+    models::{DirectMessageChannelDto, Server, UnreadCount, User, UserDto, VoiceStateDto},
     state::AppState,
 };
 
@@ -428,7 +428,7 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
 /// database error occurs. Either case is treated as fatal for this
 /// connection's READY handshake.
 async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
-    let user: UserDto = sqlx::query_as::<_, User>(
+    let user: UserDto = match sqlx::query_as::<_, User>(
         "SELECT id, username, email, password_hash, avatar_url, status, custom_status,
                 created_at, updated_at
          FROM users WHERE id = $1",
@@ -436,7 +436,24 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
     .bind(user_id)
     .fetch_optional(&state.pool)
     .await
-    .ok()??
+    {
+        Err(e) => {
+            tracing::error!(
+                user_id = %user_id,
+                error = ?e,
+                "DB error fetching user for READY payload; closing connection"
+            );
+            return None;
+        }
+        Ok(None) => {
+            tracing::warn!(
+                user_id = %user_id,
+                "User not found during READY handshake; token references deleted account"
+            );
+            return None;
+        }
+        Ok(Some(u)) => u,
+    }
     .into();
 
     let servers = match sqlx::query_as::<_, Server>(
@@ -461,10 +478,144 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         }
     };
 
-    let payload =
-        GatewayMessage::dispatch(EVENT_READY, json!({ "user": user, "servers": servers }));
+    // DM channels: fetch channels this user participates in, plus the
+    // recipient's public profile for each channel.
+    #[derive(sqlx::FromRow)]
+    struct DmRow {
+        channel_id: Uuid,
+        channel_created_at: chrono::DateTime<chrono::Utc>,
+        recipient_id: Uuid,
+        recipient_username: String,
+        recipient_email: Option<String>,
+        recipient_avatar_url: Option<String>,
+        recipient_status: String,
+        recipient_custom_status: Option<String>,
+        recipient_created_at: chrono::DateTime<chrono::Utc>,
+        last_message_at: Option<chrono::DateTime<chrono::Utc>>,
+    }
 
-    serde_json::to_string(&payload).ok()
+    let dm_channels: Vec<DirectMessageChannelDto> = match sqlx::query_as::<_, DmRow>(
+        "SELECT
+            dmc.id             AS channel_id,
+            dmc.created_at     AS channel_created_at,
+            u.id               AS recipient_id,
+            u.username         AS recipient_username,
+            u.email            AS recipient_email,
+            u.avatar_url       AS recipient_avatar_url,
+            u.status           AS recipient_status,
+            u.custom_status    AS recipient_custom_status,
+            u.created_at       AS recipient_created_at,
+            (SELECT MAX(dm.created_at)
+             FROM direct_messages dm
+             WHERE dm.channel_id = dmc.id AND dm.deleted = FALSE
+            ) AS last_message_at
+         FROM direct_message_channels dmc
+         JOIN direct_message_members dmm1 ON dmm1.channel_id = dmc.id AND dmm1.user_id = $1
+         JOIN direct_message_members dmm2 ON dmm2.channel_id = dmc.id AND dmm2.user_id != $1
+         JOIN users u ON u.id = dmm2.user_id
+         ORDER BY last_message_at DESC NULLS LAST",
+    )
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(rows) => rows
+            .into_iter()
+            .map(|r| DirectMessageChannelDto {
+                id: r.channel_id,
+                recipient: UserDto {
+                    id: r.recipient_id,
+                    username: r.recipient_username,
+                    email: r.recipient_email,
+                    avatar_url: r.recipient_avatar_url,
+                    status: r.recipient_status,
+                    custom_status: r.recipient_custom_status,
+                    created_at: r.recipient_created_at,
+                },
+                created_at: r.channel_created_at,
+                last_message_at: r.last_message_at,
+            })
+            .collect(),
+        Err(e) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error   = ?e,
+                "Failed to fetch DM channels for READY payload; client will receive empty DM list"
+            );
+            vec![]
+        }
+    };
+
+    // Unread counts: messages created after the user's last read timestamp
+    // for channels they belong to (both server channels and DM channels).
+    // Each UNION branch is scoped by JOINing to the appropriate channel table
+    // so that a channel_read_states row for a server channel is never matched
+    // against direct_messages (and vice versa).
+    let unread_counts: Vec<UnreadCount> = match sqlx::query_as::<_, UnreadCount>(
+        "SELECT
+            crs.channel_id,
+            COUNT(m.id) AS unread_count
+         FROM channel_read_states crs
+         JOIN channels c ON c.id = crs.channel_id
+         JOIN messages m ON m.channel_id = crs.channel_id
+             AND m.created_at > crs.last_read_at
+             AND m.deleted = FALSE
+             AND m.author_id != $1
+         WHERE crs.user_id = $1
+         GROUP BY crs.channel_id
+         HAVING COUNT(m.id) > 0
+
+         UNION ALL
+
+         SELECT
+            crs.channel_id,
+            COUNT(dm.id) AS unread_count
+         FROM channel_read_states crs
+         JOIN direct_message_channels dmc ON dmc.id = crs.channel_id
+         JOIN direct_messages dm ON dm.channel_id = crs.channel_id
+             AND dm.created_at > crs.last_read_at
+             AND dm.deleted = FALSE
+             AND dm.author_id != $1
+         WHERE crs.user_id = $1
+         GROUP BY crs.channel_id
+         HAVING COUNT(dm.id) > 0",
+    )
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error   = ?e,
+                "Failed to fetch unread counts for READY payload; client will not see unread indicators"
+            );
+            vec![]
+        }
+    };
+
+    let payload = GatewayMessage::dispatch(
+        EVENT_READY,
+        json!({
+            "user": user,
+            "servers": servers,
+            "dm_channels": dm_channels,
+            "unread_counts": unread_counts,
+        }),
+    );
+
+    match serde_json::to_string(&payload) {
+        Ok(json) => Some(json),
+        Err(e) => {
+            tracing::error!(
+                user_id = %user_id,
+                error = ?e,
+                "Failed to serialize READY payload; this is a programming error"
+            );
+            None
+        }
+    }
 }
 
 // ============================================================================

@@ -7,6 +7,9 @@ import type {
   MessageDeleteEvent,
   VoiceStateUpdateEvent,
   VoiceSignalData,
+  DirectMessageChannel,
+  DirectMessage,
+  ReactionEvent,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -20,6 +23,10 @@ interface EventHandlers {
   PRESENCE_UPDATE: EventHandler<PresenceUpdateEvent>;
   VOICE_STATE_UPDATE: EventHandler<VoiceStateUpdateEvent>;
   VOICE_SIGNAL: EventHandler<VoiceSignalData>;
+  DM_CHANNEL_CREATE: EventHandler<DirectMessageChannel>;
+  DM_MESSAGE_CREATE: EventHandler<DirectMessage>;
+  REACTION_ADD: EventHandler<ReactionEvent>;
+  REACTION_REMOVE: EventHandler<ReactionEvent>;
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
 }

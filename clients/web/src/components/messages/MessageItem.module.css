@@ -264,3 +264,7 @@
   flex-shrink: 0;
   font-size: 12px;
 }
+
+.reactionArea {
+  padding: 0 16px 4px 52px;
+}
