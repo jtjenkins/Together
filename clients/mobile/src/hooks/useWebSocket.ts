@@ -87,6 +87,10 @@ export function useWebSocket() {
         }
       }),
 
+      gateway.on("THREAD_MESSAGE_CREATE", (msg: Message) => {
+        useMessageStore.getState().addThreadMessage(msg);
+      }),
+
       gateway.on("REACTION_ADD", (_data: ReactionAddEvent) => {
         // Reaction state is managed locally in ChatScreen via listReactions;
         // no global store update required for MVP.

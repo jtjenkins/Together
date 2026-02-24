@@ -26,6 +26,7 @@ export function useWebSocket() {
   const addMessage = useMessageStore((s) => s.addMessage);
   const updateMessage = useMessageStore((s) => s.updateMessage);
   const removeMessage = useMessageStore((s) => s.removeMessage);
+  const addThreadMessage = useMessageStore((s) => s.addThreadMessage);
 
   const setDmChannels = useDmStore((s) => s.setChannels);
   const addDmChannel = useDmStore((s) => s.addChannel);
@@ -91,6 +92,10 @@ export function useWebSocket() {
         }
       }),
 
+      gateway.on("THREAD_MESSAGE_CREATE", (msg: Message) => {
+        addThreadMessage(msg);
+      }),
+
       // Reaction events are handled by the ReactionBar component via its own
       // store subscription — no action needed here at the app level.
       gateway.on("REACTION_ADD", (_event: ReactionEvent) => {}),
@@ -112,6 +117,7 @@ export function useWebSocket() {
     addMessage,
     updateMessage,
     removeMessage,
+    addThreadMessage,
     updateMemberPresence,
     fetchMembers,
     activeServerId,

@@ -27,6 +27,7 @@ interface EventHandlers {
   DM_MESSAGE_CREATE: EventHandler<DirectMessage>;
   REACTION_ADD: EventHandler<ReactionEvent>;
   REACTION_REMOVE: EventHandler<ReactionEvent>;
+  THREAD_MESSAGE_CREATE: EventHandler<Message>;
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
 }

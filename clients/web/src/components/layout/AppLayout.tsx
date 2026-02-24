@@ -4,11 +4,13 @@ import { ChannelSidebar } from "./ChannelSidebar";
 import { DMSidebar } from "../dm/DMSidebar";
 import { DMConversation } from "../dm/DMConversation";
 import { ChatArea } from "../messages/ChatArea";
+import { ThreadPanel } from "../messages/ThreadPanel";
 import { VoiceChannel } from "../voice/VoiceChannel";
 import { MemberSidebar } from "./MemberSidebar";
 import { useServerStore } from "../../stores/serverStore";
 import { useChannelStore } from "../../stores/channelStore";
 import { useDmStore } from "../../stores/dmStore";
+import { useMessageStore } from "../../stores/messageStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import styles from "./AppLayout.module.css";
 
@@ -18,6 +20,9 @@ export function AppLayout() {
   const channels = useChannelStore((s) => s.channels);
   const fetchServers = useServerStore((s) => s.fetchServers);
   const activeDmChannelId = useDmStore((s) => s.activeDmChannelId);
+  const activeThreadId = useMessageStore((s) => s.activeThreadId);
+  const openThread = useMessageStore((s) => s.openThread);
+  const closeThread = useMessageStore((s) => s.closeThread);
 
   useWebSocket();
 
@@ -55,7 +60,7 @@ export function AppLayout() {
             activeChannel?.type === "voice" ? (
               <VoiceChannel channelId={activeChannelId} />
             ) : (
-              <ChatArea channelId={activeChannelId} />
+              <ChatArea channelId={activeChannelId} onOpenThread={openThread} />
             )
           ) : (
             <div className={styles.placeholder}>
@@ -65,7 +70,15 @@ export function AppLayout() {
               </div>
             </div>
           )}
-          <MemberSidebar />
+          {activeChannelId && activeThreadId ? (
+            <ThreadPanel
+              channelId={activeChannelId}
+              rootMessageId={activeThreadId}
+              onClose={closeThread}
+            />
+          ) : (
+            <MemberSidebar />
+          )}
         </>
       )}
     </div>

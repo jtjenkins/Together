@@ -7,9 +7,10 @@ import styles from "./ChatArea.module.css";
 
 interface ChatAreaProps {
   channelId: string;
+  onOpenThread?: (messageId: string) => void;
 }
 
-export function ChatArea({ channelId }: ChatAreaProps) {
+export function ChatArea({ channelId, onOpenThread }: ChatAreaProps) {
   const fetchMessages = useMessageStore((s) => s.fetchMessages);
   const messages = useMessageStore((s) => s.messages);
   const hasMore = useMessageStore((s) => s.hasMore);
@@ -70,7 +71,11 @@ export function ChatArea({ channelId }: ChatAreaProps) {
             </button>
           </div>
         )}
-        <MessageList messages={messages} channelId={channelId} />
+        <MessageList
+          messages={messages}
+          channelId={channelId}
+          onOpenThread={onOpenThread}
+        />
       </div>
 
       <MessageInput channelId={channelId} />
