@@ -177,7 +177,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
       const message =
         err instanceof ApiRequestError
           ? err.message
-          : "Failed to fetch servers";
+          : "Failed to load public server list";
       set({ browseError: message, isBrowseLoading: false });
     }
   },

@@ -150,7 +150,7 @@ pub async fn get_server(
     Ok(Json(dto))
 }
 
-/// PATCH /servers/:id — update name or icon (owner only).
+/// PATCH /servers/:id — update name, icon, or public visibility (owner only).
 pub async fn update_server(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -225,14 +225,21 @@ pub async fn delete_server(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /servers/:id/join — join a server as the authenticated user.
+/// POST /servers/:id/join — join a public server as the authenticated user.
+///
+/// Private servers (`is_public = false`) return 404 to avoid leaking their
+/// existence. Membership-by-invite is not yet implemented.
 pub async fn join_server(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(server_id): Path<Uuid>,
 ) -> AppResult<(StatusCode, Json<Value>)> {
-    // Verify server exists.
-    fetch_server(&state.pool, server_id).await?;
+    let server = fetch_server(&state.pool, server_id).await?;
+
+    // Only public servers are joinable via this endpoint.
+    if !server.is_public {
+        return Err(AppError::NotFound("Server not found".into()));
+    }
 
     // Check not already a member (ON CONFLICT would also handle this, but
     // returning a meaningful error is more helpful).

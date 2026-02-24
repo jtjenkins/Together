@@ -216,6 +216,8 @@ async fn update_server_non_owner_forbidden() {
     let server = common::create_server(app.clone(), &owner_token, "Owner's Guild").await;
     let id = server["id"].as_str().unwrap();
 
+    common::make_server_public(app.clone(), &owner_token, id).await;
+
     // Member joins.
     let member_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
@@ -270,6 +272,8 @@ async fn delete_server_non_owner_forbidden() {
     let server = common::create_server(app.clone(), &owner_token, "Protected Guild").await;
     let id = server["id"].as_str().unwrap();
 
+    common::make_server_public(app.clone(), &owner_token, id).await;
+
     let member_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
     common::post_json_authed(
@@ -299,6 +303,8 @@ async fn join_server_success() {
     let server = common::create_server(app.clone(), &owner_token, "Open Guild").await;
     let id = server["id"].as_str().unwrap();
 
+    common::make_server_public(app.clone(), &owner_token, id).await;
+
     let joiner_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
     let (status, _) = common::post_json_authed(
@@ -326,6 +332,8 @@ async fn join_server_twice_returns_conflict() {
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
     let server = common::create_server(app.clone(), &owner_token, "Once Guild").await;
     let id = server["id"].as_str().unwrap();
+
+    common::make_server_public(app.clone(), &owner_token, id).await;
 
     let joiner_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
@@ -380,6 +388,8 @@ async fn leave_server_success() {
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
     let server = common::create_server(app.clone(), &owner_token, "Leavable Guild").await;
     let id = server["id"].as_str().unwrap();
+
+    common::make_server_public(app.clone(), &owner_token, id).await;
 
     let member_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
@@ -509,6 +519,9 @@ async fn non_owner_cannot_make_server_public() {
     let server = common::create_server(app.clone(), &owner_token, "Owner-Only Guild").await;
     let id = server["id"].as_str().unwrap();
 
+    // Make public so the non-owner can join.
+    common::make_server_public(app.clone(), &owner_token, id).await;
+
     // Non-owner joins.
     let member_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
@@ -530,6 +543,66 @@ async fn non_owner_cannot_make_server_public() {
     .await;
 
     assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn join_private_server_returns_404() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &owner_token, "Private Guild").await;
+    let id = server["id"].as_str().unwrap();
+
+    // Server is private by default — outsider cannot join.
+    let outsider_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{id}/join"),
+        &outsider_token,
+        json!({}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn make_server_private_removes_from_browse() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    let server = common::create_server(app.clone(), &token, "Toggle Guild").await;
+    let id = server["id"].as_str().unwrap();
+
+    // Make public — server should appear in browse.
+    common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{id}"),
+        &token,
+        json!({ "is_public": true }),
+    )
+    .await;
+    let (_, body) = common::get_authed(app.clone(), "/servers/browse", &token).await;
+    assert!(body.as_array().unwrap().iter().any(|s| s["id"] == id));
+
+    // Toggle back to private — server should no longer appear.
+    let (status, body) = common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{id}"),
+        &token,
+        json!({ "is_public": false }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["is_public"], false);
+
+    let (_, body) = common::get_authed(app, "/servers/browse", &token).await;
+    assert!(!body.as_array().unwrap().iter().any(|s| s["id"] == id));
 }
 
 // ============================================================================
@@ -563,6 +636,8 @@ async fn list_members_includes_joined_user() {
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
     let server = common::create_server(app.clone(), &owner_token, "Growing Guild").await;
     let id = server["id"].as_str().unwrap();
+
+    common::make_server_public(app.clone(), &owner_token, id).await;
 
     let joiner_name = common::unique_username();
     let joiner_token = common::register_and_get_token(app.clone(), &joiner_name, "pass1234").await;

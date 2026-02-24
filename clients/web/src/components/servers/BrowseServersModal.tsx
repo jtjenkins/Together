@@ -18,6 +18,7 @@ export function BrowseServersModal({ open, onClose }: BrowseServersModalProps) {
   const servers = useServerStore((s) => s.servers);
   const joinServer = useServerStore((s) => s.joinServer);
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -29,9 +30,14 @@ export function BrowseServersModal({ open, onClose }: BrowseServersModalProps) {
 
   const handleJoin = async (id: string) => {
     setJoiningId(id);
+    setJoinError(null);
     try {
       await joinServer(id);
       await fetchDiscoverableServers();
+    } catch (err) {
+      setJoinError(
+        err instanceof Error ? err.message : "Failed to join server",
+      );
     } finally {
       setJoiningId(null);
     }
@@ -40,6 +46,7 @@ export function BrowseServersModal({ open, onClose }: BrowseServersModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="Browse Servers">
       {browseError && <div className={styles.error}>{browseError}</div>}
+      {joinError && <div className={styles.error}>{joinError}</div>}
 
       {isBrowseLoading ? (
         <div className={styles.browseEmpty}>Loading servers…</div>

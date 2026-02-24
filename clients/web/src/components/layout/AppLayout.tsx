@@ -29,7 +29,9 @@ export function AppLayout() {
 
   useEffect(() => {
     fetchServers().then(() => {
-      if (useServerStore.getState().servers.length === 0) {
+      const { servers, error } = useServerStore.getState();
+      // Only auto-open browse when fetch succeeded AND the user has no servers yet.
+      if (!error && servers.length === 0) {
         setShowBrowse(true);
       }
     });

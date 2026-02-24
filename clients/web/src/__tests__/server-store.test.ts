@@ -165,6 +165,38 @@ describe("serverStore", () => {
     });
   });
 
+  describe("fetchDiscoverableServers", () => {
+    it("should populate discoverableServers and clear loading on success", async () => {
+      const servers = [mockServer({ id: "s-public", is_public: true })];
+      vi.mocked(api.browseServers).mockResolvedValueOnce(servers);
+
+      await useServerStore.getState().fetchDiscoverableServers();
+
+      expect(useServerStore.getState().discoverableServers).toEqual(servers);
+      expect(useServerStore.getState().isBrowseLoading).toBe(false);
+      expect(useServerStore.getState().browseError).toBeNull();
+    });
+
+    it("should set browseError and clear loading on failure", async () => {
+      vi.mocked(api.browseServers).mockRejectedValueOnce(new Error("Network"));
+
+      await useServerStore.getState().fetchDiscoverableServers();
+
+      expect(useServerStore.getState().browseError).toBeTruthy();
+      expect(useServerStore.getState().isBrowseLoading).toBe(false);
+      expect(useServerStore.getState().discoverableServers).toEqual([]);
+    });
+
+    it("should reset browseError to null before fetching", async () => {
+      useServerStore.setState({ browseError: "old error" });
+      vi.mocked(api.browseServers).mockResolvedValueOnce([]);
+
+      const promise = useServerStore.getState().fetchDiscoverableServers();
+      expect(useServerStore.getState().browseError).toBeNull();
+      await promise;
+    });
+  });
+
   describe("updateMemberPresence", () => {
     it("should update member status", () => {
       useServerStore.setState({

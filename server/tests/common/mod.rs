@@ -360,6 +360,18 @@ pub async fn create_server(app: Router, token: &str, name: &str) -> Value {
     body
 }
 
+/// Make a server public via PATCH (owner token required).
+pub async fn make_server_public(app: Router, token: &str, server_id: &str) {
+    let (status, body) = patch_json_authed(
+        app,
+        &format!("/servers/{server_id}"),
+        token,
+        serde_json::json!({ "is_public": true }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "make_server_public failed: {body}");
+}
+
 /// Create a text channel in a server and return the full response body.
 pub async fn create_channel(app: Router, token: &str, server_id: &str, name: &str) -> Value {
     let uri = format!("/servers/{server_id}/channels");
