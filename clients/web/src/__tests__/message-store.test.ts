@@ -71,9 +71,13 @@ beforeEach(() => {
 
 describe("messageStore", () => {
   describe("fetchMessages", () => {
-    it("should fetch and store messages", async () => {
-      const messages = [mockMsg({ id: "msg-1" }), mockMsg({ id: "msg-2" })];
-      vi.mocked(api.listMessages).mockResolvedValueOnce(messages);
+    it("should fetch and store messages (oldest-first after reversal)", async () => {
+      // API returns newest-first (DESC); the store must reverse to oldest-first.
+      const newestFirst = [
+        mockMsg({ id: "msg-2", created_at: "2024-01-01T00:00:02Z" }),
+        mockMsg({ id: "msg-1", created_at: "2024-01-01T00:00:01Z" }),
+      ];
+      vi.mocked(api.listMessages).mockResolvedValueOnce(newestFirst);
 
       await useMessageStore.getState().fetchMessages("ch-1");
 
@@ -81,8 +85,26 @@ describe("messageStore", () => {
         before: undefined,
         limit: 50,
       });
-      expect(useMessageStore.getState().messages).toEqual(messages);
+      const stored = useMessageStore.getState().messages;
+      expect(stored[0].id).toBe("msg-1");
+      expect(stored[1].id).toBe("msg-2");
       expect(useMessageStore.getState().hasMore).toBe(false);
+    });
+
+    it("should reverse API response so store holds oldest-first", async () => {
+      // API returns newest-first (DESC); the store must reverse to oldest-first
+      // to match the append order used by addMessage() for WebSocket events.
+      const newestFirst = [
+        mockMsg({ id: "msg-2", created_at: "2024-01-01T00:00:02Z" }),
+        mockMsg({ id: "msg-1", created_at: "2024-01-01T00:00:01Z" }),
+      ];
+      vi.mocked(api.listMessages).mockResolvedValueOnce(newestFirst);
+
+      await useMessageStore.getState().fetchMessages("ch-1");
+
+      const stored = useMessageStore.getState().messages;
+      expect(stored[0].id).toBe("msg-1");
+      expect(stored[1].id).toBe("msg-2");
     });
 
     it("should set hasMore to true when 50 messages returned", async () => {

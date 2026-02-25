@@ -66,18 +66,22 @@ beforeEach(() => {
 describe("messageStore", () => {
   describe("fetchMessages", () => {
     it("loads messages on success", async () => {
-      const msgs = [makeMessage("1"), makeMessage("2")];
-      mockApi.listMessages.mockResolvedValueOnce(msgs);
+      // API returns newest-first (DESC); the store reverses to oldest-first.
+      const newestFirst = [makeMessage("2"), makeMessage("1")];
+      mockApi.listMessages.mockResolvedValueOnce(newestFirst);
       await useMessageStore.getState().fetchMessages("ch-1");
-      expect(useMessageStore.getState().messages).toEqual(msgs);
+      const { messages } = useMessageStore.getState();
+      expect(messages[0].id).toBe("1");
+      expect(messages[1].id).toBe("2");
       expect(useMessageStore.getState().isLoading).toBe(false);
     });
 
     it("prepends older messages when before cursor is provided", async () => {
       const existing = [makeMessage("3")];
       useMessageStore.setState({ messages: existing });
-      const older = [makeMessage("1"), makeMessage("2")];
-      mockApi.listMessages.mockResolvedValueOnce(older);
+      // API returns newest-first; store reverses → [msg-1, msg-2] prepended before msg-3.
+      const newestFirst = [makeMessage("2"), makeMessage("1")];
+      mockApi.listMessages.mockResolvedValueOnce(newestFirst);
       await useMessageStore.getState().fetchMessages("ch-1", "msg-3");
       const { messages } = useMessageStore.getState();
       expect(messages[0].id).toBe("1");

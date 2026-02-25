@@ -76,6 +76,19 @@
   color: #fff;
 }
 
+.browseIcon {
+  background: transparent;
+  border: 2px dashed var(--border-color-strong);
+  color: var(--accent-primary);
+  font-size: 20px;
+}
+
+.browseIcon:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
 .separator {
   width: 32px;
   height: 2px;

@@ -157,6 +157,10 @@ class ApiClient {
     return this.request(`/servers/${id}/leave`, { method: "DELETE" });
   }
 
+  browseServers(): Promise<ServerDto[]> {
+    return this.request("/servers/browse");
+  }
+
   listMembers(serverId: string): Promise<MemberDto[]> {
     return this.request(`/servers/${serverId}/members`);
   }

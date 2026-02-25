@@ -24,6 +24,7 @@ pub struct CreateServerRequest {
     #[validate(length(min = 1, max = 100, message = "Server name must be 1–100 characters"))]
     pub name: String,
     pub icon_url: Option<String>,
+    pub is_public: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize, Validate)]
@@ -31,6 +32,7 @@ pub struct UpdateServerRequest {
     #[validate(length(min = 1, max = 100, message = "Server name must be 1–100 characters"))]
     pub name: Option<String>,
     pub icon_url: Option<String>,
+    pub is_public: Option<bool>,
 }
 
 // ============================================================================
@@ -50,6 +52,7 @@ async fn server_dto(pool: &sqlx::PgPool, server: Server) -> AppResult<ServerDto>
         name: server.name,
         owner_id: server.owner_id,
         icon_url: server.icon_url,
+        is_public: server.is_public,
         member_count,
         created_at: server.created_at,
         updated_at: server.updated_at,
@@ -81,18 +84,20 @@ pub async fn create_server(
     let dto = CreateServerDto {
         name: req.name,
         icon_url: req.icon_url,
+        is_public: req.is_public,
     };
 
     let mut tx = state.pool.begin().await?;
 
     let server = sqlx::query_as::<_, Server>(
-        "INSERT INTO servers (name, owner_id, icon_url)
-         VALUES ($1, $2, $3)
-         RETURNING id, name, owner_id, icon_url, created_at, updated_at",
+        "INSERT INTO servers (name, owner_id, icon_url, is_public)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, owner_id, icon_url, is_public, created_at, updated_at",
     )
     .bind(&dto.name)
     .bind(auth.user_id())
     .bind(&dto.icon_url)
+    .bind(dto.is_public.unwrap_or(false))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -115,7 +120,7 @@ pub async fn list_servers(
     auth: AuthUser,
 ) -> AppResult<Json<Vec<ServerDto>>> {
     let servers = sqlx::query_as::<_, Server>(
-        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.created_at, s.updated_at
+        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.is_public, s.created_at, s.updated_at
          FROM servers s
          JOIN server_members sm ON sm.server_id = s.id
          WHERE sm.user_id = $1
@@ -145,7 +150,7 @@ pub async fn get_server(
     Ok(Json(dto))
 }
 
-/// PATCH /servers/:id — update name or icon (owner only).
+/// PATCH /servers/:id — update name, icon, or public visibility (owner only).
 pub async fn update_server(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -175,18 +180,21 @@ pub async fn update_server(
     let dto = UpdateServerDto {
         name: req.name,
         icon_url: req.icon_url,
+        is_public: req.is_public,
     };
 
     let updated = sqlx::query_as::<_, Server>(
         "UPDATE servers
-         SET name      = COALESCE($1, name),
-             icon_url  = COALESCE($2, icon_url),
+         SET name       = COALESCE($1, name),
+             icon_url   = COALESCE($2, icon_url),
+             is_public  = COALESCE($3, is_public),
              updated_at = NOW()
-         WHERE id = $3
-         RETURNING id, name, owner_id, icon_url, created_at, updated_at",
+         WHERE id = $4
+         RETURNING id, name, owner_id, icon_url, is_public, created_at, updated_at",
     )
     .bind(&dto.name)
     .bind(&dto.icon_url)
+    .bind(dto.is_public)
     .bind(server_id)
     .fetch_one(&state.pool)
     .await?;
@@ -217,14 +225,21 @@ pub async fn delete_server(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /servers/:id/join — join a server as the authenticated user.
+/// POST /servers/:id/join — join a public server as the authenticated user.
+///
+/// Private servers (`is_public = false`) return 404 to avoid leaking their
+/// existence. Membership-by-invite is not yet implemented.
 pub async fn join_server(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(server_id): Path<Uuid>,
 ) -> AppResult<(StatusCode, Json<Value>)> {
-    // Verify server exists.
-    fetch_server(&state.pool, server_id).await?;
+    let server = fetch_server(&state.pool, server_id).await?;
+
+    // Only public servers are joinable via this endpoint.
+    if !server.is_public {
+        return Err(AppError::NotFound("Server not found".into()));
+    }
 
     // Check not already a member (ON CONFLICT would also handle this, but
     // returning a meaningful error is more helpful).
@@ -274,6 +289,32 @@ pub async fn leave_server(
         .await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /servers/browse — list all public servers (authenticated, no membership required).
+///
+/// Returns servers ordered by member count (descending) then creation date.
+/// Results are capped at 50 — discovery is intentionally lightweight with no pagination.
+/// Does NOT filter out servers the caller already belongs to; clients derive "Joined"
+/// state by cross-referencing their own server list.
+pub async fn browse_servers(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+) -> AppResult<Json<Vec<ServerDto>>> {
+    let servers = sqlx::query_as::<_, ServerDto>(
+        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.is_public, s.created_at, s.updated_at,
+                COUNT(sm.user_id)::BIGINT AS member_count
+         FROM   servers s
+         LEFT JOIN server_members sm ON sm.server_id = s.id
+         WHERE  s.is_public = TRUE
+         GROUP BY s.id
+         ORDER BY member_count DESC, s.created_at DESC
+         LIMIT 50",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(servers))
 }
 
 /// GET /servers/:id/members — list all members of a server (members only).

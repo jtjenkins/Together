@@ -34,7 +34,7 @@ pub async fn fetch_channel_by_id(pool: &sqlx::PgPool, channel_id: Uuid) -> AppRe
 /// Fetch a server row, returning 404 if it does not exist.
 pub async fn fetch_server(pool: &sqlx::PgPool, server_id: Uuid) -> AppResult<Server> {
     sqlx::query_as::<_, Server>(
-        "SELECT id, name, owner_id, icon_url, created_at, updated_at
+        "SELECT id, name, owner_id, icon_url, is_public, created_at, updated_at
          FROM servers WHERE id = $1",
     )
     .bind(server_id)

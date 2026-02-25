@@ -6,6 +6,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useReadStateStore } from "../../stores/readStateStore";
 import { CreateChannelModal } from "../channels/CreateChannelModal";
 import { EditChannelModal } from "../channels/EditChannelModal";
+import { ServerSettingsModal } from "../servers/ServerSettingsModal";
 import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
 import { api } from "../../api/client";
 import type { Channel } from "../../types";
@@ -31,6 +32,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const clearMentions = useReadStateStore((s) => s.clearMentions);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -80,6 +82,15 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     <div className={styles.sidebar}>
       <div className={styles.header}>
         <h2 className={styles.serverName}>{server?.name ?? "Server"}</h2>
+        {isOwner && (
+          <button
+            className={styles.settingsBtn}
+            onClick={() => setShowSettings(true)}
+            title="Server Settings"
+          >
+            ⚙
+          </button>
+        )}
       </div>
 
       <div className={styles.channelList}>
@@ -140,6 +151,14 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
           </div>
         )}
       </div>
+
+      {showSettings && server && (
+        <ServerSettingsModal
+          open={true}
+          onClose={() => setShowSettings(false)}
+          server={server}
+        />
+      )}
 
       <CreateChannelModal
         open={showCreate}

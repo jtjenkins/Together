@@ -344,10 +344,10 @@ class ApiClient {
     messageId: string,
     data: CreateThreadReplyRequest,
   ): Promise<Message> {
-    return this.request(
-      `/channels/${channelId}/messages/${messageId}/thread`,
-      { method: "POST", body: JSON.stringify(data) },
-    );
+    return this.request(`/channels/${channelId}/messages/${messageId}/thread`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   // ─── Reactions ─────────────────────────────────────────────

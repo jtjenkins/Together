@@ -367,6 +367,7 @@ async fn thread_reply_mentions_work() {
     let alice_token = common::register_and_get_token(app.clone(), &alice_name, "pass1234").await;
     let (_, alice_body) = common::get_authed(app.clone(), "/users/@me", &alice_token).await;
     let alice_id = alice_body["id"].as_str().unwrap();
+    common::make_server_public(app.clone(), &owner_token, &sid).await;
     common::post_json_authed(
         app.clone(),
         &format!("/servers/{sid}/join"),

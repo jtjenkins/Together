@@ -464,7 +464,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
     .into();
 
     let servers = match sqlx::query_as::<_, Server>(
-        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.created_at, s.updated_at
+        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.is_public, s.created_at, s.updated_at
          FROM servers s
          JOIN server_members sm ON s.id = sm.server_id
          WHERE sm.user_id = $1

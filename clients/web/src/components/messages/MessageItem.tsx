@@ -115,7 +115,9 @@ export function MessageItem({
 
   if (message.deleted) {
     return (
-      <div className={`${styles.message} ${styles.deleted}`}>
+      <div
+        className={`${styles.message} ${styles.deleted} ${isOwnMessage ? styles.own : ""}`}
+      >
         <div className={styles.deletedContent}>
           <em>This message has been deleted</em>
         </div>
@@ -125,7 +127,7 @@ export function MessageItem({
 
   return (
     <div
-      className={`${styles.message} ${showHeader ? styles.withHeader : styles.compact}`}
+      className={`${styles.message} ${isOwnMessage ? styles.own : ""} ${showHeader ? styles.withHeader : styles.compact}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
