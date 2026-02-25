@@ -55,6 +55,7 @@ async fn setup(app: axum::Router) -> Fixture {
 
     let member_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    common::make_server_public(app.clone(), &owner_token, &server_id).await;
     common::post_json_authed(
         app.clone(),
         &format!("/servers/{server_id}/join"),

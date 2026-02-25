@@ -38,7 +38,8 @@ async fn setup() -> Fixture {
     let channel = create_channel(app.clone(), &owner_token, &server_id, "general").await;
     let channel_id = channel["id"].as_str().unwrap().to_string();
 
-    // Have the member join the server.
+    // Make the server public so the member can join, then have them join.
+    make_server_public(app.clone(), &owner_token, &server_id).await;
     let (status, _) = post_json_authed(
         app.clone(),
         &format!("/servers/{server_id}/join"),
