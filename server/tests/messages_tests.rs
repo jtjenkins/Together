@@ -19,9 +19,10 @@ async fn setup_server_and_channel(app: axum::Router) -> (String, String, String)
 }
 
 /// Register a second user and have them join the given server; return their token.
-async fn join_as_member(app: axum::Router, server_id: &str) -> String {
+async fn join_as_member(app: axum::Router, owner_token: &str, server_id: &str) -> String {
     let token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    common::make_server_public(app.clone(), owner_token, server_id).await;
     common::post_json_authed(
         app,
         &format!("/servers/{server_id}/join"),
@@ -62,8 +63,7 @@ async fn create_message_member_can_post() {
     let pool = common::test_pool().await;
     let app = common::create_test_app(pool);
     let (owner_token, sid, cid) = setup_server_and_channel(app.clone()).await;
-    let _ = owner_token;
-    let member_token = join_as_member(app.clone(), &sid).await;
+    let member_token = join_as_member(app.clone(), &owner_token, &sid).await;
 
     let (status, body) = common::post_json_authed(
         app,
@@ -379,7 +379,7 @@ async fn update_message_non_author_forbidden() {
     let msg = common::create_message(app.clone(), &owner_token, &cid, "owner message").await;
     let mid = msg["id"].as_str().unwrap();
 
-    let member_token = join_as_member(app.clone(), &sid).await;
+    let member_token = join_as_member(app.clone(), &owner_token, &sid).await;
 
     let (status, _) = common::patch_json_authed(
         app,
@@ -472,7 +472,7 @@ async fn delete_message_server_owner_can_delete_any() {
     let pool = common::test_pool().await;
     let app = common::create_test_app(pool);
     let (owner_token, sid, cid) = setup_server_and_channel(app.clone()).await;
-    let member_token = join_as_member(app.clone(), &sid).await;
+    let member_token = join_as_member(app.clone(), &owner_token, &sid).await;
 
     let msg = common::create_message(app.clone(), &member_token, &cid, "member msg").await;
     let mid = msg["id"].as_str().unwrap();
@@ -490,7 +490,7 @@ async fn delete_message_non_author_non_owner_forbidden() {
     let msg = common::create_message(app.clone(), &owner_token, &cid, "owner msg").await;
     let mid = msg["id"].as_str().unwrap();
 
-    let member_token = join_as_member(app.clone(), &sid).await;
+    let member_token = join_as_member(app.clone(), &owner_token, &sid).await;
 
     let (status, _) = common::delete_authed(app, &format!("/messages/{mid}"), &member_token).await;
 

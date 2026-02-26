@@ -140,6 +140,7 @@ async fn list_reactions_count_and_me_flag() {
     // Register a second user and join the server.
     let token_b =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    common::make_server_public(app.clone(), &token_a, &sid).await;
     common::post_json_authed(
         app.clone(),
         &format!("/servers/{sid}/join"),

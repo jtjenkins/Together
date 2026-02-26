@@ -11,6 +11,7 @@ interface CreateServerModalProps {
 export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
   const [name, setName] = useState("");
   const [iconUrl, setIconUrl] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const createServer = useServerStore((s) => s.createServer);
@@ -26,10 +27,12 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
       const server = await createServer({
         name: name.trim(),
         icon_url: iconUrl.trim() || undefined,
+        is_public: isPublic,
       });
       setActiveServer(server.id);
       setName("");
       setIconUrl("");
+      setIsPublic(true);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create server");
@@ -70,6 +73,16 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
             onChange={(e) => setIconUrl(e.target.value)}
             placeholder="https://example.com/icon.png"
           />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+            />
+            List in Browse Servers (public)
+          </label>
         </div>
         <div className={styles.actions}>
           <button type="button" className={styles.cancelBtn} onClick={onClose}>

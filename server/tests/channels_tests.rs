@@ -8,9 +8,15 @@ use serde_json::json;
 // ============================================================================
 
 /// Register a user and have them join a server, returning their token.
-async fn register_and_join(app: axum::Router, server_id: &str, password: &str) -> String {
+async fn register_and_join(
+    app: axum::Router,
+    owner_token: &str,
+    server_id: &str,
+    password: &str,
+) -> String {
     let token =
         common::register_and_get_token(app.clone(), &common::unique_username(), password).await;
+    common::make_server_public(app.clone(), owner_token, server_id).await;
     common::post_json_authed(
         app,
         &format!("/servers/{server_id}/join"),
@@ -143,6 +149,7 @@ async fn create_channel_non_owner_forbidden() {
 
     let member_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    common::make_server_public(app.clone(), &owner_token, sid).await;
     common::post_json_authed(
         app.clone(),
         &format!("/servers/{sid}/join"),
@@ -377,6 +384,7 @@ async fn update_channel_non_owner_forbidden() {
 
     let member_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    common::make_server_public(app.clone(), &owner_token, sid).await;
     common::post_json_authed(
         app.clone(),
         &format!("/servers/{sid}/join"),
@@ -438,6 +446,7 @@ async fn delete_channel_non_owner_forbidden() {
 
     let member_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    common::make_server_public(app.clone(), &owner_token, sid).await;
     common::post_json_authed(
         app.clone(),
         &format!("/servers/{sid}/join"),
@@ -535,7 +544,7 @@ async fn get_channel_member_can_read() {
     let ch = common::create_channel(app.clone(), &owner_token, sid, "general").await;
     let cid = ch["id"].as_str().unwrap();
 
-    let member_token = register_and_join(app.clone(), sid, "pass1234").await;
+    let member_token = register_and_join(app.clone(), &owner_token, sid, "pass1234").await;
 
     let (status, body) = common::get_authed(
         app,
@@ -582,7 +591,7 @@ async fn list_channels_member_can_list() {
     let sid = server["id"].as_str().unwrap();
     common::create_channel(app.clone(), &owner_token, sid, "general").await;
 
-    let member_token = register_and_join(app.clone(), sid, "pass1234").await;
+    let member_token = register_and_join(app.clone(), &owner_token, sid, "pass1234").await;
 
     let (status, body) =
         common::get_authed(app, &format!("/servers/{sid}/channels"), &member_token).await;

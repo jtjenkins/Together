@@ -118,6 +118,9 @@ async fn main() {
         // Server routes (protected)
         .route("/servers", post(handlers::servers::create_server))
         .route("/servers", get(handlers::servers::list_servers))
+        // NOTE: /servers/browse must be registered before /servers/:id so the literal
+        // path segment "browse" is not consumed by the :id parameter capture.
+        .route("/servers/browse", get(handlers::servers::browse_servers))
         .route("/servers/:id", get(handlers::servers::get_server))
         .route("/servers/:id", patch(handlers::servers::update_server))
         .route("/servers/:id", delete(handlers::servers::delete_server))
@@ -164,6 +167,15 @@ async fn main() {
         .route(
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
+        )
+        // Thread routes (protected, nested under channel message)
+        .route(
+            "/channels/:channel_id/messages/:message_id/thread",
+            get(handlers::messages::list_thread_replies),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/thread",
+            post(handlers::messages::create_thread_reply),
         )
         // Reaction routes (protected, nested under channel message)
         .route(

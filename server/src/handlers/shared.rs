@@ -9,7 +9,8 @@ use crate::{
 pub async fn fetch_message(pool: &sqlx::PgPool, message_id: Uuid) -> AppResult<Message> {
     sqlx::query_as::<_, Message>(
         "SELECT id, channel_id, author_id, content, reply_to,
-                mention_user_ids, mention_everyone, edited_at, deleted, created_at
+                mention_user_ids, mention_everyone, thread_id,
+                0 AS thread_reply_count, edited_at, deleted, created_at
          FROM messages WHERE id = $1 AND deleted = FALSE",
     )
     .bind(message_id)
@@ -33,7 +34,7 @@ pub async fn fetch_channel_by_id(pool: &sqlx::PgPool, channel_id: Uuid) -> AppRe
 /// Fetch a server row, returning 404 if it does not exist.
 pub async fn fetch_server(pool: &sqlx::PgPool, server_id: Uuid) -> AppResult<Server> {
     sqlx::query_as::<_, Server>(
-        "SELECT id, name, owner_id, icon_url, created_at, updated_at
+        "SELECT id, name, owner_id, icon_url, is_public, created_at, updated_at
          FROM servers WHERE id = $1",
     )
     .bind(server_id)

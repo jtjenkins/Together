@@ -86,6 +86,7 @@ pub struct Server {
     pub name: String,
     pub owner_id: Uuid,
     pub icon_url: Option<String>,
+    pub is_public: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -94,12 +95,14 @@ pub struct Server {
 pub struct CreateServerDto {
     pub name: String,
     pub icon_url: Option<String>,
+    pub is_public: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateServerDto {
     pub name: Option<String>,
     pub icon_url: Option<String>,
+    pub is_public: Option<bool>,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]
@@ -111,12 +114,13 @@ pub struct ServerMember {
 }
 
 /// Server enriched with live member count for API responses.
-#[derive(Debug, Serialize)]
+#[derive(Debug, FromRow, Serialize)]
 pub struct ServerDto {
     pub id: Uuid,
     pub name: String,
     pub owner_id: Uuid,
     pub icon_url: Option<String>,
+    pub is_public: bool,
     pub member_count: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -186,6 +190,14 @@ pub struct Message {
     pub reply_to: Option<Uuid>,
     pub mention_user_ids: Vec<Uuid>,
     pub mention_everyone: bool,
+    /// Set on thread replies; `None` on root messages.
+    #[sqlx(default)]
+    pub thread_id: Option<Uuid>,
+    /// Number of non-deleted thread replies on a root message.
+    /// Populated only by `list_messages` via a subquery; defaults to 0
+    /// on insert RETURNING and thread-reply list queries.
+    #[sqlx(default)]
+    pub thread_reply_count: i32,
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted: bool,
     pub created_at: DateTime<Utc>,
