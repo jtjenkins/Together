@@ -157,6 +157,7 @@ export function MessageItem({
   return (
     <div
       className={`${styles.message} ${isOwnMessage ? styles.own : ""} ${showHeader ? styles.withHeader : styles.compact}`}
+      onMouseLeave={() => setShowQuickPicker(false)}
     >
       {message.reply_to && replyContent && (
         <div className={styles.replyBar}>

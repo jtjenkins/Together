@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ServersStackParamList } from "../navigation";
 import { useMessageStore } from "../stores/messageStore";
@@ -33,6 +34,7 @@ export function ThreadScreen({ route }: Props) {
 
   const { threadCache, fetchThreadReplies, sendThreadReply } =
     useMessageStore();
+  const threadError = useMessageStore((s) => s.threadError);
 
   const replies: Message[] = threadCache[messageId] ?? [];
 
@@ -126,22 +128,25 @@ export function ThreadScreen({ route }: Props) {
       {isLoading ? (
         <ActivityIndicator size="large" color="#7289da" style={styles.loader} />
       ) : (
-        <FlatList
-          ref={flatListRef}
-          data={replies}
-          keyExtractor={(item) => item.id}
-          renderItem={renderReply}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No replies yet.</Text>
-              <Text style={styles.emptySubtext}>Start the conversation!</Text>
-            </View>
-          }
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: false })
-          }
-        />
+        <>
+          {threadError && <Text style={styles.errorText}>{threadError}</Text>}
+          <FlatList
+            ref={flatListRef}
+            data={replies}
+            keyExtractor={(item) => item.id}
+            renderItem={renderReply}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No replies yet.</Text>
+                <Text style={styles.emptySubtext}>Start the conversation!</Text>
+              </View>
+            }
+            onContentSizeChange={() =>
+              flatListRef.current?.scrollToEnd({ animated: false })
+            }
+          />
+        </>
       )}
 
       {/* Reply input */}
@@ -167,7 +172,7 @@ export function ThreadScreen({ route }: Props) {
           {isSending ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.sendBtnText}>{"➤"}</Text>
+            <Feather name="send" size={16} color="#fff" />
           )}
         </TouchableOpacity>
       </View>
@@ -210,6 +215,12 @@ const styles = StyleSheet.create({
   loader: {
     flex: 1,
     marginTop: 40,
+  },
+  errorText: {
+    color: "#f04747",
+    fontSize: 13,
+    marginHorizontal: 12,
+    marginTop: 8,
   },
   list: {
     paddingHorizontal: 12,
@@ -313,9 +324,5 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: "#4f545c",
-  },
-  sendBtnText: {
-    color: "#fff",
-    fontSize: 16,
   },
 });

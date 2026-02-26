@@ -165,3 +165,29 @@
 .fileInput {
   display: none;
 }
+
+/* ── Send button ──────────────────────────── */
+
+.sendBtn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.sendBtn:not(:disabled):hover {
+  color: var(--accent-primary);
+  background: var(--bg-hover);
+}
+
+.sendBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

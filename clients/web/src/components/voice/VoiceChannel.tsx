@@ -91,8 +91,8 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
             label: d.label || `Speaker ${i + 1}`,
           })),
       );
-    } catch {
-      // enumerateDevices unavailable or permission denied
+    } catch (err) {
+      console.warn("[VoiceChannel] enumerateDevices failed", err);
     }
   }, []);
 
@@ -174,8 +174,9 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
         list.filter((p) => p.user_id !== user?.id).map((p) => p.user_id),
       );
       await enumerateDevices();
-    } catch {
-      // Error displayed via voiceError from store
+    } catch (err) {
+      // voiceError from store covers store action failures
+      console.error("[VoiceChannel] handleJoin failed", err);
     }
   };
 
