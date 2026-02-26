@@ -10,6 +10,7 @@ jest.mock("../../src/api/client", () => ({
     getCurrentUser: jest.fn(),
     setToken: jest.fn(),
     updateCurrentUser: jest.fn(),
+    setSessionExpiredCallback: jest.fn(),
   },
   ApiRequestError: class ApiRequestError extends Error {
     status: number;
