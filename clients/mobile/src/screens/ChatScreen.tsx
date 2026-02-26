@@ -18,6 +18,7 @@ import {
   Platform,
   Image,
   Modal,
+  Animated,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -127,6 +128,7 @@ export function ChatScreen({ route, navigation }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
 
   // Reactions state: messageId -> ReactionCount[]
   const [reactions, setReactions] = useState<Record<string, ReactionCount[]>>(
@@ -139,8 +141,64 @@ export function ChatScreen({ route, navigation }: Props) {
 
   const flatListRef = useRef<FlatList>(null);
   const hasFetchedRef = useRef(false);
+  const slideAnim = useRef(new Animated.Value(600)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const fetchMembers = useServerStore((s) => s.fetchMembers);
+
+  const openMembers = useCallback(() => {
+    setShowMembers(true);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 65,
+        friction: 11,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
+  const closeMembers = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 600,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowMembers(false));
+  }, [fadeAnim, slideAnim]);
+
+  // Set members button in header
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity onPress={openMembers} style={{ padding: 4 }}>
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: "rgba(114,137,218,0.2)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Feather name="users" size={18} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, openMembers]);
 
   useEffect(() => {
     fetchMembers(serverId);
@@ -740,6 +798,81 @@ export function ChatScreen({ route, navigation }: Props) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Members panel */}
+      <Modal
+        visible={showMembers}
+        animationType="none"
+        transparent
+        onRequestClose={closeMembers}
+      >
+        {/* Tapping the backdrop dismisses the panel */}
+        <TouchableOpacity
+          style={styles.membersContainer}
+          activeOpacity={1}
+          onPress={closeMembers}
+        >
+          {/* Backdrop fades in separately — does not slide */}
+          <Animated.View
+            style={[styles.membersBackdrop, { opacity: fadeAnim }]}
+            pointerEvents="none"
+          />
+          {/* Panel slides up from the bottom */}
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <Animated.View
+              style={[
+                styles.membersPanel,
+                { transform: [{ translateY: slideAnim }] },
+              ]}
+            >
+              <View style={styles.membersPanelHeader}>
+                <Text style={styles.membersPanelTitle}>
+                  Members — {members.length}
+                </Text>
+                <TouchableOpacity onPress={closeMembers}>
+                  <Feather name="x" size={20} color="#b9bbbe" />
+                </TouchableOpacity>
+              </View>
+              <FlatList
+                data={members}
+                keyExtractor={(m) => m.user_id}
+                renderItem={({ item }) => (
+                  <View style={styles.memberRow}>
+                    <View
+                      style={[
+                        styles.memberAvatar,
+                        item.status === "online" && styles.memberAvatarOnline,
+                      ]}
+                    >
+                      <Text style={styles.memberAvatarText}>
+                        {(item.nickname ?? item.username)
+                          .charAt(0)
+                          .toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName}>
+                        {item.nickname ?? item.username}
+                        {item.user_id === user?.id ? " (you)" : ""}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusDot,
+                        item.status === "online"
+                          ? styles.statusOnline
+                          : item.status === "away"
+                            ? styles.statusAway
+                            : styles.statusOffline,
+                      ]}
+                    />
+                  </View>
+                )}
+              />
+            </Animated.View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -747,7 +880,7 @@ export function ChatScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#36393f",
+    backgroundColor: "#1a1a2e",
   },
   list: {
     paddingHorizontal: 12,
@@ -778,7 +911,7 @@ const styles = StyleSheet.create({
   dateLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#4f545c",
+    backgroundColor: "#16213e",
   },
   dateText: {
     color: "#72767d",
@@ -816,7 +949,7 @@ const styles = StyleSheet.create({
     width: 44,
   },
   bubble: {
-    maxWidth: "75%",
+    flex: 1,
     borderRadius: 12,
     padding: 10,
   },
@@ -826,7 +959,7 @@ const styles = StyleSheet.create({
     marginLeft: 44,
   },
   bubbleOther: {
-    backgroundColor: "#2a2a3e",
+    backgroundColor: "#16213e",
     borderBottomLeftRadius: 4,
   },
   authorName: {
@@ -897,12 +1030,12 @@ const styles = StyleSheet.create({
   reactionPill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2a2a3e",
+    backgroundColor: "#16213e",
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: "#40444b",
+    borderColor: "#0f3460",
   },
   reactionPillActive: {
     backgroundColor: "rgba(114,137,218,0.2)",
@@ -921,7 +1054,7 @@ const styles = StyleSheet.create({
     color: "#7289da",
   },
   editInput: {
-    backgroundColor: "#40444b",
+    backgroundColor: "#1e2a4a",
     borderRadius: 6,
     color: "#fff",
     fontSize: 15,
@@ -956,11 +1089,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#2a2a3e",
+    backgroundColor: "#16213e",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: "#40444b",
+    borderTopColor: "#0f3460",
   },
   replyBarText: {
     color: "#b9bbbe",
@@ -971,17 +1104,17 @@ const styles = StyleSheet.create({
   filesPreview: {
     flexDirection: "row",
     flexWrap: "wrap",
-    backgroundColor: "#2a2a3e",
+    backgroundColor: "#16213e",
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: "#40444b",
+    borderTopColor: "#0f3460",
   },
   fileChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#40444b",
+    backgroundColor: "#1e2a4a",
     borderRadius: 6,
     padding: 6,
     maxWidth: 200,
@@ -994,11 +1127,11 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: "row",
     alignItems: "flex-end",
-    backgroundColor: "#2a2a3e",
+    backgroundColor: "#16213e",
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: "#40444b",
+    borderTopColor: "#0f3460",
   },
   attachBtn: {
     paddingHorizontal: 6,
@@ -1007,7 +1140,7 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: "#40444b",
+    backgroundColor: "#1e2a4a",
     borderRadius: 8,
     color: "#fff",
     fontSize: 15,
@@ -1025,7 +1158,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   sendBtnDisabled: {
-    backgroundColor: "#4f545c",
+    backgroundColor: "#16213e",
   },
   pickerOverlay: {
     flex: 1,
@@ -1034,7 +1167,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   pickerCard: {
-    backgroundColor: "#2a2a3e",
+    backgroundColor: "#16213e",
     borderRadius: 12,
     padding: 20,
     minWidth: 280,
@@ -1055,7 +1188,7 @@ const styles = StyleSheet.create({
   pickerEmoji: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: "#36393f",
+    backgroundColor: "#1a1a2e",
   },
   pickerEmojiText: {
     fontSize: 26,
@@ -1079,5 +1212,78 @@ const styles = StyleSheet.create({
     color: "#7289da",
     fontSize: 12,
     fontWeight: "600" as const,
+  },
+  membersContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  membersBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  membersPanel: {
+    backgroundColor: "#16213e",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: "70%",
+    paddingBottom: 32,
+  },
+  membersPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#0f3460",
+  },
+  membersPanelTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  memberAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#4f545c",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  memberAvatarOnline: {
+    backgroundColor: "#7289da",
+  },
+  memberAvatarText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    color: "#dcddde",
+    fontSize: 15,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  statusOnline: {
+    backgroundColor: "#43b581",
+  },
+  statusAway: {
+    backgroundColor: "#faa61a",
+  },
+  statusOffline: {
+    backgroundColor: "#747f8d",
   },
 });

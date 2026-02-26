@@ -379,3 +379,119 @@ async fn register_returns_different_tokens_each_call() {
         "two distinct users received identical access_tokens"
     );
 }
+
+// ============================================================================
+// refresh_token_happy_path
+// ============================================================================
+
+#[tokio::test]
+async fn refresh_token_happy_path() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool.clone());
+    let username = common::unique_username();
+
+    // Register to obtain a refresh token.
+    let (status, body) = common::post_json(
+        app,
+        "/auth/register",
+        json!({ "username": username, "password": "securepassword123" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "register failed: {body}");
+    let refresh_token = body["refresh_token"].as_str().unwrap().to_owned();
+
+    // Exchange refresh token for a new access token.
+    let app = common::create_test_app(pool.clone());
+    let (status, body) = common::post_json(
+        app,
+        "/auth/refresh",
+        json!({ "refresh_token": refresh_token }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "token refresh failed: {body}");
+    assert!(
+        body["access_token"].is_string(),
+        "missing access_token: {body}"
+    );
+    assert!(
+        body["refresh_token"].is_string(),
+        "missing refresh_token: {body}"
+    );
+    assert_eq!(body["user"]["username"], username.as_str());
+
+    // The new access token must work on a protected endpoint.
+    let new_access = body["access_token"].as_str().unwrap().to_owned();
+    let app = common::create_test_app(pool);
+    let (status, me) = common::get_authed(app, "/users/@me", &new_access).await;
+    assert_eq!(status, StatusCode::OK, "new access token rejected: {me}");
+}
+
+// ============================================================================
+// refresh_token_rejects_access_token
+// ============================================================================
+
+#[tokio::test]
+async fn refresh_token_rejects_access_token() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool.clone());
+    let username = common::unique_username();
+
+    let (status, body) = common::post_json(
+        app,
+        "/auth/register",
+        json!({ "username": username, "password": "securepassword123" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "register failed: {body}");
+    let access_token = body["access_token"].as_str().unwrap().to_owned();
+
+    // Attempting to use an access token as a refresh token must fail.
+    let app = common::create_test_app(pool);
+    let (status, body) = common::post_json(
+        app,
+        "/auth/refresh",
+        json!({ "refresh_token": access_token }),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "access token should be rejected at /auth/refresh: {body}"
+    );
+}
+
+// ============================================================================
+// refresh_token_rejects_invalid_token
+// ============================================================================
+
+#[tokio::test]
+async fn refresh_token_rejects_invalid_token() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let (status, body) = common::post_json(
+        app,
+        "/auth/refresh",
+        json!({ "refresh_token": "this.is.not.a.valid.jwt" }),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "malformed token should be rejected: {body}"
+    );
+}
+
+// ============================================================================
+// refresh_token_requires_auth_field
+// ============================================================================
+
+#[tokio::test]
+async fn refresh_token_requires_auth_field() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    // Empty refresh_token string should fail validation.
+    let (status, _) = common::post_json(app, "/auth/refresh", json!({ "refresh_token": "" })).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
