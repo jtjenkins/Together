@@ -51,6 +51,8 @@ function resetStore() {
     attachmentCache: {},
     threadCache: {},
     activeThreadId: null,
+    isThreadLoading: false,
+    threadError: null,
   });
 }
 
@@ -213,22 +215,22 @@ describe("messageStore", () => {
         expect(useMessageStore.getState().threadCache["root-1"]).toEqual(
           replies,
         );
-        expect(useMessageStore.getState().isLoading).toBe(false);
+        expect(useMessageStore.getState().isThreadLoading).toBe(false);
       });
 
-      it("sets error and clears isLoading on failure", async () => {
+      it("sets threadError and clears isThreadLoading on failure", async () => {
         mockApi.listThreadReplies.mockRejectedValueOnce(
           new ApiRequestError(500, "Server error"),
         );
 
         await useMessageStore.getState().fetchThreadReplies("ch-1", "root-1");
 
-        expect(useMessageStore.getState().error).toBe("Server error");
-        expect(useMessageStore.getState().isLoading).toBe(false);
+        expect(useMessageStore.getState().threadError).toBe("Server error");
+        expect(useMessageStore.getState().isThreadLoading).toBe(false);
       });
 
-      it("clears prior error before fetching", async () => {
-        useMessageStore.setState({ error: "old error" });
+      it("clears prior threadError before fetching", async () => {
+        useMessageStore.setState({ threadError: "old error" });
         let resolvePromise!: () => void;
         mockApi.listThreadReplies.mockReturnValueOnce(
           new Promise<never[]>((res) => {
@@ -239,7 +241,7 @@ describe("messageStore", () => {
         const promise = useMessageStore
           .getState()
           .fetchThreadReplies("ch-1", "root-1");
-        expect(useMessageStore.getState().error).toBeNull();
+        expect(useMessageStore.getState().threadError).toBeNull();
         resolvePromise();
         await promise;
       });
