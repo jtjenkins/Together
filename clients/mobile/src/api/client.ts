@@ -127,9 +127,14 @@ class ApiClient {
       storage.setItem(REFRESH_KEY, res.refresh_token);
       this.accessToken = res.access_token;
       return true;
-    } catch {
-      // Refresh token was rejected — the session is truly dead
-      this.onSessionExpired?.();
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 401) {
+        // Server explicitly rejected the refresh token — session is dead.
+        this.onSessionExpired?.();
+      } else {
+        // Network failure, server error, etc. — don't clear a potentially valid session.
+        console.error("[ApiClient] Token refresh failed:", err);
+      }
       return false;
     }
   }

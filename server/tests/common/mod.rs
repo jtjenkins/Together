@@ -56,6 +56,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
         .route("/health", get(handlers::health_check))
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
+        .route("/auth/refresh", post(handlers::auth::refresh_token))
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
         // Server routes

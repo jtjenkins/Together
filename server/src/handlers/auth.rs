@@ -29,8 +29,9 @@ pub struct RegisterRequest {
     pub password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct RefreshRequest {
+    #[validate(length(min = 1, max = 2048))]
     pub refresh_token: String,
 }
 
@@ -180,9 +181,14 @@ pub async fn refresh_token(
     State(state): State<AppState>,
     Json(req): Json<RefreshRequest>,
 ) -> AppResult<Json<AuthResponse>> {
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
     // Validate JWT signature and expiry
-    let claims = validate_token(&req.refresh_token, &state.jwt_secret)
-        .map_err(|_| AppError::Auth("Invalid or expired refresh token".into()))?;
+    let claims = validate_token(&req.refresh_token, &state.jwt_secret).map_err(|e| {
+        tracing::warn!("Refresh token JWT validation failed: {:?}", e);
+        AppError::Auth("Invalid or expired refresh token".into())
+    })?;
 
     if claims.token_type != TokenType::Refresh {
         return Err(AppError::Auth("Not a refresh token".into()));
@@ -198,13 +204,18 @@ pub async fn refresh_token(
     .bind(&token_hash)
     .fetch_optional(&state.pool)
     .await?
-    .ok_or_else(|| AppError::Auth("Session not found or expired".into()))?;
+    .ok_or_else(|| {
+        tracing::warn!("Refresh attempted with unknown or expired session");
+        AppError::Auth("Session not found or expired".into())
+    })?;
 
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
         .bind(row.0)
         .fetch_optional(&state.pool)
         .await?
         .ok_or_else(|| AppError::Auth("User not found".into()))?;
+
+    info!("Token refresh for user: {} ({})", user.username, user.id);
 
     // Issue a new access token; the refresh token is reused until it expires
     let access_token = create_access_token(user.id, user.username.clone(), &state.jwt_secret)?;

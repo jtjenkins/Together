@@ -25,6 +25,9 @@ import type {
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
+const TOKEN_KEY = "together_access_token";
+const REFRESH_KEY = "together_refresh_token";
+
 function resolveApiBase(): string {
   if (isTauri) {
     const saved = localStorage.getItem(SERVER_URL_KEY);
@@ -110,7 +113,7 @@ class ApiClient {
 
   /** Exchange a stored refresh token for a new access token. Returns true on success. */
   private async tryRefresh(): Promise<boolean> {
-    const refreshToken = localStorage.getItem("together_refresh_token");
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
     if (!refreshToken) return false;
     try {
       const res = await this.request<AuthResponse>("/auth/refresh", {
@@ -118,13 +121,18 @@ class ApiClient {
         body: JSON.stringify({ refresh_token: refreshToken }),
         skipRefresh: true,
       });
-      localStorage.setItem("together_access_token", res.access_token);
-      localStorage.setItem("together_refresh_token", res.refresh_token);
+      localStorage.setItem(TOKEN_KEY, res.access_token);
+      localStorage.setItem(REFRESH_KEY, res.refresh_token);
       this.accessToken = res.access_token;
       return true;
-    } catch {
-      // Refresh token was rejected — the session is truly dead
-      this.onSessionExpired?.();
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 401) {
+        // Server explicitly rejected the refresh token — session is dead.
+        this.onSessionExpired?.();
+      } else {
+        // Network failure, server error, etc. — don't clear a potentially valid session.
+        console.error("[ApiClient] Token refresh failed:", err);
+      }
       return false;
     }
   }

@@ -124,15 +124,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (err) {
       if (
-        !(
-          err instanceof ApiRequestError &&
-          (err.status === 401 || err.status === 403)
-        )
+        err instanceof ApiRequestError &&
+        (err.status === 401 || err.status === 403)
       ) {
+        // Credentials are invalid — clear them so the user goes to the login screen.
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_KEY);
+      } else {
+        // Network or server error — leave credentials intact so the next launch can retry.
         console.error("[Auth] Unexpected session restore failure:", err);
       }
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_KEY);
       api.setToken(null);
       set({ isLoading: false });
     }
