@@ -348,29 +348,29 @@ describe("messageStore", () => {
         expect(useMessageStore.getState().threadCache["root-1"]).toEqual(
           replies,
         );
-        expect(useMessageStore.getState().isLoading).toBe(false);
+        expect(useMessageStore.getState().isThreadLoading).toBe(false);
       });
 
-      it("should set error and clear isLoading on failure", async () => {
+      it("should set threadError and clear isThreadLoading on failure", async () => {
         vi.mocked(api.listThreadReplies).mockRejectedValueOnce(
           new Error("Network error"),
         );
 
         await useMessageStore.getState().fetchThreadReplies("ch-1", "root-1");
 
-        expect(useMessageStore.getState().error).toBeTruthy();
-        expect(useMessageStore.getState().isLoading).toBe(false);
+        expect(useMessageStore.getState().threadError).toBeTruthy();
+        expect(useMessageStore.getState().isThreadLoading).toBe(false);
       });
 
-      it("should clear prior error before fetching", async () => {
-        useMessageStore.setState({ error: "old error" });
+      it("should clear prior threadError before fetching", async () => {
+        useMessageStore.setState({ threadError: "old error" });
         vi.mocked(api.listThreadReplies).mockResolvedValueOnce([]);
 
         // Don't await — check state during the async gap
         const promise = useMessageStore
           .getState()
           .fetchThreadReplies("ch-1", "root-1");
-        expect(useMessageStore.getState().error).toBeNull();
+        expect(useMessageStore.getState().threadError).toBeNull();
         await promise;
       });
     });
