@@ -57,7 +57,7 @@
 .body {
   display: flex;
   gap: 16px;
-  padding: 0 8px;
+  padding: 5px 8px;
 }
 
 .avatar {
@@ -168,7 +168,7 @@
 
 .actions {
   position: absolute;
-  top: -12px;
+  top: -16px;
   right: 16px;
   display: flex;
   gap: 2px;
@@ -177,6 +177,14 @@
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   padding: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+
+.message:hover .actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .actionBtn {
@@ -200,6 +208,31 @@
 
 .dangerBtn:hover {
   color: var(--accent-red);
+}
+
+.quickPicker {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: flex;
+  gap: 2px;
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+
+.quickEmoji {
+  font-size: 18px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: background 0.1s;
+}
+
+.quickEmoji:hover {
+  background: var(--bg-hover);
 }
 
 /* ── Attachments ──────────────────────────── */
@@ -282,4 +315,95 @@
 .mentionSelf {
   background: rgba(250, 166, 26, 0.3);
   color: #faa61a;
+}
+
+/* ── Thread footer ────────────────────────── */
+
+.threadFooter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 2px 56px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(88, 101, 242, 0.08);
+  color: var(--accent-primary);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.threadFooter:hover {
+  background: rgba(88, 101, 242, 0.18);
+}
+
+.threadIcon {
+  font-size: 13px;
+}
+
+.threadCount {
+  font-size: 12px;
+}
+
+/* ── Own messages (right-aligned bubble) ─── */
+
+.own {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.own .replyBar {
+  flex-direction: row-reverse;
+  padding: 2px 56px 4px 0;
+}
+
+.own .body {
+  flex-direction: row-reverse;
+  max-width: 70%;
+}
+
+.own .header {
+  flex-direction: row-reverse;
+}
+
+.own .text {
+  background: var(--accent-primary);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 18px 18px 4px 18px;
+  display: inline-block;
+}
+
+.own.compact .text {
+  border-radius: 4px 18px 4px 18px;
+}
+
+.own .mention {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.own .mentionSelf {
+  background: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
+.own .actions {
+  left: 16px;
+  right: auto;
+}
+
+.own .reactionArea {
+  padding-left: 0;
+  padding-right: 52px;
+}
+
+.own .threadFooter {
+  margin-left: 0;
+  margin-right: 56px;
+}
+
+.own .deletedContent {
+  padding: 4px 56px 4px 0;
 }

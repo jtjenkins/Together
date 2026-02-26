@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Settings, Plus, Hash, Volume2 } from "lucide-react";
 import { useChannelStore } from "../../stores/channelStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
@@ -6,6 +7,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useReadStateStore } from "../../stores/readStateStore";
 import { CreateChannelModal } from "../channels/CreateChannelModal";
 import { EditChannelModal } from "../channels/EditChannelModal";
+import { ServerSettingsModal } from "../servers/ServerSettingsModal";
 import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
 import { api } from "../../api/client";
 import type { Channel } from "../../types";
@@ -31,6 +33,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const clearMentions = useReadStateStore((s) => s.clearMentions);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -80,6 +83,15 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     <div className={styles.sidebar}>
       <div className={styles.header}>
         <h2 className={styles.serverName}>{server?.name ?? "Server"}</h2>
+        {isOwner && (
+          <button
+            className={styles.settingsBtn}
+            onClick={() => setShowSettings(true)}
+            title="Server Settings"
+          >
+            <Settings size={16} />
+          </button>
+        )}
       </div>
 
       <div className={styles.channelList}>
@@ -93,7 +105,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                   onClick={() => setShowCreate(true)}
                   title="Create Channel"
                 >
-                  +
+                  <Plus size={14} />
                 </button>
               )}
             </div>
@@ -109,7 +121,11 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                   onContextMenu={(e) => handleContextMenu(e, channel)}
                 >
                   <span className={styles.channelIcon}>
-                    {channel.type === "text" ? "#" : "\u{1F50A}"}
+                    {channel.type === "text" ? (
+                      <Hash size={13} />
+                    ) : (
+                      <Volume2 size={13} />
+                    )}
                   </span>
                   <span className={styles.channelName}>{channel.name}</span>
                   {mentions > 0 && !isActive && (
@@ -140,6 +156,14 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
           </div>
         )}
       </div>
+
+      {showSettings && server && (
+        <ServerSettingsModal
+          open={true}
+          onClose={() => setShowSettings(false)}
+          server={server}
+        />
+      )}
 
       <CreateChannelModal
         open={showCreate}

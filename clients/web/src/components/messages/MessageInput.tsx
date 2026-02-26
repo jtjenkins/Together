@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
   type DragEvent,
 } from "react";
+import { Paperclip, ImageIcon, FileText, ArrowUp } from "lucide-react";
 import { useMessageStore } from "../../stores/messageStore";
 import { useChannelStore } from "../../stores/channelStore";
 import styles from "./MessageInput.module.css";
@@ -124,7 +125,11 @@ export function MessageInput({ channelId }: MessageInputProps) {
           {pendingFiles.map((file, i) => (
             <div key={i} className={styles.fileChip}>
               <span className={styles.fileIcon}>
-                {file.type.startsWith("image/") ? "🖼️" : "📄"}
+                {file.type.startsWith("image/") ? (
+                  <ImageIcon size={14} />
+                ) : (
+                  <FileText size={14} />
+                )}
               </span>
               <span className={styles.fileName} title={file.name}>
                 {file.name}
@@ -150,7 +155,7 @@ export function MessageInput({ channelId }: MessageInputProps) {
           title="Attach files"
           aria-label="Attach files"
         >
-          📎
+          <Paperclip size={18} />
         </button>
         <input
           ref={fileInputRef}
@@ -174,6 +179,15 @@ export function MessageInput({ channelId }: MessageInputProps) {
           maxLength={4000}
           aria-label="Message input"
         />
+        <button
+          type="submit"
+          className={styles.sendBtn}
+          disabled={!content.trim() && pendingFiles.length === 0}
+          aria-label="Send message"
+          title="Send message"
+        >
+          <ArrowUp size={18} />
+        </button>
       </form>
     </div>
   );

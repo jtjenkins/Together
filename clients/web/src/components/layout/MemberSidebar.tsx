@@ -1,4 +1,5 @@
 import { useAuthStore } from "../../stores/authStore";
+import { Mail } from "lucide-react";
 import { useServerStore } from "../../stores/serverStore";
 import { useDmStore } from "../../stores/dmStore";
 import type { MemberDto, UserStatus } from "../../types";
@@ -45,7 +46,7 @@ function MemberItem({ member }: { member: MemberDto }) {
           onClick={handleMessage}
           title={`Message ${member.nickname || member.username}`}
         >
-          &#9993;
+          <Mail size={14} />
         </button>
       )}
     </div>

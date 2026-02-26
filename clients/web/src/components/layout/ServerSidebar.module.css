@@ -67,12 +67,23 @@
   background: transparent;
   border: 2px dashed var(--border-color-strong);
   color: var(--accent-green);
-  font-size: 24px;
 }
 
 .addIcon:hover {
   background: var(--accent-green);
   border-color: var(--accent-green);
+  color: #fff;
+}
+
+.browseIcon {
+  background: transparent;
+  border: 2px dashed var(--border-color-strong);
+  color: var(--accent-primary);
+}
+
+.browseIcon:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
   color: #fff;
 }
 

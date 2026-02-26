@@ -1,15 +1,25 @@
 import { useState } from "react";
+import { Compass, Plus } from "lucide-react";
 import { useServerStore } from "../../stores/serverStore";
 import { useChannelStore } from "../../stores/channelStore";
 import { useAuthStore } from "../../stores/authStore";
 import { CreateServerModal } from "../servers/CreateServerModal";
+import { BrowseServersModal } from "../servers/BrowseServersModal";
 import { ServerSettingsModal } from "../servers/ServerSettingsModal";
 import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
 import { UserPanel } from "../users/UserPanel";
 import type { ServerDto } from "../../types";
 import styles from "./ServerSidebar.module.css";
 
-export function ServerSidebar() {
+interface ServerSidebarProps {
+  showBrowse: boolean;
+  onShowBrowse: (show: boolean) => void;
+}
+
+export function ServerSidebar({
+  showBrowse,
+  onShowBrowse,
+}: ServerSidebarProps) {
   const servers = useServerStore((s) => s.servers);
   const activeServerId = useServerStore((s) => s.activeServerId);
   const setActiveServer = useServerStore((s) => s.setActiveServer);
@@ -76,11 +86,19 @@ export function ServerSidebar() {
         ))}
 
         <button
+          className={`${styles.serverIcon} ${styles.browseIcon}`}
+          onClick={() => onShowBrowse(true)}
+          title="Browse Servers"
+        >
+          <Compass size={20} />
+        </button>
+
+        <button
           className={`${styles.serverIcon} ${styles.addIcon}`}
           onClick={() => setShowCreate(true)}
           title="Create Server"
         >
-          +
+          <Plus size={20} />
         </button>
       </div>
 
@@ -89,6 +107,11 @@ export function ServerSidebar() {
       <CreateServerModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
+      />
+
+      <BrowseServersModal
+        open={showBrowse}
+        onClose={() => onShowBrowse(false)}
       />
 
       {editingServer && (

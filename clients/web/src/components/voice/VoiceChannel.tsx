@@ -1,4 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
+import {
+  Mic,
+  MicOff,
+  Headphones,
+  HeadphoneOff,
+  Volume2,
+  PhoneOff,
+  Settings,
+  X,
+} from "lucide-react";
 import { useVoiceStore } from "../../stores/voiceStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useChannelStore } from "../../stores/channelStore";
@@ -7,6 +17,11 @@ import { gateway } from "../../api/websocket";
 import { api } from "../../api/client";
 import type { VoiceParticipant, VoiceStateUpdateEvent } from "../../types";
 import styles from "./VoiceChannel.module.css";
+
+interface AudioDevice {
+  deviceId: string;
+  label: string;
+}
 
 interface VoiceChannelProps {
   channelId: string;
@@ -31,8 +46,55 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
   const [initialPeers, setInitialPeers] = useState<string[]>([]);
   const [rtcError, setRtcError] = useState<string | null>(null);
 
+  // Speaking state: set of user IDs currently transmitting audio
+  const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
+
+  // Audio device selection
+  const [micDeviceId, setMicDeviceId] = useState<string | null>(null);
+  const [speakerDeviceId, setSpeakerDeviceId] = useState<string | null>(null);
+  const [micDevices, setMicDevices] = useState<AudioDevice[]>([]);
+  const [speakerDevices, setSpeakerDevices] = useState<AudioDevice[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
+
   const channel = channels.find((c) => c.id === channelId);
   const isConnected = connectedChannelId === channelId;
+
+  const handleSpeakingChange = useCallback(
+    (userId: string, isSpeaking: boolean) => {
+      setSpeakingUsers((prev) => {
+        const next = new Set(prev);
+        if (isSpeaking) next.add(userId);
+        else next.delete(userId);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const enumerateDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices?.enumerateDevices();
+      if (!devices) return;
+      setMicDevices(
+        devices
+          .filter((d) => d.kind === "audioinput")
+          .map((d, i) => ({
+            deviceId: d.deviceId,
+            label: d.label || `Microphone ${i + 1}`,
+          })),
+      );
+      setSpeakerDevices(
+        devices
+          .filter((d) => d.kind === "audiooutput")
+          .map((d, i) => ({
+            deviceId: d.deviceId,
+            label: d.label || `Speaker ${i + 1}`,
+          })),
+      );
+    } catch {
+      // enumerateDevices unavailable or permission denied
+    }
+  }, []);
 
   const fetchParticipants = useCallback(async () => {
     try {
@@ -111,6 +173,7 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
       setInitialPeers(
         list.filter((p) => p.user_id !== user?.id).map((p) => p.user_id),
       );
+      await enumerateDevices();
     } catch {
       // Error displayed via voiceError from store
     }
@@ -119,6 +182,7 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
   const handleLeave = async () => {
     await leave();
     setInitialPeers([]);
+    setSpeakingUsers(new Set());
     await fetchParticipants();
   };
 
@@ -148,7 +212,10 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
     initialPeers,
     isMuted,
     isDeafened,
+    micDeviceId,
+    speakerDeviceId,
     onError: setRtcError,
+    onSpeakingChange: handleSpeakingChange,
   });
 
   const activeError = voiceError ?? rtcError;
@@ -156,7 +223,7 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
   return (
     <div className={styles.voiceChannel}>
       <div className={styles.header}>
-        <span className={styles.headerIcon}>🔊</span>
+        <Volume2 size={18} className={styles.headerIcon} />
         <h2 className={styles.channelName}>{channel?.name ?? "Voice"}</h2>
       </div>
 
@@ -170,7 +237,7 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
               setRtcError(null);
             }}
           >
-            ✕
+            <X size={14} />
           </button>
         </div>
       )}
@@ -187,7 +254,9 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
             <ul className={styles.participantList}>
               {participants.map((p) => (
                 <li key={p.user_id} className={styles.participant}>
-                  <div className={styles.participantAvatar}>
+                  <div
+                    className={`${styles.participantAvatar} ${speakingUsers.has(p.user_id) ? styles.speaking : ""}`}
+                  >
                     {(p.username || "?").charAt(0).toUpperCase()}
                   </div>
                   <span
@@ -202,7 +271,7 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
                         className={styles.stateIcon}
                         title={p.server_mute ? "Server muted" : "Muted"}
                       >
-                        🔇
+                        <MicOff size={14} />
                       </span>
                     )}
                     {(p.self_deaf || p.server_deaf) && (
@@ -210,7 +279,7 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
                         className={styles.stateIcon}
                         title={p.server_deaf ? "Server deafened" : "Deafened"}
                       >
-                        🔕
+                        <HeadphoneOff size={14} />
                       </span>
                     )}
                   </div>
@@ -241,23 +310,74 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
                   onClick={handleToggleMute}
                   title={isMuted ? "Unmute" : "Mute"}
                 >
-                  {isMuted ? "🔇" : "🎤"}
+                  {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
                 </button>
                 <button
                   className={`${styles.controlBtn} ${isDeafened ? styles.controlActive : ""}`}
                   onClick={handleToggleDeafen}
                   title={isDeafened ? "Undeafen" : "Deafen"}
                 >
-                  {isDeafened ? "🔕" : "🎧"}
+                  {isDeafened ? (
+                    <HeadphoneOff size={20} />
+                  ) : (
+                    <Headphones size={20} />
+                  )}
+                </button>
+                <button
+                  className={`${styles.controlBtn} ${showSettings ? styles.controlActive : ""}`}
+                  onClick={() => {
+                    setShowSettings((v) => !v);
+                    if (!showSettings) enumerateDevices();
+                  }}
+                  title="Audio Settings"
+                >
+                  <Settings size={20} />
                 </button>
                 <button
                   className={`${styles.controlBtn} ${styles.leaveBtn}`}
                   onClick={handleLeave}
                   title="Disconnect from voice"
                 >
-                  📞
+                  <PhoneOff size={20} />
                 </button>
               </div>
+
+              {showSettings && (
+                <div className={styles.deviceSettings}>
+                  <div className={styles.deviceRow}>
+                    <label className={styles.deviceLabel}>Microphone</label>
+                    <select
+                      className={styles.deviceSelect}
+                      value={micDeviceId ?? ""}
+                      onChange={(e) => setMicDeviceId(e.target.value || null)}
+                    >
+                      <option value="">Default</option>
+                      {micDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.deviceRow}>
+                    <label className={styles.deviceLabel}>Speaker</label>
+                    <select
+                      className={styles.deviceSelect}
+                      value={speakerDeviceId ?? ""}
+                      onChange={(e) =>
+                        setSpeakerDeviceId(e.target.value || null)
+                      }
+                    >
+                      <option value="">Default</option>
+                      {speakerDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>

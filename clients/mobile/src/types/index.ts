@@ -109,6 +109,10 @@ export interface Message {
   reply_to: string | null;
   mention_user_ids: string[];
   mention_everyone: boolean;
+  /** Set on thread replies; null on root messages. */
+  thread_id: string | null;
+  /** Number of non-deleted thread replies; meaningful only on root messages. */
+  thread_reply_count: number;
   edited_at: string | null;
   deleted: boolean;
   created_at: string;
@@ -117,6 +121,10 @@ export interface Message {
 export interface CreateMessageRequest {
   content: string;
   reply_to?: string;
+}
+
+export interface CreateThreadReplyRequest {
+  content: string;
 }
 
 export interface UpdateMessageRequest {

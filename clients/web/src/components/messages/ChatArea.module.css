@@ -17,9 +17,8 @@
 }
 
 .channelIcon {
-  font-size: 20px;
   color: var(--text-muted);
-  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .channelName {

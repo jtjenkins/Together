@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ServersStackParamList } from "../navigation";
 import { useChannelStore } from "../stores/channelStore";
@@ -95,9 +96,13 @@ export function ChannelListScreen({ route, navigation }: Props) {
               style={styles.channelItem}
               onPress={() => handleChannelPress(item)}
             >
-              <Text style={styles.channelPrefix}>
-                {item.type === "text" ? "#" : "🔊"}
-              </Text>
+              <View style={styles.channelPrefixContainer}>
+                {item.type === "text" ? (
+                  <Text style={styles.channelPrefixText}>#</Text>
+                ) : (
+                  <Feather name="volume-2" size={16} color="#72767d" />
+                )}
+              </View>
               <Text
                 style={[
                   styles.channelName,
@@ -163,12 +168,14 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginHorizontal: 8,
   },
-  channelPrefix: {
+  channelPrefixContainer: {
+    width: 20,
+    alignItems: "center",
+    marginRight: 8,
+  },
+  channelPrefixText: {
     color: "#72767d",
     fontSize: 16,
-    marginRight: 8,
-    width: 20,
-    textAlign: "center",
   },
   channelName: {
     color: "#dcddde",

@@ -86,11 +86,13 @@ sqlx migrate info
 ## Current Status
 
 **Phase 1: Database Foundation** ✅
+
 - PostgreSQL 16 setup
 - Complete schema with migrations
 - Seed data for development
 
 **Phase 2: Core Backend** 🚧 (Next)
+
 - REST API implementation
 - JWT authentication
 - Basic CRUD operations

@@ -5,6 +5,7 @@
 This document proposes a simplified architecture appropriate for small groups (20-100 users), maintaining the core Together vision while eliminating unnecessary complexity.
 
 **Key Changes**:
+
 - Monolithic application instead of microservices
 - Single database (PostgreSQL) instead of three systems
 - Single programming language (Rust or Go)
@@ -64,24 +65,25 @@ This document proposes a simplified architecture appropriate for small groups (2
 
 ## Technology Stack Comparison
 
-| Component | Original Plan | Right-Sized | Justification |
-|-----------|--------------|-------------|---------------|
-| **Backend** | 3 services (Rust) + 1 (Go) | Single Rust app | Simpler deployment, easier to maintain |
-| **Messages DB** | ScyllaDB cluster | PostgreSQL | PostgreSQL handles 10k writes/sec easily |
-| **Sessions** | Redis cluster | PostgreSQL | Built-in sessions table, no extra service |
-| **Search** | Elasticsearch | PostgreSQL FTS | pg_trgm + ts_vector sufficient for 20 users |
-| **Cache** | Redis | None initially | PostgreSQL is fast enough at this scale |
-| **Voice** | Separate Go service | Embedded in monolith | Reduce service count |
-| **Queue** | NATS/RabbitMQ | None | Async tasks in-process (tokio) |
-| **Storage** | MinIO/S3 | Local filesystem | 50GB local storage = years of attachments |
-| **Deployment** | Kubernetes | Docker Compose | Simple single-server deploy |
-| **Monitoring** | Prometheus + Grafana | Logs + simple metrics | Over-monitoring adds noise |
+| Component       | Original Plan              | Right-Sized           | Justification                               |
+| --------------- | -------------------------- | --------------------- | ------------------------------------------- |
+| **Backend**     | 3 services (Rust) + 1 (Go) | Single Rust app       | Simpler deployment, easier to maintain      |
+| **Messages DB** | ScyllaDB cluster           | PostgreSQL            | PostgreSQL handles 10k writes/sec easily    |
+| **Sessions**    | Redis cluster              | PostgreSQL            | Built-in sessions table, no extra service   |
+| **Search**      | Elasticsearch              | PostgreSQL FTS        | pg_trgm + ts_vector sufficient for 20 users |
+| **Cache**       | Redis                      | None initially        | PostgreSQL is fast enough at this scale     |
+| **Voice**       | Separate Go service        | Embedded in monolith  | Reduce service count                        |
+| **Queue**       | NATS/RabbitMQ              | None                  | Async tasks in-process (tokio)              |
+| **Storage**     | MinIO/S3                   | Local filesystem      | 50GB local storage = years of attachments   |
+| **Deployment**  | Kubernetes                 | Docker Compose        | Simple single-server deploy                 |
+| **Monitoring**  | Prometheus + Grafana       | Logs + simple metrics | Over-monitoring adds noise                  |
 
 ---
 
 ## Database Schema (PostgreSQL Only)
 
 ### Users & Auth
+
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -104,6 +106,7 @@ CREATE TABLE sessions (
 ```
 
 ### Servers & Channels
+
 ```sql
 CREATE TABLE servers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,6 +127,7 @@ CREATE TABLE channels (
 ```
 
 ### Messages
+
 ```sql
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -145,6 +149,7 @@ CREATE INDEX idx_messages_search ON messages USING GIN(to_tsvector('english', co
 ```
 
 ### Roles & Permissions
+
 ```sql
 CREATE TABLE roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -214,7 +219,7 @@ together/
 ### Docker Compose (Single File)
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -229,8 +234,8 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"       # HTTP/WebSocket
-      - "7880-8000:7880-8000/udp"  # WebRTC
+      - "8080:8080" # HTTP/WebSocket
+      - "7880-8000:7880-8000/udp" # WebRTC
     environment:
       DATABASE_URL: postgres://postgres:${DB_PASSWORD}@postgres/together
       JWT_SECRET: ${JWT_SECRET}
@@ -238,7 +243,7 @@ services:
       - postgres
     restart: unless-stopped
     volumes:
-      - app_data:/data    # File attachments
+      - app_data:/data # File attachments
 
 volumes:
   postgres_data:
@@ -246,6 +251,7 @@ volumes:
 ```
 
 **Deployment Steps**:
+
 ```bash
 # Initial setup (5 minutes)
 git clone https://github.com/yourorg/together
@@ -265,26 +271,28 @@ docker-compose exec app together-cli create-admin
 ## Cost Comparison
 
 ### Original Architecture (Kubernetes, Microservices)
-| Service | Cost/Month |
-|---------|------------|
-| Gateway servers (2x) | $40 |
-| Chat service (2x) | $40 |
-| User service (2x) | $40 |
-| Voice servers (2x) | $80 |
-| ScyllaDB (3-node) | $120 |
-| PostgreSQL | $20 |
-| Redis cluster | $40 |
-| Object storage | $10 |
-| Load balancer | $20 |
-| **Total** | **$410/month** |
+
+| Service              | Cost/Month     |
+| -------------------- | -------------- |
+| Gateway servers (2x) | $40            |
+| Chat service (2x)    | $40            |
+| User service (2x)    | $40            |
+| Voice servers (2x)   | $80            |
+| ScyllaDB (3-node)    | $120           |
+| PostgreSQL           | $20            |
+| Redis cluster        | $40            |
+| Object storage       | $10            |
+| Load balancer        | $20            |
+| **Total**            | **$410/month** |
 
 ### Right-Sized Architecture
-| Service | Cost/Month |
-|---------|------------|
-| Single VPS (4 vCPU, 8GB) | $20 |
-| PostgreSQL (included) | $0 |
-| Storage (included) | $0 |
-| **Total** | **$20/month** |
+
+| Service                  | Cost/Month    |
+| ------------------------ | ------------- |
+| Single VPS (4 vCPU, 8GB) | $20           |
+| PostgreSQL (included)    | $0            |
+| Storage (included)       | $0            |
+| **Total**                | **$20/month** |
 
 **Savings**: $390/month = $4,680/year for 20 users
 
@@ -292,17 +300,18 @@ docker-compose exec app together-cli create-admin
 
 ## Performance Targets for 20 Users
 
-| Metric | Target | Reality at 20 Users |
-|--------|--------|---------------------|
-| Message delivery | < 100ms | ~10-20ms (same region) |
-| Voice latency | < 200ms | ~50-100ms (WebRTC) |
-| Message history load | < 50ms | ~5ms (PostgreSQL index scan) |
-| Concurrent voice users | 20 | Easily handled by single server |
-| Message storage | Infinite | 1M messages = ~500MB |
-| File storage | 50GB+ | Years of screenshots |
-| Uptime | 99%+ | VPS reliability is 99.9% |
+| Metric                 | Target   | Reality at 20 Users             |
+| ---------------------- | -------- | ------------------------------- |
+| Message delivery       | < 100ms  | ~10-20ms (same region)          |
+| Voice latency          | < 200ms  | ~50-100ms (WebRTC)              |
+| Message history load   | < 50ms   | ~5ms (PostgreSQL index scan)    |
+| Concurrent voice users | 20       | Easily handled by single server |
+| Message storage        | Infinite | 1M messages = ~500MB            |
+| File storage           | 50GB+    | Years of screenshots            |
+| Uptime                 | 99%+     | VPS reliability is 99.9%        |
 
 **The math**:
+
 - 20 users × 100 messages/day = 2,000 messages/day = 730k/year
 - At 500 bytes/message = 365MB/year storage
 - A $20/month VPS has 250GB+ storage
@@ -323,15 +332,16 @@ If your community grows beyond 100 users, THEN consider:
 
 ## Development Timeline Comparison
 
-| Phase | Microservices | Monolithic | Time Saved |
-|-------|---------------|------------|------------|
-| Setup | 2 weeks | 3 days | 11 days |
-| Auth | 2 weeks | 1 week | 1 week |
-| Text chat | 4 weeks | 2 weeks | 2 weeks |
-| Voice | 6 weeks | 4 weeks | 2 weeks |
-| **Total MVP** | **14 weeks** | **7-8 weeks** | **6 weeks** |
+| Phase         | Microservices | Monolithic    | Time Saved  |
+| ------------- | ------------- | ------------- | ----------- |
+| Setup         | 2 weeks       | 3 days        | 11 days     |
+| Auth          | 2 weeks       | 1 week        | 1 week      |
+| Text chat     | 4 weeks       | 2 weeks       | 2 weeks     |
+| Voice         | 6 weeks       | 4 weeks       | 2 weeks     |
+| **Total MVP** | **14 weeks**  | **7-8 weeks** | **6 weeks** |
 
 **Why faster**:
+
 - No service coordination overhead
 - Single codebase, single language
 - Simpler deployment testing
@@ -341,16 +351,16 @@ If your community grows beyond 100 users, THEN consider:
 
 ## Recommended Tech Stack for 20 Users
 
-| Component | Choice | Why |
-|-----------|--------|-----|
-| **Backend** | Rust (Axum) | Best of both worlds - performance + safety |
-| **Alternative** | Go (Gin) | Easier to learn, still great performance |
-| **Database** | PostgreSQL 16 | Battle-tested, feature-rich, handles scale |
-| **Desktop** | Tauri + React | Keep original plan - excellent choice |
-| **Mobile** | React Native | Keep original plan |
-| **Voice** | Pion (embedded) | Great WebRTC library, no separate service |
-| **Deployment** | Docker Compose | Simple, reliable, version-controlled |
-| **Hosting** | Hetzner/DigitalOcean VPS | $20/month, reliable, easy |
+| Component       | Choice                   | Why                                        |
+| --------------- | ------------------------ | ------------------------------------------ |
+| **Backend**     | Rust (Axum)              | Best of both worlds - performance + safety |
+| **Alternative** | Go (Gin)                 | Easier to learn, still great performance   |
+| **Database**    | PostgreSQL 16            | Battle-tested, feature-rich, handles scale |
+| **Desktop**     | Tauri + React            | Keep original plan - excellent choice      |
+| **Mobile**      | React Native             | Keep original plan                         |
+| **Voice**       | Pion (embedded)          | Great WebRTC library, no separate service  |
+| **Deployment**  | Docker Compose           | Simple, reliable, version-controlled       |
+| **Hosting**     | Hetzner/DigitalOcean VPS | $20/month, reliable, easy                  |
 
 ---
 
@@ -375,6 +385,7 @@ The original architecture is technically sound but **economically and operationa
 **Recommendation**: Build the simplified monolithic version first. If you grow to 500+ users and have real scale problems, THEN migrate to microservices with confidence and data to guide the transition.
 
 This approach:
+
 - ✅ Saves 6 weeks of development time
 - ✅ Reduces hosting costs by 95% ($20 vs $410/month)
 - ✅ Eliminates operational complexity

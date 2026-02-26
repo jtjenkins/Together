@@ -11,6 +11,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: true, // bind to 0.0.0.0 so the dev server is reachable on the LAN
+    allowedHosts: ["together.wizjenkins.com"],
     proxy: {
       "/api": {
         target: "http://localhost:8080",

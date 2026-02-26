@@ -19,6 +19,7 @@ import {
   Image,
   Modal,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ServersStackParamList } from "../navigation";
 import { useMessageStore } from "../stores/messageStore";
@@ -98,7 +99,7 @@ function shouldShowHeader(msg: Message, prev: Message | null): boolean {
   return false;
 }
 
-export function ChatScreen({ route }: Props) {
+export function ChatScreen({ route, navigation }: Props) {
   const { channelId, serverId } = route.params;
   const user = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
@@ -288,59 +289,76 @@ export function ChatScreen({ route }: Props) {
   const handleLongPress = (msg: Message) => {
     if (msg.deleted) return;
     const isOwn = msg.author_id === user?.id;
+    const isRoot = !msg.thread_id;
 
-    const options = isOwn
-      ? ["Reply", "React", "Edit", "Delete", "Cancel"]
-      : ["Reply", "React", "Cancel"];
+    type ActionItem = {
+      label: string;
+      action: () => void;
+      destructive?: boolean;
+    };
+    const actionItems: ActionItem[] = [
+      { label: "Reply", action: () => setReplyingTo(msg) },
+      { label: "React", action: () => setReactionPickerMessageId(msg.id) },
+      ...(isRoot
+        ? [
+            {
+              label: "Open Thread",
+              action: () =>
+                navigation.navigate("Thread", {
+                  channelId,
+                  messageId: msg.id,
+                  rootContent: msg.content,
+                  serverId,
+                }),
+            },
+          ]
+        : []),
+      ...(isOwn
+        ? [
+            {
+              label: "Edit",
+              action: () => {
+                setEditingId(msg.id);
+                setEditContent(msg.content);
+              },
+            },
+            {
+              label: "Delete",
+              action: () => confirmDelete(msg.id),
+              destructive: true,
+            },
+          ]
+        : []),
+    ];
 
     if (Platform.OS === "ios") {
+      const destructiveIdx = actionItems.findIndex((a) => a.destructive);
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options,
-          destructiveButtonIndex: isOwn ? 3 : undefined,
-          cancelButtonIndex: options.length - 1,
+          options: [...actionItems.map((a) => a.label), "Cancel"],
+          // Pass undefined (not -1) when there is no destructive action;
+          // iOS treats -1 as an invalid index and may behave unexpectedly.
+          destructiveButtonIndex:
+            destructiveIdx >= 0 ? destructiveIdx : undefined,
+          cancelButtonIndex: actionItems.length,
         },
-        (idx) => handleAction(idx, msg, isOwn),
+        (idx) => {
+          if (idx < actionItems.length) {
+            actionItems[idx].action();
+          }
+        },
       );
     } else {
-      const buttons = [
-        { text: "Reply", onPress: () => setReplyingTo(msg) },
-        {
-          text: "React",
-          onPress: () => setReactionPickerMessageId(msg.id),
-        },
-        ...(isOwn
-          ? [
-              {
-                text: "Edit",
-                onPress: () => {
-                  setEditingId(msg.id);
-                  setEditContent(msg.content);
-                },
-              },
-              {
-                text: "Delete",
-                style: "destructive" as const,
-                onPress: () => confirmDelete(msg.id),
-              },
-            ]
-          : []),
+      Alert.alert("Message", undefined, [
+        ...actionItems.map((a) => ({
+          text: a.label,
+          style: a.destructive
+            ? ("destructive" as const)
+            : ("default" as const),
+          onPress: a.action,
+        })),
         { text: "Cancel", style: "cancel" as const },
-      ];
-      Alert.alert("Message", undefined, buttons);
-    }
-  };
-
-  const handleAction = (idx: number, msg: Message, isOwn: boolean) => {
-    if (idx === 0) {
-      setReplyingTo(msg);
-    } else if (idx === 1) {
-      setReactionPickerMessageId(msg.id);
-    } else if (isOwn && idx === 2) {
-      setEditingId(msg.id);
-      setEditContent(msg.content);
-    } else if (isOwn && idx === 3) {
-      confirmDelete(msg.id);
+      ]);
     }
   };
 
@@ -396,7 +414,12 @@ export function ChatScreen({ route }: Props) {
           }
           return (
             <View key={a.id} style={styles.attachmentChip}>
-              <Text style={styles.attachmentIcon}>📄</Text>
+              <Feather
+                name="file-text"
+                size={14}
+                color="#dcddde"
+                style={{ marginRight: 6 }}
+              />
               <Text style={styles.attachmentName} numberOfLines={1}>
                 {a.filename}
               </Text>
@@ -466,7 +489,7 @@ export function ChatScreen({ route }: Props) {
         {item.reply_to && (
           <View style={styles.replyPreview}>
             <Text style={styles.replyPreviewText} numberOfLines={1}>
-              ↩ Replying to a message
+              Replying to a message
             </Text>
           </View>
         )}
@@ -543,6 +566,25 @@ export function ChatScreen({ route }: Props) {
           </View>
         </TouchableOpacity>
         {renderReactions(item.id)}
+        {!item.deleted && !item.thread_id && item.thread_reply_count > 0 && (
+          <TouchableOpacity
+            style={styles.threadFooter}
+            onPress={() =>
+              navigation.navigate("Thread", {
+                channelId,
+                messageId: item.id,
+                rootContent: item.content,
+                serverId,
+              })
+            }
+          >
+            <Feather name="message-square" size={12} color="#7289da" />
+            <Text style={styles.threadFooterText}>
+              {item.thread_reply_count}{" "}
+              {item.thread_reply_count === 1 ? "reply" : "replies"}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -584,10 +626,13 @@ export function ChatScreen({ route }: Props) {
       {replyingTo && (
         <View style={styles.replyBar}>
           <Text style={styles.replyBarText} numberOfLines={1}>
-            ↩ Replying to {getAuthorName(replyingTo.author_id)}
+            Replying to {getAuthorName(replyingTo.author_id)}
           </Text>
-          <TouchableOpacity onPress={() => setReplyingTo(null)}>
-            <Text style={styles.replyBarClose}>✕</Text>
+          <TouchableOpacity
+            onPress={() => setReplyingTo(null)}
+            style={{ paddingLeft: 8 }}
+          >
+            <Feather name="x" size={16} color="#72767d" />
           </TouchableOpacity>
         </View>
       )}
@@ -597,9 +642,21 @@ export function ChatScreen({ route }: Props) {
         <View style={styles.filesPreview}>
           {pendingFiles.map((f, i) => (
             <View key={i} style={styles.fileChip}>
-              <Text style={styles.fileChipIcon}>
-                {f.type.startsWith("image/") ? "🖼️" : "📄"}
-              </Text>
+              {f.type.startsWith("image/") ? (
+                <Feather
+                  name="image"
+                  size={14}
+                  color="#dcddde"
+                  style={{ marginRight: 4 }}
+                />
+              ) : (
+                <Feather
+                  name="file-text"
+                  size={14}
+                  color="#dcddde"
+                  style={{ marginRight: 4 }}
+                />
+              )}
               <Text style={styles.fileChipName} numberOfLines={1}>
                 {f.name}
               </Text>
@@ -607,8 +664,9 @@ export function ChatScreen({ route }: Props) {
                 onPress={() =>
                   setPendingFiles((prev) => prev.filter((_, j) => j !== i))
                 }
+                style={{ marginLeft: 4 }}
               >
-                <Text style={styles.fileChipRemove}>✕</Text>
+                <Feather name="x" size={14} color="#72767d" />
               </TouchableOpacity>
             </View>
           ))}
@@ -618,7 +676,7 @@ export function ChatScreen({ route }: Props) {
       {/* Input bar */}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={handlePickFile} style={styles.attachBtn}>
-          <Text style={styles.attachBtnText}>📎</Text>
+          <Feather name="paperclip" size={20} color="#b9bbbe" />
         </TouchableOpacity>
         <TextInput
           style={styles.textInput}
@@ -642,7 +700,7 @@ export function ChatScreen({ route }: Props) {
           {isSending ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.sendBtnText}>➤</Text>
+            <Feather name="send" size={16} color="#fff" />
           )}
         </TouchableOpacity>
       </View>
@@ -730,14 +788,14 @@ const styles = StyleSheet.create({
   },
   messageRow: {
     flexDirection: "row",
-    marginBottom: 2,
+    marginBottom: 6,
     alignItems: "flex-end",
   },
   messageRowOwn: {
     flexDirection: "row-reverse",
   },
   messageRowCompact: {
-    marginBottom: 1,
+    marginBottom: 3,
   },
   avatar: {
     width: 36,
@@ -821,9 +879,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 6,
     marginBottom: 4,
-  },
-  attachmentIcon: {
-    marginRight: 6,
   },
   attachmentName: {
     color: "#dcddde",
@@ -913,10 +968,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
-  replyBarClose: {
-    color: "#72767d",
-    fontSize: 16,
-  },
   filesPreview: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -935,18 +986,10 @@ const styles = StyleSheet.create({
     padding: 6,
     maxWidth: 200,
   },
-  fileChipIcon: {
-    marginRight: 4,
-  },
   fileChipName: {
     color: "#dcddde",
     fontSize: 12,
     flex: 1,
-  },
-  fileChipRemove: {
-    color: "#72767d",
-    fontSize: 14,
-    marginLeft: 4,
   },
   inputBar: {
     flexDirection: "row",
@@ -961,9 +1004,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingBottom: 8,
     marginRight: 6,
-  },
-  attachBtnText: {
-    fontSize: 20,
   },
   textInput: {
     flex: 1,
@@ -986,10 +1026,6 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: "#4f545c",
-  },
-  sendBtnText: {
-    color: "#fff",
-    fontSize: 16,
   },
   pickerOverlay: {
     flex: 1,
@@ -1023,5 +1059,25 @@ const styles = StyleSheet.create({
   },
   pickerEmojiText: {
     fontSize: 26,
+  },
+  threadFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: 52,
+    marginTop: 2,
+    marginBottom: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "rgba(114,137,218,0.1)",
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "rgba(114,137,218,0.3)",
+  },
+  threadFooterText: {
+    color: "#7289da",
+    fontSize: 12,
+    fontWeight: "600" as const,
   },
 });

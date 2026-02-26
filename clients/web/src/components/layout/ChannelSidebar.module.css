@@ -13,6 +13,8 @@
   min-height: 49px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .serverName {
@@ -22,6 +24,27 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+}
+
+.settingsBtn {
+  font-size: 16px;
+  color: var(--text-muted);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.settingsBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .channelList {
@@ -50,7 +73,6 @@
 }
 
 .addBtn {
-  font-size: 16px;
   color: var(--text-muted);
   width: 18px;
   height: 18px;
@@ -91,11 +113,12 @@
 }
 
 .channelIcon {
-  font-size: 18px;
   opacity: 0.5;
   flex-shrink: 0;
   width: 20px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .channelName {

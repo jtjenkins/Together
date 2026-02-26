@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { DmStackParamList } from "../navigation";
 import { useDmStore } from "../stores/dmStore";
@@ -233,7 +234,7 @@ export function DMChatScreen({ route }: Props) {
           {isSending ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.sendBtnText}>➤</Text>
+            <Feather name="send" size={16} color="#fff" />
           )}
         </TouchableOpacity>
       </View>

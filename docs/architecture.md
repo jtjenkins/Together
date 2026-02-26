@@ -5,6 +5,7 @@
 Together is built with the principle: **Start simple, scale when needed.**
 
 The architecture is optimized for small to medium communities (20-500 users) with a clear path to scale if needed. We prioritize:
+
 - **Simplicity** over premature optimization
 - **Maintainability** over theoretical performance
 - **Single binary deployment** over distributed complexity
@@ -85,6 +86,7 @@ The architecture is optimized for small to medium communities (20-500 users) wit
 **Purpose**: Single entry point for all client connections
 
 **Why Axum**:
+
 - Built on Tokio (async runtime)
 - Type-safe request/response handling
 - WebSocket support built-in
@@ -92,6 +94,7 @@ The architecture is optimized for small to medium communities (20-500 users) wit
 - Middleware ecosystem
 
 **Handles**:
+
 ```rust
 // HTTP REST API
 GET  /api/servers              // List servers
@@ -107,6 +110,7 @@ POST /api/attachments          // Upload file (multipart/form-data)
 ```
 
 **Key Features**:
+
 - JWT validation on all authenticated routes
 - Rate limiting: 100 req/min per user, 10 WebSocket connections per IP
 - CORS for web client
@@ -117,6 +121,7 @@ POST /api/attachments          // Upload file (multipart/form-data)
 **Purpose**: Real-time bidirectional communication
 
 **Connection Flow**:
+
 ```
 Client                          Server
   │                               │
@@ -139,6 +144,7 @@ Client                          Server
 ```
 
 **Message Format**:
+
 ```rust
 #[derive(Serialize, Deserialize)]
 struct GatewayMessage {
@@ -163,6 +169,7 @@ struct GatewayMessage {
 ```
 
 **Event Types**:
+
 - `READY` - Initial state after identify
 - `MESSAGE_CREATE/UPDATE/DELETE` - Chat messages
 - `CHANNEL_CREATE/UPDATE/DELETE` - Channel changes
@@ -171,6 +178,7 @@ struct GatewayMessage {
 - `TYPING_START` - User typing indicator
 
 **Performance**:
+
 - Each WebSocket connection uses ~4KB memory
 - 10,000 concurrent connections = ~40MB
 - Message routing is O(1) per recipient (HashMap lookup)
@@ -180,6 +188,7 @@ struct GatewayMessage {
 **Purpose**: Message handling and channel management
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -206,6 +215,7 @@ CREATE INDEX idx_messages_search
 ```
 
 **Message Operations**:
+
 ```rust
 // Send message
 POST /api/channels/:id/messages
@@ -228,6 +238,7 @@ DELETE /api/channels/:id/messages/:msg_id
 ```
 
 **Search Implementation**:
+
 ```sql
 -- Simple full-text search
 SELECT * FROM messages
@@ -245,6 +256,7 @@ LIMIT 50;
 **Purpose**: Authentication, authorization, user management
 
 **Schema**:
+
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -292,6 +304,7 @@ CREATE TABLE member_roles (
 ```
 
 **Authentication Flow**:
+
 ```rust
 // Login
 POST /api/auth/login
@@ -321,6 +334,7 @@ POST /api/auth/refresh
 ```
 
 **Permission System** (Discord-compatible):
+
 ```rust
 bitflags! {
     pub struct Permissions: u64 {
@@ -352,11 +366,13 @@ async fn can_send_message(user_id: Uuid, channel_id: Uuid) -> Result<bool> {
 **Purpose**: Low-latency voice chat using Selective Forwarding Unit
 
 **Why SFU (not mesh or MCU)**:
+
 - **Mesh**: Each client connects to every other (N² connections) - doesn't scale
 - **MCU**: Server mixes audio (expensive CPU, adds latency)
 - **SFU**: Server forwards packets without processing - perfect balance
 
 **Architecture**:
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │              Voice Service                           │
@@ -382,6 +398,7 @@ async fn can_send_message(user_id: Uuid, channel_id: Uuid) -> Result<bool> {
 ```
 
 **Connection Flow**:
+
 ```
 1. Client → Server: "Join voice channel X"
 2. Server: Create PeerConnection for user
@@ -393,6 +410,7 @@ async fn can_send_message(user_id: Uuid, channel_id: Uuid) -> Result<bool> {
 ```
 
 **Voice Configuration**:
+
 ```rust
 VoiceConfig {
     codec: Opus,
@@ -413,6 +431,7 @@ VoiceConfig {
 ```
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE voice_states (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -509,58 +528,63 @@ User
 
 ### Message Throughput
 
-| Operation | Latency (P50) | Latency (P99) | Throughput |
-|-----------|---------------|---------------|------------|
-| Send message | 5-10ms | 20ms | 10k/sec |
-| Get history (50) | 2-5ms | 10ms | 50k/sec |
-| WebSocket delivery | 1-3ms | 10ms | 100k/sec |
-| Full-text search | 10-20ms | 50ms | 5k/sec |
+| Operation          | Latency (P50) | Latency (P99) | Throughput |
+| ------------------ | ------------- | ------------- | ---------- |
+| Send message       | 5-10ms        | 20ms          | 10k/sec    |
+| Get history (50)   | 2-5ms         | 10ms          | 50k/sec    |
+| WebSocket delivery | 1-3ms         | 10ms          | 100k/sec   |
+| Full-text search   | 10-20ms       | 50ms          | 5k/sec     |
 
 ### Resource Usage (20 users)
 
-| Metric | Typical | Peak |
-|--------|---------|------|
-| CPU | <5% | <20% |
-| Memory | ~100MB | ~200MB |
-| Disk I/O | <1MB/s | <10MB/s |
-| Network | <1Mbps | ~10Mbps (voice) |
+| Metric   | Typical | Peak            |
+| -------- | ------- | --------------- |
+| CPU      | <5%     | <20%            |
+| Memory   | ~100MB  | ~200MB          |
+| Disk I/O | <1MB/s  | <10MB/s         |
+| Network  | <1Mbps  | ~10Mbps (voice) |
 
 ### Scaling Limits (Single Server)
 
-| Metric | Conservative | Optimistic |
-|--------|--------------|------------|
-| Concurrent users | 500 | 2000 |
-| Messages/sec | 100 | 1000 |
+| Metric             | Conservative    | Optimistic        |
+| ------------------ | --------------- | ----------------- |
+| Concurrent users   | 500             | 2000              |
+| Messages/sec       | 100             | 1000              |
 | Voice participants | 50 (5 channels) | 200 (20 channels) |
-| Database size | Unlimited | TB+ |
+| Database size      | Unlimited       | TB+               |
 
 ---
 
 ## Security
 
 ### Authentication
+
 - **Password hashing**: bcrypt with 12 rounds
 - **JWT**: HS256, 15-minute expiry for access tokens
 - **Refresh tokens**: Random 256-bit, 7-day expiry, stored hashed
 - **Session management**: Can revoke all sessions per user
 
 ### Authorization
+
 - **Permission checks** on every operation
 - **Channel-level permissions** with role overrides
 - **Server ownership** validation for destructive operations
 
 ### WebSocket Security
+
 - **JWT validation** on upgrade
 - **Rate limiting**: 100 messages/min per connection
 - **Connection limits**: 10 per IP address
 - **Heartbeat timeout**: 60 seconds (detect dead connections)
 
 ### Voice Security
+
 - **DTLS**: Standard WebRTC encryption for key exchange
 - **SRTP**: Encrypted media streams
 - **No P2P**: All traffic through server (hide user IPs)
 
 ### File Uploads
+
 - **Size limits**: 50MB max
 - **Type validation**: MIME type checking
 - **Virus scanning**: Optional ClamAV integration
@@ -573,7 +597,7 @@ User
 ### Docker Compose (Production)
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -594,8 +618,8 @@ services:
   server:
     build: ./server
     ports:
-      - "8080:8080"       # HTTP/WebSocket
-      - "7880-8000:7880-8000/udp"  # WebRTC UDP range
+      - "8080:8080" # HTTP/WebSocket
+      - "7880-8000:7880-8000/udp" # WebRTC UDP range
     environment:
       DATABASE_URL: postgres://postgres:${DB_PASSWORD}@postgres/together
       JWT_SECRET: ${JWT_SECRET}
@@ -605,7 +629,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     volumes:
-      - app_data:/data    # File attachments
+      - app_data:/data # File attachments
 
 volumes:
   postgres_data:
@@ -615,6 +639,7 @@ volumes:
 ### System Requirements
 
 **Minimum (20-50 users)**:
+
 - CPU: 2 vCPU
 - RAM: 2GB
 - Storage: 20GB SSD
@@ -622,6 +647,7 @@ volumes:
 - Cost: ~$10-15/month (Hetzner, DigitalOcean)
 
 **Recommended (100-500 users)**:
+
 - CPU: 4 vCPU
 - RAM: 8GB
 - Storage: 100GB SSD
@@ -686,12 +712,14 @@ Response:
 If you outgrow a single server:
 
 ### Stage 1: Vertical Scaling (500-2000 users)
+
 - Upgrade to 8-16 vCPU, 16-32GB RAM
 - Add PostgreSQL read replicas
 - Enable Redis for sessions/presence
 - Cost: ~$100-200/month
 
 ### Stage 2: Horizontal Scaling (2000+ users)
+
 - Multiple server instances behind load balancer
 - Separate voice servers per region
 - ScyllaDB for message storage
@@ -704,6 +732,7 @@ If you outgrow a single server:
 ## Conclusion
 
 This architecture provides:
+
 - ✅ **Simple deployment**: One command (`docker-compose up`)
 - ✅ **Low cost**: $10-20/month for 20-100 users
 - ✅ **Easy maintenance**: Single codebase, single language

@@ -7,6 +7,7 @@
 **Status**: Active but struggling
 
 **What they did RIGHT**:
+
 - Open source (GitHub: revoltchat)
 - Self-hostable via Docker
 - Very Discord-like UI (low switching friction)
@@ -15,26 +16,29 @@
 - Good web client from day one
 
 **What they did WRONG / Lessons**:
+
 - **Voice quality**: Voice was neglected for ~3 years due to backend rewrite
-  - *Lesson*: Don't rewrite core infrastructure while users are waiting
-  - *Lesson*: Voice is HARD - either commit resources or don't do it
+  - _Lesson_: Don't rewrite core infrastructure while users are waiting
+  - _Lesson_: Voice is HARD - either commit resources or don't do it
 - **Mobile apps**: Took too long to ship native mobile
-  - *Lesson*: Gaming communities ARE mobile-first for many users
-  - *Lesson*: Web app on mobile is not acceptable for chat
+  - _Lesson_: Gaming communities ARE mobile-first for many users
+  - _Lesson_: Web app on mobile is not acceptable for chat
 - **Positioning**: Marketed as "Discord alternative" which sets high expectations
-  - *Lesson*: Consider positioning as "gaming community platform" instead
+  - _Lesson_: Consider positioning as "gaming community platform" instead
 - **Feature parity game**: Always playing catch-up
-  - *Lesson*: Focus on core features, accept some parity gaps
+  - _Lesson_: Focus on core features, accept some parity gaps
 - **Single instance**: Like Discord, one central instance
-  - *Lesson*: Self-hosting is a differentiator but complicates network effects
+  - _Lesson_: Self-hosting is a differentiator but complicates network effects
 
 **Technical Stack**:
+
 - Frontend: TypeScript, Preact ( lightweight React)
 - Backend: Rust (API), TypeScript (realtime events)
 - Database: MongoDB (messages), Redis (caching)
 - Voice: Custom SFU (took years to develop)
 
 **Relevance to Together**:
+
 - Revolt proved the demand exists
 - Proved Discord-like UI is the right choice
 - Proved voice can't be an afterthought
@@ -47,6 +51,7 @@
 **Status**: Mature but complex
 
 **What they did RIGHT**:
+
 - True federation (decentralized)
 - E2E encryption available
 - Open standard (many clients)
@@ -54,23 +59,26 @@
 - Very mature protocol
 
 **What they did WRONG / Lessons**:
+
 - **Complexity**: "Matrix is an protocol, not a product"
-  - *Lesson*: Regular users don't want to think about homeservers
-  - *Lesson*: Element (main client) has learning curve
+  - _Lesson_: Regular users don't want to think about homeservers
+  - _Lesson_: Element (main client) has learning curve
 - **Performance**: Synapse (reference server) is resource-heavy
-  - *Lesson*: Need efficient backend (hence Rust/ScyllaDB for Together)
+  - _Lesson_: Need efficient backend (hence Rust/ScyllaDB for Together)
 - **UX**: Not Discord-like enough
-  - *Lesson*: Different paradigm (rooms vs servers/channels)
+  - _Lesson_: Different paradigm (rooms vs servers/channels)
 - **Voice**: Based on Jitsi, not native to protocol
-  - *Lesson*: Voice needs first-class treatment
+  - _Lesson_: Voice needs first-class treatment
 
 **Technical Stack**:
+
 - Protocol: Matrix spec (HTTP+JSON)
 - Server: Synapse (Python), Dendrite (Go), others
 - Client: Element (React), many others
 - Voice: Jitsi integration
 
 **Relevance to Together**:
+
 - Federation is powerful but not our goal
 - E2E encryption is worth considering for DMs
 - Bridges are valuable (Discord bridge inspiration)
@@ -83,18 +91,21 @@
 **Status**: Excellent for work, not gaming
 
 **What they did RIGHT**:
+
 - Threading done right (topic-based)
 - Fast and reliable
 - Good search
 - Open source, self-hostable
 
 **What makes it wrong for gaming**:
+
 - Thread-centric UI doesn't match gaming flow
 - No voice (intentionally)
 - Email-like paradigm
 - More "work communication" than "hangout"
 
 **Relevance to Together**:
+
 - Threading implementation is interesting
 - Fast search is a benchmark
 - Otherwise, different use case
@@ -106,22 +117,25 @@
 **Status**: Legacy but functional
 
 **What they did RIGHT**:
+
 - Voice quality is excellent
 - Low latency
 - Self-hosted since forever
 - Simple permissions
 
 **What they did WRONG / Lessons**:
+
 - **No text**: Or very poor text chat
-  - *Lesson*: Modern communities need integrated text+voice
+  - _Lesson_: Modern communities need integrated text+voice
 - **Desktop only**: No mobile story
-  - *Lesson*: Must have mobile
+  - _Lesson_: Must have mobile
 - **UI**: Outdated, intimidating to new users
-  - *Lesson*: UX matters for adoption
+  - _Lesson_: UX matters for adoption
 - **Complex setup**: Server configuration is expert-level
-  - *Lesson*: Together needs simple Docker deployment
+  - _Lesson_: Together needs simple Docker deployment
 
 **Relevance to Together**:
+
 - Voice quality target: as good as TeamSpeak
 - Self-hosting model proven
 - UI/UX must be modern
@@ -133,18 +147,21 @@
 **Status**: Acquired, uncertain future
 
 **What they did RIGHT**:
+
 - Feature-rich (events, forums, docs)
 - Good voice quality
 - Calendar integration
 - Free alternative to Discord Nitro
 
 **What they did WRONG**:
+
 - **Bought by Roblox**: Community fears for future
-  - *Lesson*: Being closed-source = platform risk
+  - _Lesson_: Being closed-source = platform risk
 - **Network effects**: Never achieved Discord's scale
-  - *Lesson*: Even with features, hard to compete
+  - _Lesson_: Even with features, hard to compete
 
 **Relevance to Together**:
+
 - Guilded features are inspiring (calendars, docs)
 - But focus on core first - Guilded was feature-bloated
 - Acquisition risk validates self-hosted approach
@@ -156,9 +173,11 @@
 ### Options Evaluated
 
 #### 1. Pion (Go)
+
 **Verdict**: RECOMMENDED for Together
 
 **Pros**:
+
 - Pure Go - no CGO, easy deployment
 - Active community
 - Good documentation
@@ -166,11 +185,13 @@
 - Simpler than C++ alternatives
 
 **Cons**:
+
 - Performance not quite Mediasoup level
 - Smaller ecosystem than Janus
 - Some advanced features missing
 
-**Performance**: 
+**Performance**:
+
 - Handles ~100-200 participants per core (estimated)
 - Good for small-medium communities
 
@@ -179,21 +200,25 @@
 ---
 
 #### 2. Mediasoup (Node.js/C++)
+
 **Verdict**: STRONG ALTERNATIVE
 
 **Pros**:
+
 - Excellent performance (C++ core)
 - Very flexible API
 - Industry standard for custom SFU
 - Used by Discord competitors
 
 **Cons**:
+
 - C++ core adds complexity
 - Node.js wrapper has overhead
 - Harder to deploy than Pion
 - Smaller community than Janus
 
 **Performance**:
+
 - Industry-leading throughput
 - Can handle thousands of streams
 
@@ -202,15 +227,18 @@
 ---
 
 #### 3. Janus Gateway (C)
+
 **Verdict**: TOO COMPLEX for MVP
 
 **Pros**:
+
 - Battle-tested (10+ years)
 - Plugin architecture
 - Excellent performance
 - Huge feature set
 
 **Cons**:
+
 - C codebase - harder to modify
 - Complex configuration
 - Overkill for simple voice channels
@@ -221,14 +249,17 @@
 ---
 
 #### 4. LiveKit
+
 **Verdict**: PROPRIETARY CLOUD - AVOID
 
 **Pros**:
+
 - Easy to use
 - Managed cloud option
 - Good SDKs
 
 **Cons**:
+
 - Primary business is SaaS
 - Self-hosted mode less supported
 - Risk of "enshittification"
@@ -240,11 +271,13 @@
 ### Together Decision
 
 **Phase 1-2 (MVP)**: Use Pion SFU
+
 - Simpler deployment
 - Go codebase matches voice service
 - Good enough for target scale
 
 **Phase 3+**: Evaluate migration to Mediasoup if Pion limits reached
+
 - Migration path: Both use WebRTC standard
 - Client code mostly unchanged
 - Only server changes
@@ -256,9 +289,11 @@
 ### Message Storage: ScyllaDB vs Cassandra vs PostgreSQL
 
 #### Discord's Choice: ScyllaDB
+
 Discord reportedly moved from Cassandra to ScyllaDB for messages.
 
 **Why ScyllaDB over Cassandra**:
+
 - Same CQL interface (drop-in replacement)
 - 10x better performance (C++ vs Java)
 - No GC pauses
@@ -266,6 +301,7 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 - Compatible drivers
 
 **Why ScyllaDB over PostgreSQL**:
+
 - Write throughput: ScyllaDB 1M+ writes/s vs PostgreSQL 10k
 - Time-series data: Natural fit for channel buckets
 - Horizontal scaling: Add nodes easily
@@ -278,6 +314,7 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 ### Relational Data: PostgreSQL
 
 **What goes here**:
+
 - Users
 - Servers
 - Channels
@@ -287,12 +324,14 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 - Audit logs
 
 **Why PostgreSQL**:
+
 - ACID compliance for critical data
 - JSONB for flexible settings
 - Well-understood
 - Easy backups
 
 **Why not ScyllaDB for everything**:
+
 - JOINs are expensive in NoSQL
 - Transactions needed for user operations
 - Relationships are graph-like (better in SQL)
@@ -308,30 +347,37 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 #### Tauri (RECOMMENDED)
 
 **Bundle Size**:
+
 - Tauri: ~5MB
 - Electron: ~150MB
 
 **Memory**:
+
 - Tauri: ~50MB idle
 - Electron: ~300MB idle
 
 **Startup**:
+
 - Tauri: < 1 second
 - Electron: 2-3 seconds
 
 **Security**:
+
 - Tauri: Capability-based (explicit permissions)
 - Electron: Context isolation (better now, historically issues)
 
 **Development**:
+
 - Tauri: Rust + web frontend
 - Electron: Node.js + web frontend
 
 **Ecosystem**:
+
 - Tauri: Growing rapidly, Tauri v2 adds mobile
 - Electron: Mature, huge ecosystem
 
 **Together Decision**: Tauri for desktop
+
 - Performance matters for always-running chat app
 - Smaller bundle = easier distribution
 - Rust backend aligns with services
@@ -343,6 +389,7 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 #### React Native (RECOMMENDED)
 
 **Pros**:
+
 - Discord uses it (proven for chat)
 - JavaScript ecosystem
 - Can share code with desktop (logic, not UI)
@@ -350,6 +397,7 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 - Native feel achievable
 
 **Cons**:
+
 - Bridge overhead (improving with New Architecture)
 - iOS/Android differences still exist
 - Build tooling complexity
@@ -357,16 +405,19 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 #### Flutter (Alternative)
 
 **Pros**:
+
 - Single codebase (truly)
 - Excellent performance
 - Beautiful by default
 
 **Cons**:
+
 - Dart (another language to learn)
 - Discord doesn't use it (less proven for chat)
 - Larger app size
 
 **Together Decision**: React Native
+
 - Team likely knows React
 - Discord precedent
 - Easier to hire for
@@ -378,16 +429,19 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 ### Decision: WebSocket
 
 **Why not SSE (Server-Sent Events)**:
+
 - Unidirectional only (need separate channel for sending)
 - Browser support good but not universal
 - HTTP-based (header overhead)
 
 **Why not Long Polling**:
+
 - Inefficient (repeated connections)
 - Latency higher
 - Battery drain on mobile
 
 **WebSocket advantages**:
+
 - True bidirectional
 - Lower overhead after handshake
 - Industry standard for chat
@@ -402,16 +456,19 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 **Recommended**: AGPL-3.0
 
 **Why**:
+
 - Self-hosting must remain free
 - Forces derivative works to be open
 - Protects against proprietary forks
 - Used by Matrix, Mastodon
 
 **Why not MIT/Apache**:
+
 - Allows proprietary hosting services
 - Could lead to "open core" fragmentation
 
 **Why not GPL**:
+
 - AGPL better for network services (triggers on network use, not just distribution)
 
 ---
@@ -421,11 +478,13 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 ### Option 1: Single Docker Compose (Target for MVP)
 
 **Pros**:
+
 - One command to start
 - Single machine
 - Simple backups
 
 **Cons**:
+
 - Vertical scaling only
 - Single point of failure
 
@@ -436,11 +495,13 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 ### Option 2: Kubernetes (Future)
 
 **Pros**:
+
 - Horizontal scaling
 - Auto-healing
 - Industry standard
 
 **Cons**:
+
 - Complex to operate
 - Overkill for most communities
 
@@ -451,11 +512,13 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 ### Option 3: Managed Services Hybrid
 
 **Pros**:
+
 - Use managed PostgreSQL, Redis
 - Self-host only the app logic
 - Easier operations
 
 **Cons**:
+
 - Cost
 - Vendor lock-in
 
@@ -468,6 +531,7 @@ Discord reportedly moved from Cassandra to ScyllaDB for messages.
 From Discord's engineering blog and public talks:
 
 ### Message Flow
+
 1. Client WebSocket → Gateway (Elixir)
 2. Gateway → Chat Service (internal routing)
 3. Chat Service writes to ScyllaDB
@@ -475,6 +539,7 @@ From Discord's engineering blog and public talks:
 5. Other clients receive via WebSocket
 
 ### Voice Flow
+
 1. Client joins voice channel
 2. Gateway assigns Voice Server
 3. Client WebRTC handshake with Voice Server (C++)
@@ -482,6 +547,7 @@ From Discord's engineering blog and public talks:
 5. UDP for media, WebSocket for signaling
 
 ### Key Stats (from blog posts)
+
 - 850+ voice servers
 - 2.6M concurrent voice users
 - 220 Gbps voice egress
@@ -489,6 +555,7 @@ From Discord's engineering blog and public talks:
 - Elixir for WebSocket gateways
 
 ### What we can learn
+
 - Use proven tech (Elixir is great but Rust is our choice)
 - Separate voice and chat infrastructure
 - ScyllaDB for messages is proven
@@ -499,24 +566,32 @@ From Discord's engineering blog and public talks:
 ## Risk Analysis from Research
 
 ### High Risk: Voice Quality
+
 **Mitigation**:
+
 - Test Pion early (Week 10 in roadmap)
 - Keep Mediasoup as backup option
 - Consider cloud SFU as last resort
 
 ### Medium Risk: Mobile Development
+
 **Mitigation**:
+
 - Start mobile scaffolding early
 - Use React Native (proven)
 - Feature parity is requirement, not stretch
 
 ### Low Risk: Database Scaling
+
 **Mitigation**:
+
 - ScyllaDB chosen specifically for this
 - Discord's usage proves it works
 
 ### High Risk: Network Effects
+
 **Mitigation**:
+
 - Discord bridge for transition
 - Focus on communities wanting self-hosting
 - Accept smaller total userbase
@@ -525,18 +600,19 @@ From Discord's engineering blog and public talks:
 
 ## Competitive Position
 
-| Feature | Discord | Revolt | Matrix | Together Target |
-|---------|---------|--------|--------|-----------------|
-| Self-hostable | ❌ | ✅ | ✅ | ✅ |
-| Federation | ❌ | ❌ | ✅ | ❌ |
-| Voice quality | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| Mobile apps | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
-| Easy setup | N/A | ⭐⭐ | ⭐ | ⭐⭐⭐ |
-| Discord-like | N/A | ⭐⭐⭐ | ⭐ | ⭐⭐⭐ |
-| E2E encryption | ❌ | ❌ | ✅ | 🚧 |
-| Privacy control | ❌ | ✅ | ✅ | ✅ |
+| Feature         | Discord | Revolt | Matrix | Together Target |
+| --------------- | ------- | ------ | ------ | --------------- |
+| Self-hostable   | ❌      | ✅     | ✅     | ✅              |
+| Federation      | ❌      | ❌     | ✅     | ❌              |
+| Voice quality   | ⭐⭐⭐  | ⭐⭐   | ⭐⭐   | ⭐⭐⭐          |
+| Mobile apps     | ⭐⭐⭐  | ⭐⭐   | ⭐⭐⭐ | ⭐⭐⭐          |
+| Easy setup      | N/A     | ⭐⭐   | ⭐     | ⭐⭐⭐          |
+| Discord-like    | N/A     | ⭐⭐⭐ | ⭐     | ⭐⭐⭐          |
+| E2E encryption  | ❌      | ❌     | ✅     | 🚧              |
+| Privacy control | ❌      | ✅     | ✅     | ✅              |
 
 **Together's differentiators**:
+
 1. Easier self-hosting than Matrix
 2. Better voice than Revolt (planning ahead)
 3. First-class mobile unlike early Revolt

@@ -11,15 +11,18 @@ All 13 critical issues identified in the comprehensive PR review have been fixed
 ## Database Schema Fixes
 
 ### 1. Voice States Primary Key ✅
+
 **Issue**: Users could be in multiple voice channels simultaneously
 **File**: `server/migrations/20240216000005_voice.sql`
 
 **Before**:
+
 ```sql
 PRIMARY KEY (user_id, channel_id)  -- Allowed multiple channels per user
 ```
 
 **After**:
+
 ```sql
 user_id UUID PRIMARY KEY  -- Enforces one channel per user (Discord model)
 ```
@@ -29,15 +32,18 @@ user_id UUID PRIMARY KEY  -- Enforces one channel per user (Discord model)
 ---
 
 ### 2. Messages author_id ON DELETE ✅
+
 **Issue**: User deletion would fail due to orphaned messages
 **File**: `server/migrations/20240216000004_messages.sql`
 
 **Before**:
+
 ```sql
 author_id UUID NOT NULL REFERENCES users(id),  -- No ON DELETE action
 ```
 
 **After**:
+
 ```sql
 author_id UUID REFERENCES users(id) ON DELETE SET NULL,
 ```
@@ -47,16 +53,19 @@ author_id UUID REFERENCES users(id) ON DELETE SET NULL,
 ---
 
 ### 3. Invalid Bcrypt Hash ✅
+
 **Issue**: Seed data used 61-character hash (invalid), authentication would fail
 **File**: `server/migrations/20240216000006_seed_data.sql`
 
 **Before**:
+
 ```sql
 password_hash: '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyB3qYCJw7G6'
 -- 61 characters - INVALID
 ```
 
 **After**:
+
 ```sql
 password_hash: '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6'
 -- 60 characters - VALID, generated with htpasswd
@@ -67,20 +76,24 @@ password_hash: '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6'
 ---
 
 ### 4. Member Role Permissions ✅
+
 **Issue**: Member role had MANAGE_MESSAGES but not ATTACH_FILES/ADD_REACTIONS (security issue)
 **File**: `server/migrations/20240216000006_seed_data.sql`
 
 **Before**:
+
 ```sql
 permissions: 103  -- VIEW_CHANNEL + SEND_MESSAGES + MANAGE_MESSAGES + CONNECT_VOICE + SPEAK
 ```
 
 **After**:
+
 ```sql
 permissions: 123  -- VIEW_CHANNEL + SEND_MESSAGES + ATTACH_FILES + ADD_REACTIONS + CONNECT_VOICE + SPEAK
 ```
 
 **Breakdown**:
+
 - Removed: MANAGE_MESSAGES (4) - members shouldn't delete others' messages
 - Added: ATTACH_FILES (8) - basic feature for members
 - Added: ADD_REACTIONS (16) - basic feature for members
@@ -90,15 +103,18 @@ permissions: 123  -- VIEW_CHANNEL + SEND_MESSAGES + ATTACH_FILES + ADD_REACTIONS
 ---
 
 ### 5. Moderator Role Permissions ✅
+
 **Issue**: Moderator role missing MUTE_MEMBERS permission
 **File**: `server/migrations/20240216000006_seed_data.sql`
 
 **Before**:
+
 ```sql
 permissions: 3967  -- Missing MUTE_MEMBERS (128)
 ```
 
 **After**:
+
 ```sql
 permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ```
@@ -110,9 +126,11 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ## Script Error Handling Fixes
 
 ### 6. Rust Installation Silent Failure ✅
+
 **File**: `scripts/setup-dev.sh`
 
 **Changes**:
+
 - Check curl command succeeded
 - Verify `source $HOME/.cargo/env` succeeded
 - Verify `cargo` command is available after installation
@@ -123,9 +141,11 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ---
 
 ### 7. sqlx-cli Installation Silent Failure ✅
+
 **File**: `scripts/setup-dev.sh`
 
 **Changes**:
+
 - Check `cargo install` exit code
 - Verify `sqlx` command exists after installation
 - Provide detailed error messages about missing system dependencies (OpenSSL, libpq)
@@ -136,9 +156,11 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ---
 
 ### 8. Docker Startup Without Verification ✅
+
 **File**: `scripts/setup-dev.sh`
 
 **Changes**:
+
 - Check `docker-compose up` exit code
 - Poll `pg_isready` with 30-second timeout instead of blind 5-second sleep
 - Provide error messages for common issues (port conflict, Docker not running)
@@ -149,9 +171,11 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ---
 
 ### 9. Unsafe Environment Variable Loading ✅
+
 **File**: `scripts/setup-dev.sh`
 
 **Changes**:
+
 - Use `set -a; source .env; set +a` instead of `export $(grep ...)`
 - Verify DATABASE_URL was actually loaded
 - Provide clear error message if DATABASE_URL missing
@@ -161,9 +185,11 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ---
 
 ### 10. Silent Migration Failures ✅
+
 **File**: `scripts/setup-dev.sh`
 
 **Changes**:
+
 - Check `sqlx migrate run` exit code
 - Provide actionable error messages (syntax error, constraint violation, etc.)
 - Show debugging commands (`sqlx migrate info`, `sqlx migrate revert`)
@@ -173,9 +199,11 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ---
 
 ### 11. Migration Verification ✅
+
 **File**: `scripts/setup-dev.sh`
 
 **Changes**:
+
 - Query critical tables after migrations (users, servers, channels, messages)
 - Verify seed data count (expect 5 users)
 - Fail fast if verification fails
@@ -185,9 +213,11 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ---
 
 ### 12. Grep Filtering Hides Errors ✅
+
 **File**: `scripts/migrate.sh`
 
 **Changes**:
+
 - Filter only Docker Compose warnings, preserve PostgreSQL warnings
 - Use proper exit code handling
 - Return actual command exit codes
@@ -197,9 +227,11 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ---
 
 ### 13. Database Connectivity Check ✅
+
 **File**: `scripts/migrate.sh`
 
 **Changes**:
+
 - Check container is running AND PostgreSQL accepting connections
 - Use `pg_isready` to verify database readiness
 - Provide diagnostic commands (check logs, etc.)
@@ -211,6 +243,7 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 ## Additional Improvements
 
 ### migrate.sh Enhanced Safety
+
 - Added deprecation warnings (prefer sqlx-cli)
 - Interactive terminal check for reset command
 - Case-insensitive confirmation for destructive operations
@@ -219,6 +252,7 @@ permissions: 4095  -- All permissions except MANAGE_SERVER and ADMINISTRATOR
 - Exit on first migration failure
 
 ### Documentation Added
+
 - Inline comments explaining Discord model in voice_states
 - Permission bitflag reference in roles seed data
 - Clear error messages for all failure scenarios

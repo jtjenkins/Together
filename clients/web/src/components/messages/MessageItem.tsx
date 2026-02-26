@@ -1,4 +1,13 @@
 import React, { useState, useEffect } from "react";
+import {
+  CornerDownRight,
+  FileText,
+  Reply,
+  MessageSquare,
+  Pencil,
+  Trash2,
+  SmilePlus,
+} from "lucide-react";
 import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
@@ -7,6 +16,8 @@ import { api } from "../../api/client";
 import { ReactionBar } from "./ReactionBar";
 import type { MemberDto, Message, ReactionCount } from "../../types";
 import styles from "./MessageItem.module.css";
+
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
 
 /** Split content on @word boundaries and wrap matched mentions in styled spans. */
 function renderMentions(
@@ -49,6 +60,8 @@ interface MessageItemProps {
   channelId: string;
   replyAuthorName?: string;
   replyContent?: string;
+  /** Called when the user opens the thread panel for this message. */
+  onOpenThread?: (messageId: string) => void;
 }
 
 export function MessageItem({
@@ -59,6 +72,7 @@ export function MessageItem({
   channelId,
   replyAuthorName,
   replyContent,
+  onOpenThread,
 }: MessageItemProps) {
   const user = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
@@ -71,7 +85,7 @@ export function MessageItem({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
-  const [showActions, setShowActions] = useState(false);
+  const [showQuickPicker, setShowQuickPicker] = useState(false);
   const [reactions, setReactions] = useState<ReactionCount[]>([]);
 
   const isOwnMessage = message.author_id === user?.id;
@@ -110,9 +124,29 @@ export function MessageItem({
     }
   };
 
+  const handleQuickReact = async (emoji: string) => {
+    setShowQuickPicker(false);
+    try {
+      await api.addReaction(channelId, message.id, emoji);
+      setReactions((prev) => {
+        const existing = prev.find((r) => r.emoji === emoji);
+        if (existing) {
+          return prev.map((r) =>
+            r.emoji === emoji ? { ...r, count: r.count + 1, me: true } : r,
+          );
+        }
+        return [...prev, { emoji, count: 1, me: true }];
+      });
+    } catch {
+      // Non-fatal
+    }
+  };
+
   if (message.deleted) {
     return (
-      <div className={`${styles.message} ${styles.deleted}`}>
+      <div
+        className={`${styles.message} ${styles.deleted} ${isOwnMessage ? styles.own : ""}`}
+      >
         <div className={styles.deletedContent}>
           <em>This message has been deleted</em>
         </div>
@@ -122,13 +156,13 @@ export function MessageItem({
 
   return (
     <div
-      className={`${styles.message} ${showHeader ? styles.withHeader : styles.compact}`}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      className={`${styles.message} ${isOwnMessage ? styles.own : ""} ${showHeader ? styles.withHeader : styles.compact}`}
     >
       {message.reply_to && replyContent && (
         <div className={styles.replyBar}>
-          <span className={styles.replyIcon}>&#8627;</span>
+          <span className={styles.replyIcon}>
+            <CornerDownRight size={12} />
+          </span>
           <span className={styles.replyAuthor}>{replyAuthorName}</span>
           <span className={styles.replyText}>{replyContent}</span>
         </div>
@@ -218,7 +252,9 @@ export function MessageItem({
                         download={att.filename}
                         className={styles.fileAttachment}
                       >
-                        <span className={styles.fileAttachIcon}>📄</span>
+                        <span className={styles.fileAttachIcon}>
+                          <FileText size={14} />
+                        </span>
                         <span className={styles.fileAttachName}>
                           {att.filename}
                         </span>
@@ -234,15 +270,32 @@ export function MessageItem({
           )}
         </div>
 
-        {showActions && !isEditing && (
+        {/* Action toolbar — always in DOM, shown via CSS :hover, no layout impact */}
+        {!isEditing && (
           <div className={styles.actions}>
+            <button
+              className={styles.actionBtn}
+              onClick={() => setShowQuickPicker((v) => !v)}
+              title="Add Reaction"
+            >
+              <SmilePlus size={14} />
+            </button>
             <button
               className={styles.actionBtn}
               onClick={() => setReplyingTo(message)}
               title="Reply"
             >
-              &#8617;
+              <Reply size={14} />
             </button>
+            {!message.thread_id && onOpenThread && (
+              <button
+                className={styles.actionBtn}
+                onClick={() => onOpenThread(message.id)}
+                title="Start Thread"
+              >
+                <MessageSquare size={14} />
+              </button>
+            )}
             {isOwnMessage && (
               <>
                 <button
@@ -253,22 +306,36 @@ export function MessageItem({
                   }}
                   title="Edit"
                 >
-                  &#9998;
+                  <Pencil size={14} />
                 </button>
                 <button
                   className={`${styles.actionBtn} ${styles.dangerBtn}`}
                   onClick={() => deleteMessage(message.id)}
                   title="Delete"
                 >
-                  &#128465;
+                  <Trash2 size={14} />
                 </button>
               </>
+            )}
+            {showQuickPicker && (
+              <div className={styles.quickPicker}>
+                {QUICK_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    className={styles.quickEmoji}
+                    onClick={() => handleQuickReact(emoji)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         )}
       </div>
 
-      {(reactions.length > 0 || showActions) && (
+      {/* Reaction bar — only rendered when reactions exist; never causes layout shift on hover */}
+      {reactions.length > 0 && (
         <div className={styles.reactionArea}>
           <ReactionBar
             messageId={message.id}
@@ -277,6 +344,21 @@ export function MessageItem({
             onReactionsChange={setReactions}
           />
         </div>
+      )}
+
+      {!message.thread_id && message.thread_reply_count > 0 && onOpenThread && (
+        <button
+          className={styles.threadFooter}
+          onClick={() => onOpenThread(message.id)}
+        >
+          <span className={styles.threadIcon}>
+            <MessageSquare size={14} />
+          </span>
+          <span className={styles.threadCount}>
+            {message.thread_reply_count}{" "}
+            {message.thread_reply_count === 1 ? "reply" : "replies"}
+          </span>
+        </button>
       )}
     </div>
   );

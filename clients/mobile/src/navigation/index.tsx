@@ -13,6 +13,7 @@ import { AuthScreen } from "../screens/AuthScreen";
 import { ServerListScreen } from "../screens/ServerListScreen";
 import { ChannelListScreen } from "../screens/ChannelListScreen";
 import { ChatScreen } from "../screens/ChatScreen";
+import { ThreadScreen } from "../screens/ThreadScreen";
 import { VoiceScreen } from "../screens/VoiceScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { DMListScreen } from "../screens/DMListScreen";
@@ -30,6 +31,12 @@ export type ServersStackParamList = {
   ServerList: undefined;
   ChannelList: { serverId: string; serverName: string };
   Chat: { channelId: string; channelName: string; serverId: string };
+  Thread: {
+    channelId: string;
+    messageId: string;
+    rootContent: string;
+    serverId: string;
+  };
   Voice: { channelId: string; channelName: string; serverId: string };
 };
 
@@ -82,9 +89,14 @@ function ServersNavigator() {
         options={({ route }) => ({ title: `# ${route.params.channelName}` })}
       />
       <ServersStack.Screen
+        name="Thread"
+        component={ThreadScreen}
+        options={() => ({ title: "Thread" })}
+      />
+      <ServersStack.Screen
         name="Voice"
         component={VoiceScreen}
-        options={({ route }) => ({ title: `🔊 ${route.params.channelName}` })}
+        options={({ route }) => ({ title: route.params.channelName })}
       />
     </ServersStack.Navigator>
   );

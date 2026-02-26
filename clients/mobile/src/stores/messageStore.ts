@@ -16,6 +16,12 @@ interface MessageState {
   /** Attachments keyed by message ID. */
   attachmentCache: Record<string, Attachment[]>;
 
+  // ── Thread state ──────────────────────────────────────────
+  /** Thread replies keyed by root message ID. */
+  threadCache: Record<string, Message[]>;
+  /** ID of the root message whose thread is being viewed; null when none. */
+  activeThreadId: string | null;
+
   fetchMessages: (channelId: string, before?: string) => Promise<void>;
   sendMessage: (
     channelId: string,
@@ -31,6 +37,18 @@ interface MessageState {
   cacheAttachments: (messageId: string, attachments: Attachment[]) => void;
   clearMessages: () => void;
   clearError: () => void;
+
+  // ── Thread actions ────────────────────────────────────────
+  openThread: (messageId: string) => void;
+  closeThread: () => void;
+  fetchThreadReplies: (channelId: string, messageId: string) => Promise<void>;
+  sendThreadReply: (
+    channelId: string,
+    messageId: string,
+    content: string,
+  ) => Promise<void>;
+  /** Called when a THREAD_MESSAGE_CREATE WebSocket event arrives. */
+  addThreadMessage: (msg: Message) => void;
 }
 
 export const useMessageStore = create<MessageState>((set) => ({
@@ -40,13 +58,17 @@ export const useMessageStore = create<MessageState>((set) => ({
   error: null,
   replyingTo: null,
   attachmentCache: {},
+  threadCache: {},
+  activeThreadId: null,
 
   fetchMessages: async (channelId, before) => {
     set({ isLoading: true });
     try {
       const fetched = await api.listMessages(channelId, { before, limit: 50 });
+      // API returns newest-first (DESC); reverse so the store is oldest-first.
+      const ordered = [...fetched].reverse();
       set((state) => {
-        const newMessages = before ? [...fetched, ...state.messages] : fetched;
+        const newMessages = before ? [...ordered, ...state.messages] : ordered;
         return {
           messages: newMessages,
           hasMore: fetched.length === 50,
@@ -55,17 +77,17 @@ export const useMessageStore = create<MessageState>((set) => ({
       });
       // Batch-fetch attachments for all loaded messages in parallel
       const results = await Promise.allSettled(
-        fetched.map((m) => api.listAttachments(m.id)),
+        ordered.map((m) => api.listAttachments(m.id)),
       );
       set((state) => {
         const updates: Record<string, Attachment[]> = {};
         results.forEach((r, i) => {
           if (r.status === "fulfilled" && r.value.length > 0) {
-            updates[fetched[i].id] = r.value;
+            updates[ordered[i].id] = r.value;
           } else if (r.status === "rejected") {
             console.warn(
               "[MessageStore] Failed to load attachments for",
-              fetched[i].id,
+              ordered[i].id,
               r.reason,
             );
           }
@@ -171,7 +193,97 @@ export const useMessageStore = create<MessageState>((set) => ({
     })),
 
   clearMessages: () =>
-    set({ messages: [], hasMore: true, replyingTo: null, attachmentCache: {} }),
+    set({
+      messages: [],
+      hasMore: true,
+      replyingTo: null,
+      attachmentCache: {},
+      threadCache: {},
+      activeThreadId: null,
+    }),
 
   clearError: () => set({ error: null }),
+
+  // ── Thread actions ────────────────────────────────────────
+
+  openThread: (messageId) => set({ activeThreadId: messageId }),
+
+  closeThread: () => set({ activeThreadId: null }),
+
+  fetchThreadReplies: async (channelId, messageId) => {
+    set({ isLoading: true, error: null });
+    try {
+      const replies = await api.listThreadReplies(channelId, messageId);
+      set((state) => ({
+        threadCache: { ...state.threadCache, [messageId]: replies },
+        isLoading: false,
+      }));
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to load thread replies";
+      set({ error: message, isLoading: false });
+    }
+  },
+
+  sendThreadReply: async (channelId, messageId, content) => {
+    try {
+      const reply = await api.createThreadReply(channelId, messageId, {
+        content,
+      });
+      set((state) => ({
+        threadCache: {
+          ...state.threadCache,
+          [messageId]: [...(state.threadCache[messageId] ?? []), reply],
+        },
+        messages: state.messages.map((m) =>
+          m.id === messageId
+            ? { ...m, thread_reply_count: m.thread_reply_count + 1 }
+            : m,
+        ),
+      }));
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to send thread reply";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  addThreadMessage: (msg) => {
+    if (!msg.thread_id) {
+      console.warn(
+        "[MessageStore] Received THREAD_MESSAGE_CREATE with null thread_id",
+        msg,
+      );
+      return;
+    }
+    const rootId = msg.thread_id;
+    set((state) => {
+      const existing = state.threadCache[rootId];
+      const alreadyCached = existing?.some((r) => r.id === msg.id) ?? false;
+      const updatedCache = existing
+        ? {
+            ...state.threadCache,
+            [rootId]: alreadyCached ? existing : [...existing, msg],
+          }
+        : state.threadCache;
+
+      // Only increment the reply count if the message was not already in the
+      // cache (i.e. it was not sent by the current user via sendThreadReply,
+      // which already incremented the count optimistically).
+      const updatedMessages = alreadyCached
+        ? state.messages
+        : state.messages.map((m) =>
+            m.id === rootId
+              ? { ...m, thread_reply_count: m.thread_reply_count + 1 }
+              : m,
+          );
+
+      return { threadCache: updatedCache, messages: updatedMessages };
+    });
+  },
 }));

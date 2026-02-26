@@ -13,6 +13,9 @@ interface ServerState {
   members: MemberDto[];
   isLoading: boolean;
   error: string | null;
+  discoverableServers: ServerDto[];
+  isBrowseLoading: boolean;
+  browseError: string | null;
 
   setServers: (servers: ServerDto[]) => void;
   setActiveServer: (id: string | null) => void;
@@ -28,6 +31,7 @@ interface ServerState {
     status: string,
     customStatus: string | null,
   ) => void;
+  fetchDiscoverableServers: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -37,6 +41,9 @@ export const useServerStore = create<ServerState>((set, get) => ({
   members: [],
   isLoading: false,
   error: null,
+  discoverableServers: [],
+  isBrowseLoading: false,
+  browseError: null,
 
   setServers: (servers) => set({ servers }),
 
@@ -159,6 +166,20 @@ export const useServerStore = create<ServerState>((set, get) => ({
           : m,
       ),
     }));
+  },
+
+  fetchDiscoverableServers: async () => {
+    set({ isBrowseLoading: true, browseError: null });
+    try {
+      const discoverableServers = await api.browseServers();
+      set({ discoverableServers, isBrowseLoading: false });
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to load public server list";
+      set({ browseError: message, isBrowseLoading: false });
+    }
   },
 
   clearError: () => set({ error: null }),

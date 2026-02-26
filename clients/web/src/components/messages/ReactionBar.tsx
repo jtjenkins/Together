@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { SmilePlus } from "lucide-react";
 import { api } from "../../api/client";
 import type { ReactionCount } from "../../types";
 import styles from "./ReactionBar.module.css";
@@ -86,7 +87,7 @@ export function ReactionBar({
           onClick={() => setShowPicker((v) => !v)}
           title="Add reaction"
         >
-          &#128578;+
+          <SmilePlus size={16} />
         </button>
         {showPicker && (
           <div className={styles.picker}>
