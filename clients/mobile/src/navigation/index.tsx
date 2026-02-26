@@ -96,7 +96,7 @@ function ServersNavigator() {
       <ServersStack.Screen
         name="Voice"
         component={VoiceScreen}
-        options={({ route }) => ({ title: `🔊 ${route.params.channelName}` })}
+        options={({ route }) => ({ title: route.params.channelName })}
       />
     </ServersStack.Navigator>
   );

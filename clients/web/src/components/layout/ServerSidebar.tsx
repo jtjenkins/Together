@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Compass, Plus } from "lucide-react";
 import { useServerStore } from "../../stores/serverStore";
 import { useChannelStore } from "../../stores/channelStore";
 import { useAuthStore } from "../../stores/authStore";
@@ -89,7 +90,7 @@ export function ServerSidebar({
           onClick={() => onShowBrowse(true)}
           title="Browse Servers"
         >
-          ⊕
+          <Compass size={20} />
         </button>
 
         <button
@@ -97,7 +98,7 @@ export function ServerSidebar({
           onClick={() => setShowCreate(true)}
           title="Create Server"
         >
-          +
+          <Plus size={20} />
         </button>
       </div>
 

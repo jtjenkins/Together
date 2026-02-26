@@ -5,6 +5,10 @@
  * `initialPeers` (set at join time). New joiners send offers to us instead.
  * ICE candidates are forwarded via the VOICE_SIGNAL WebSocket relay.
  *
+ * Speaking detection uses the Web Audio API to sample RMS levels every 100 ms
+ * for both the local microphone and each incoming remote stream, reporting
+ * changes via `onSpeakingChange`.
+ *
  * Note: getUserMedia requires a secure context (HTTPS or localhost).
  * If audio is unavailable the hook calls `onError` and the peer connections
  * are established without local audio (listen-only mode).
@@ -20,6 +24,9 @@ const RTC_CONFIG: RTCConfiguration = {
   ],
 };
 
+/** Average frequency amplitude (0-255) above which a user is considered speaking. */
+const SPEAKING_THRESHOLD = 15;
+
 interface UseWebRTCOptions {
   enabled: boolean;
   myUserId: string;
@@ -28,8 +35,55 @@ interface UseWebRTCOptions {
   initialPeers: string[];
   isMuted: boolean;
   isDeafened: boolean;
+  /** deviceId of the preferred audio input; undefined = browser default. */
+  micDeviceId?: string | null;
+  /** deviceId of the preferred audio output; undefined = browser default. */
+  speakerDeviceId?: string | null;
   /** Called when a non-fatal error occurs (e.g. mic denied, offer failed). */
   onError?: (message: string) => void;
+  /** Called whenever a participant starts or stops speaking. */
+  onSpeakingChange?: (userId: string, isSpeaking: boolean) => void;
+}
+
+/**
+ * Start an AudioContext-based speaking detector for the given stream.
+ * Accepts a shared AudioContext so callers can reuse a single context across
+ * multiple detectors (Chrome limits concurrent AudioContexts to ~6).
+ * Returns a cleanup function that disconnects the analyser and clears the
+ * interval — it does NOT close the AudioContext (the caller owns that).
+ */
+function startSpeakingDetector(
+  ctx: AudioContext,
+  stream: MediaStream,
+  onSpeaking: (speaking: boolean) => void,
+): () => void {
+  try {
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    const source = ctx.createMediaStreamSource(stream);
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    let current = false;
+
+    const id = setInterval(() => {
+      analyser.getByteFrequencyData(data);
+      const avg = data.reduce((s, v) => s + v, 0) / data.length;
+      const speaking = avg > SPEAKING_THRESHOLD;
+      if (speaking !== current) {
+        current = speaking;
+        onSpeaking(speaking);
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(id);
+      source.disconnect();
+      analyser.disconnect();
+    };
+  } catch {
+    // AudioContext may be unavailable (e.g. in tests or restricted contexts).
+    return () => {};
+  }
 }
 
 export function useWebRTC({
@@ -39,7 +93,10 @@ export function useWebRTC({
   initialPeers,
   isMuted,
   isDeafened,
+  micDeviceId,
+  speakerDeviceId,
   onError,
+  onSpeakingChange,
 }: UseWebRTCOptions) {
   // Map of peerId → RTCPeerConnection
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -49,20 +106,45 @@ export function useWebRTC({
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   // Tracks which peers we have already sent an offer to (prevents glare)
   const offeredPeersRef = useRef<Set<string>>(new Set());
+  // Speaking detector cleanup functions keyed by userId
+  const speakingStopRef = useRef<Map<string, () => void>>(new Map());
 
-  const closePeer = useCallback((peerId: string) => {
-    const pc = peersRef.current.get(peerId);
-    if (pc) {
-      pc.close();
-      peersRef.current.delete(peerId);
-    }
-    const audio = audioElementsRef.current.get(peerId);
-    if (audio) {
-      audio.srcObject = null;
-      audio.remove();
-      audioElementsRef.current.delete(peerId);
-    }
+  // Shared AudioContext for all speaking detectors — Chrome limits concurrent
+  // AudioContexts to ~6, so one context must serve the whole call.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Keep mutable refs for callbacks/values used inside stable useCallbacks
+  // to avoid stale closures without re-creating the callbacks on every render.
+  const speakerDeviceIdRef = useRef(speakerDeviceId);
+  speakerDeviceIdRef.current = speakerDeviceId;
+  const onSpeakingChangeRef = useRef(onSpeakingChange);
+  onSpeakingChangeRef.current = onSpeakingChange;
+  const isMutedRef = useRef(isMuted);
+  isMutedRef.current = isMuted;
+
+  const stopSpeakingDetector = useCallback((userId: string) => {
+    speakingStopRef.current.get(userId)?.();
+    speakingStopRef.current.delete(userId);
   }, []);
+
+  const closePeer = useCallback(
+    (peerId: string) => {
+      const pc = peersRef.current.get(peerId);
+      if (pc) {
+        pc.close();
+        peersRef.current.delete(peerId);
+      }
+      const audio = audioElementsRef.current.get(peerId);
+      if (audio) {
+        audio.srcObject = null;
+        audio.remove();
+        audioElementsRef.current.delete(peerId);
+      }
+      stopSpeakingDetector(peerId);
+      onSpeakingChangeRef.current?.(peerId, false);
+    },
+    [stopSpeakingDetector],
+  );
 
   const playRemoteStream = useCallback(
     (peerId: string, stream: MediaStream) => {
@@ -70,12 +152,37 @@ export function useWebRTC({
       if (!audio) {
         audio = document.createElement("audio");
         audio.autoplay = true;
+        const sinkId = speakerDeviceIdRef.current;
+        if (sinkId && "setSinkId" in audio) {
+          (audio as HTMLAudioElement & { setSinkId(id: string): Promise<void> })
+            .setSinkId(sinkId)
+            .catch((err: unknown) => {
+              console.warn("[WebRTC] setSinkId failed for peer", peerId, err);
+            });
+        }
         document.body.appendChild(audio);
         audioElementsRef.current.set(peerId, audio);
       }
       audio.srcObject = stream;
+
+      // (Re-)start speaking detection for this remote peer.
+      stopSpeakingDetector(peerId);
+      try {
+        audioCtxRef.current ??= new AudioContext();
+      } catch {
+        // AudioContext unavailable — skip speaking detection for this peer.
+        return;
+      }
+      const stop = startSpeakingDetector(
+        audioCtxRef.current,
+        stream,
+        (speaking) => {
+          onSpeakingChangeRef.current?.(peerId, speaking);
+        },
+      );
+      speakingStopRef.current.set(peerId, stop);
     },
-    [],
+    [stopSpeakingDetector],
   );
 
   const createPeer = useCallback(
@@ -127,26 +234,60 @@ export function useWebRTC({
     [playRemoteStream, closePeer],
   );
 
-  // Acquire local audio stream once; retroactively add tracks to existing peers
+  // Acquire local audio stream; re-runs when enabled or mic device changes.
   useEffect(() => {
     if (!enabled) return;
 
     let cancelled = false;
 
+    const constraints: MediaStreamConstraints = {
+      audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true,
+      video: false,
+    };
+
     navigator.mediaDevices
-      ?.getUserMedia({ audio: true, video: false })
+      ?.getUserMedia(constraints)
       .then((stream) => {
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
-        localStreamRef.current = stream;
-        // Add audio to any peer connections that were created before media was ready
-        peersRef.current.forEach((pc) => {
-          stream.getAudioTracks().forEach((track) => {
-            pc.addTrack(track, stream);
+
+        // If re-acquiring (device change), replace tracks on existing peers.
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((t) => t.stop());
+          peersRef.current.forEach((pc) => {
+            const sender = pc
+              .getSenders()
+              .find((s) => s.track?.kind === "audio");
+            const [track] = stream.getAudioTracks();
+            if (sender && track) sender.replaceTrack(track);
+            else if (track) pc.addTrack(track, stream);
           });
-        });
+        }
+
+        localStreamRef.current = stream;
+
+        // Start speaking detection for the local user.
+        stopSpeakingDetector(myUserId);
+        try {
+          audioCtxRef.current ??= new AudioContext();
+        } catch {
+          // AudioContext unavailable — skip local speaking detection.
+          return;
+        }
+        const stop = startSpeakingDetector(
+          audioCtxRef.current,
+          stream,
+          (speaking) => {
+            // Never report local user as speaking while muted.
+            if (isMutedRef.current) {
+              if (speaking) return;
+            }
+            onSpeakingChangeRef.current?.(myUserId, speaking);
+          },
+        );
+        speakingStopRef.current.set(myUserId, stop);
       })
       .catch((err) => {
         console.error("[WebRTC] getUserMedia failed", err);
@@ -157,10 +298,13 @@ export function useWebRTC({
       cancelled = true;
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
+      stopSpeakingDetector(myUserId);
+      onSpeakingChangeRef.current?.(myUserId, false);
     };
-    // onError intentionally omitted — we only want this to run on enable/disable
+    // micDeviceId intentionally in deps — changing device re-acquires the stream.
+    // onError and myUserId are stable across re-renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, micDeviceId]);
 
   // Mute / unmute local tracks
   useEffect(() => {
@@ -175,6 +319,20 @@ export function useWebRTC({
       audio.muted = isDeafened;
     });
   }, [isDeafened]);
+
+  // Apply speaker device change to all existing audio elements
+  useEffect(() => {
+    if (!speakerDeviceId) return;
+    audioElementsRef.current.forEach((audio) => {
+      if ("setSinkId" in audio) {
+        (audio as HTMLAudioElement & { setSinkId(id: string): Promise<void> })
+          .setSinkId(speakerDeviceId)
+          .catch((err: Error) => {
+            console.warn("[WebRTC] setSinkId failed", err);
+          });
+      }
+    });
+  }, [speakerDeviceId]);
 
   // Send offers to the peers that were present when we joined
   useEffect(() => {
@@ -234,6 +392,7 @@ export function useWebRTC({
               `[WebRTC] Failed to set remote answer from ${fromId}`,
               err,
             );
+            onError?.("Failed to establish voice connection with a peer");
           }
         }
       } else if (signal.type === "candidate") {
@@ -271,6 +430,7 @@ export function useWebRTC({
     const peers = peersRef.current;
     const audioElements = audioElementsRef.current;
     const offeredPeers = offeredPeersRef.current;
+    const speakingStop = speakingStopRef.current;
     return () => {
       peers.forEach((_, peerId) => closePeer(peerId));
       audioElements.forEach((audio) => {
@@ -278,6 +438,11 @@ export function useWebRTC({
         audio.remove();
       });
       offeredPeers.clear();
+      speakingStop.forEach((stop) => stop());
+      speakingStop.clear();
+      // Close the shared AudioContext now that all detectors have been torn down.
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

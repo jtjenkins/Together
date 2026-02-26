@@ -11,16 +11,16 @@ server you control.
 
 All 7 development phases are complete.
 
-| Feature | Status |
-|---|---|
-| Authentication (JWT + bcrypt) | ✅ |
-| Servers & Channels | ✅ |
-| Text Chat (with pagination) | ✅ |
-| Voice (WebRTC SFU) | ✅ |
-| File Uploads (up to 50 MB) | ✅ |
-| Desktop App (Tauri + React) | ✅ |
-| Web App (React + Vite) | ✅ |
-| Mobile App (React Native / Expo) | ✅ |
+| Feature                          | Status |
+| -------------------------------- | ------ |
+| Authentication (JWT + bcrypt)    | ✅     |
+| Servers & Channels               | ✅     |
+| Text Chat (with pagination)      | ✅     |
+| Voice (WebRTC SFU)               | ✅     |
+| File Uploads (up to 50 MB)       | ✅     |
+| Desktop App (Tauri + React)      | ✅     |
+| Web App (React + Vite)           | ✅     |
+| Mobile App (React Native / Expo) | ✅     |
 
 ---
 

@@ -242,6 +242,7 @@ Together/
 **Why**: Simplicity, maintainability, easier debugging
 
 **Structure**:
+
 - Single Rust binary
 - Modules for different domains (chat, users, voice)
 - All share same database connection pool
@@ -252,12 +253,14 @@ Together/
 **Why**: Type safety, consistency, reduced duplication
 
 **Shared**:
+
 - TypeScript type definitions
 - API client code
 - WebSocket event handlers
 - Utility functions
 
 **Platform-specific**:
+
 - UI components (Tauri vs React vs React Native)
 - Platform APIs (notifications, system tray)
 - Navigation patterns
@@ -267,6 +270,7 @@ Together/
 **Why**: ACID transactions, referential integrity, simpler ops
 
 **PostgreSQL handles**:
+
 - Users and authentication
 - Messages and history
 - Channels and servers
@@ -278,6 +282,7 @@ Together/
 **Why**: Fast iteration, easy debugging, lower operational burden
 
 **Docker Compose provides**:
+
 - Single-command startup
 - Environment variable configuration
 - Volume management for persistence
@@ -386,13 +391,13 @@ chrono = { version = "0.4", features = ["serde"] }
 
 ## File Size Estimates
 
-| Component | Source Code | Binary/Bundle |
-|-----------|------------|---------------|
-| Server | ~15k LOC | ~20MB |
-| Desktop app | ~8k LOC | ~5MB |
-| Web client | ~7k LOC | ~500KB (gzipped) |
-| Mobile app | ~7k LOC | ~15MB (each platform) |
-| **Total** | **~37k LOC** | N/A |
+| Component   | Source Code  | Binary/Bundle         |
+| ----------- | ------------ | --------------------- |
+| Server      | ~15k LOC     | ~20MB                 |
+| Desktop app | ~8k LOC      | ~5MB                  |
+| Web client  | ~7k LOC      | ~500KB (gzipped)      |
+| Mobile app  | ~7k LOC      | ~15MB (each platform) |
+| **Total**   | **~37k LOC** | N/A                   |
 
 **Compare to microservices**: Would be ~50k+ LOC with service coordination overhead.
 
@@ -409,6 +414,7 @@ chrono = { version = "0.4", features = ["serde"] }
 ### If Needed (500-2000 users)
 
 **Add**:
+
 - Redis for sessions/presence
 - PostgreSQL read replica
 - Separate voice server
@@ -420,6 +426,7 @@ chrono = { version = "0.4", features = ["serde"] }
 ### If Needed (2000+ users)
 
 **Migrate to**:
+
 - Multiple server instances (horizontal scaling)
 - ScyllaDB for messages
 - Service mesh
@@ -435,16 +442,19 @@ chrono = { version = "0.4", features = ["serde"] }
 ## Security Boundaries
 
 ### External (Public Internet)
+
 - HTTPS/WSS only (TLS termination at NGINX)
 - Rate limiting at gateway
 - Authentication on all routes
 
 ### Internal (Within Docker network)
+
 - Server <-> Postgres: Internal Docker network
 - No external database access
 - Container isolation
 
 ### Client Security
+
 - JWT tokens in secure storage
 - Password never stored, only sent over HTTPS
 - File uploads: Size + type validation
@@ -490,6 +500,7 @@ tar -xzf backups/uploads_${DATE}.tar.gz -C data/
 ## Conclusion
 
 This structure provides:
+
 - ✅ Clear separation of concerns (server, clients, docs)
 - ✅ Easy navigation (consistent naming, logical grouping)
 - ✅ Simple deployment (single binary + Docker)

@@ -61,7 +61,6 @@ components:
   # Reusable schemas
   # -------------------------------------------------------------------------
   schemas:
-
     # -- Users ----------------------------------------------------------------
 
     UserDto:
@@ -136,7 +135,7 @@ components:
             Store securely; do not expose to untrusted code.
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         user:
-          $ref: '#/components/schemas/UserDto'
+          $ref: "#/components/schemas/UserDto"
 
     RegisterRequest:
       type: object
@@ -650,7 +649,7 @@ components:
 
     VoiceParticipantDto:
       allOf:
-        - $ref: '#/components/schemas/VoiceStateDto'
+        - $ref: "#/components/schemas/VoiceStateDto"
         - type: object
           description: |
             Extended voice state returned by `GET /channels/:channel_id/voice`.
@@ -728,7 +727,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             error: "Invalid or expired token"
 
@@ -740,7 +739,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             error: "Only the server owner can delete it"
 
@@ -751,7 +750,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             error: "Server not found"
 
@@ -760,7 +759,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             error: "Username already taken"
 
@@ -769,7 +768,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             error: "Server name must be 1–100 characters"
 
@@ -778,7 +777,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             error: "Internal server error"
 
@@ -792,7 +791,6 @@ security:
 # Paths
 # ---------------------------------------------------------------------------
 paths:
-
   # ==========================================================================
   # Health & observability
   # ==========================================================================
@@ -809,23 +807,23 @@ paths:
       tags: [Health]
       security: []
       responses:
-        '200':
+        "200":
           description: Server and database are healthy.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: "#/components/schemas/HealthResponse"
               example:
                 status: "ok"
                 service: "together-server"
                 version: "0.1.0"
                 database: "ok"
-        '503':
+        "503":
           description: Database is unreachable.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: "#/components/schemas/HealthResponse"
               example:
                 status: "degraded"
                 service: "together-server"
@@ -843,7 +841,7 @@ paths:
       tags: [Health]
       security: []
       responses:
-        '200':
+        "200":
           description: Prometheus text exposition format.
           content:
             text/plain:
@@ -880,30 +878,30 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterRequest'
+              $ref: "#/components/schemas/RegisterRequest"
             example:
               username: "alice"
               email: "alice@example.com"
               password: "s3cur3P@ssword"
       responses:
-        '201':
+        "201":
           description: Account created. Returns tokens and the new user object.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '409':
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
           description: Username or email already registered.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Username already taken"
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /auth/login:
     post:
@@ -927,29 +925,29 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
             example:
               username: "alice"
               password: "s3cur3P@ssword"
       responses:
-        '200':
+        "200":
           description: Login successful. Returns tokens and the authenticated user.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
           description: Invalid credentials.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Invalid username or password"
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
   # Users
@@ -962,22 +960,22 @@ paths:
       description: Returns the full UserDto for the currently authenticated user.
       tags: [Users]
       responses:
-        '200':
+        "200":
           description: The authenticated user's profile.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserDto'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
+                $ref: "#/components/schemas/UserDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
           description: User account no longer exists (should not occur in normal operation).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     patch:
       operationId: updateCurrentUser
@@ -994,29 +992,29 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateUserRequest'
+              $ref: "#/components/schemas/UpdateUserRequest"
             example:
               status: "away"
               custom_status: "AFK for lunch"
       responses:
-        '200':
+        "200":
           description: Updated user profile.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
+                $ref: "#/components/schemas/UserDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
           description: User account no longer exists.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
   # Servers
@@ -1036,23 +1034,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateServerRequest'
+              $ref: "#/components/schemas/CreateServerRequest"
             example:
               name: "My Gaming Community"
               icon_url: null
       responses:
-        '201':
+        "201":
           description: Server created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServerDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ServerDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     get:
       operationId: listServers
@@ -1062,18 +1060,18 @@ paths:
         creation time ascending.
       tags: [Servers]
       responses:
-        '200':
+        "200":
           description: Array of servers.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ServerDto'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                  $ref: "#/components/schemas/ServerDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /servers/{id}:
     parameters:
@@ -1094,18 +1092,18 @@ paths:
         `404 Not Found` to avoid leaking server existence.
       tags: [Servers]
       responses:
-        '200':
+        "200":
           description: Server details.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServerDto'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ServerDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     patch:
       operationId: updateServer
@@ -1119,26 +1117,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateServerRequest'
+              $ref: "#/components/schemas/UpdateServerRequest"
             example:
               name: "Renamed Community"
       responses:
-        '200':
+        "200":
           description: Updated server.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServerDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ServerDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     delete:
       operationId: deleteServer
@@ -1149,16 +1147,16 @@ paths:
         the server owner.
       tags: [Servers]
       responses:
-        '204':
+        "204":
           description: Server deleted. No body.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /servers/{id}/join:
     post:
@@ -1177,28 +1175,28 @@ paths:
             format: uuid
           description: Server UUID.
       responses:
-        '201':
+        "201":
           description: Successfully joined.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JoinServerResponse'
+                $ref: "#/components/schemas/JoinServerResponse"
               example:
                 message: "Joined server"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
           description: Already a member of this server.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Already a member of this server"
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /servers/{id}/leave:
     delete:
@@ -1217,22 +1215,22 @@ paths:
             format: uuid
           description: Server UUID.
       responses:
-        '204':
+        "204":
           description: Successfully left. No body.
-        '400':
+        "400":
           description: Server owner cannot leave.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Server owner cannot leave — transfer ownership or delete the server"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /servers/{id}/members:
     get:
@@ -1251,20 +1249,20 @@ paths:
             format: uuid
           description: Server UUID.
       responses:
-        '200':
+        "200":
           description: Array of members.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/MemberDto'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                  $ref: "#/components/schemas/MemberDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
   # Channels
@@ -1294,29 +1292,29 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateChannelRequest'
+              $ref: "#/components/schemas/CreateChannelRequest"
             example:
               name: "general"
               type: "text"
               topic: "General discussion"
               category: "Text Channels"
       responses:
-        '201':
+        "201":
           description: Channel created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChannelDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ChannelDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     get:
       operationId: listChannels
@@ -1326,20 +1324,20 @@ paths:
         `created_at ASC` as a tiebreaker. Caller must be a member.
       tags: [Channels]
       responses:
-        '200':
+        "200":
           description: Array of channels.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ChannelDto'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                  $ref: "#/components/schemas/ChannelDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /servers/{id}/channels/{channel_id}:
     parameters:
@@ -1366,18 +1364,18 @@ paths:
         non-members receive `404`.
       tags: [Channels]
       responses:
-        '200':
+        "200":
           description: Channel details.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChannelDto'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ChannelDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     patch:
       operationId: updateChannel
@@ -1391,27 +1389,27 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateChannelRequest'
+              $ref: "#/components/schemas/UpdateChannelRequest"
             example:
               topic: "Updated topic"
               position: 2
       responses:
-        '200':
+        "200":
           description: Updated channel.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChannelDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ChannelDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     delete:
       operationId: deleteChannel
@@ -1422,16 +1420,16 @@ paths:
         must be the server owner.
       tags: [Channels]
       responses:
-        '204':
+        "204":
           description: Channel deleted. No body.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
   # Messages
@@ -1465,25 +1463,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateMessageRequest'
+              $ref: "#/components/schemas/CreateMessageRequest"
             example:
               content: "Hello, world!"
               reply_to: null
       responses:
-        '201':
+        "201":
           description: Message created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MessageDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/MessageDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     get:
       operationId: listMessages
@@ -1530,20 +1528,20 @@ paths:
           description: Number of messages to return. Clamped to the range [1, 100].
           example: 50
       responses:
-        '200':
+        "200":
           description: Array of messages, newest first.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/MessageDto'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                  $ref: "#/components/schemas/MessageDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /messages/{message_id}:
     parameters:
@@ -1572,26 +1570,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateMessageRequest'
+              $ref: "#/components/schemas/UpdateMessageRequest"
             example:
               content: "Hello, world! (edited)"
       responses:
-        '200':
+        "200":
           description: Updated message.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MessageDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/MessageDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     delete:
       operationId: deleteMessage
@@ -1605,16 +1603,16 @@ paths:
         all connected members of the server.
       tags: [Messages]
       responses:
-        '204':
+        "204":
           description: Message deleted. No body.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
   # Attachments
@@ -1681,24 +1679,24 @@ paths:
                     One or more files. The field name must be `files` for each
                     file. Empty files are rejected.
       responses:
-        '201':
+        "201":
           description: Attachments uploaded. Returns all newly created attachment records.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/AttachmentDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                  $ref: "#/components/schemas/AttachmentDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     get:
       operationId: listAttachments
@@ -1708,20 +1706,20 @@ paths:
         time ascending. Caller must be a member of the server.
       tags: [Attachments]
       responses:
-        '200':
+        "200":
           description: Array of attachments.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/AttachmentDto'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                  $ref: "#/components/schemas/AttachmentDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /files/{message_id}/{filepath}:
     get:
@@ -1763,22 +1761,22 @@ paths:
             Stored filename as it appears in the `url` field of the
             `AttachmentDto` (e.g. `a1b2c3d4_screenshot.png`).
       responses:
-        '200':
+        "200":
           description: |
             File content. The `Content-Type` header reflects the stored MIME
             type. `Content-Disposition` is set to `inline` with the original
             filename.
           content:
-            '*/*':
+            "*/*":
               schema:
                 type: string
                 format: binary
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
   # Voice
@@ -1817,26 +1815,26 @@ paths:
         WebSocket `VOICE_SIGNAL` opcode.
       tags: [Voice]
       responses:
-        '201':
+        "201":
           description: Joined the voice channel.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VoiceStateDto'
-        '400':
+                $ref: "#/components/schemas/VoiceStateDto"
+        "400":
           description: Channel is not a voice channel.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Channel is not a voice channel"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     delete:
       operationId: leaveVoiceChannel
@@ -1849,26 +1847,26 @@ paths:
         connected members of the server.
       tags: [Voice]
       responses:
-        '204':
+        "204":
           description: Left the voice channel. No body.
-        '400':
+        "400":
           description: Channel is not a voice channel.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
           description: Not in this voice channel, or channel/server not found.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Not in this voice channel"
-        '500':
-          $ref: '#/components/responses/InternalError'
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     patch:
       operationId: updateVoiceState
@@ -1891,24 +1889,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateVoiceStateRequest'
+              $ref: "#/components/schemas/UpdateVoiceStateRequest"
             example:
               self_mute: true
       responses:
-        '200':
+        "200":
           description: Updated voice state.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VoiceStateDto'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/VoiceStateDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     get:
       operationId: listVoiceParticipants
@@ -1922,26 +1920,26 @@ paths:
         Caller must be a member of the server.
       tags: [Voice]
       responses:
-        '200':
+        "200":
           description: Array of voice participants with usernames.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/VoiceParticipantDto'
-        '400':
+                  $ref: "#/components/schemas/VoiceParticipantDto"
+        "400":
           description: Channel is not a voice channel.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
   # WebSocket gateway
@@ -1984,9 +1982,9 @@ paths:
           description: A valid JWT access token (not a refresh token).
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
       responses:
-        '101':
+        "101":
           description: Switching Protocols — WebSocket connection established.
-        '401':
+        "401":
           description: Invalid, expired, or missing token.
           content:
             text/plain:

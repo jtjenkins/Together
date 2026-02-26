@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Settings, Plus, Hash, Volume2 } from "lucide-react";
 import { useChannelStore } from "../../stores/channelStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
@@ -88,7 +89,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
             onClick={() => setShowSettings(true)}
             title="Server Settings"
           >
-            ⚙
+            <Settings size={16} />
           </button>
         )}
       </div>
@@ -104,7 +105,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                   onClick={() => setShowCreate(true)}
                   title="Create Channel"
                 >
-                  +
+                  <Plus size={14} />
                 </button>
               )}
             </div>
@@ -120,7 +121,11 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                   onContextMenu={(e) => handleContextMenu(e, channel)}
                 >
                   <span className={styles.channelIcon}>
-                    {channel.type === "text" ? "#" : "\u{1F50A}"}
+                    {channel.type === "text" ? (
+                      <Hash size={13} />
+                    ) : (
+                      <Volume2 size={13} />
+                    )}
                   </span>
                   <span className={styles.channelName}>{channel.name}</span>
                   {mentions > 0 && !isActive && (

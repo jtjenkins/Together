@@ -73,7 +73,6 @@
 }
 
 .addBtn {
-  font-size: 16px;
   color: var(--text-muted);
   width: 18px;
   height: 18px;
@@ -114,11 +113,12 @@
 }
 
 .channelIcon {
-  font-size: 18px;
   opacity: 0.5;
   flex-shrink: 0;
   width: 20px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .channelName {

@@ -19,6 +19,7 @@ import {
   Image,
   Modal,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ServersStackParamList } from "../navigation";
 import { useMessageStore } from "../stores/messageStore";
@@ -413,7 +414,12 @@ export function ChatScreen({ route, navigation }: Props) {
           }
           return (
             <View key={a.id} style={styles.attachmentChip}>
-              <Text style={styles.attachmentIcon}>📄</Text>
+              <Feather
+                name="file-text"
+                size={14}
+                color="#dcddde"
+                style={{ marginRight: 6 }}
+              />
               <Text style={styles.attachmentName} numberOfLines={1}>
                 {a.filename}
               </Text>
@@ -483,7 +489,7 @@ export function ChatScreen({ route, navigation }: Props) {
         {item.reply_to && (
           <View style={styles.replyPreview}>
             <Text style={styles.replyPreviewText} numberOfLines={1}>
-              ↩ Replying to a message
+              Replying to a message
             </Text>
           </View>
         )}
@@ -572,8 +578,9 @@ export function ChatScreen({ route, navigation }: Props) {
               })
             }
           >
+            <Feather name="message-square" size={12} color="#7289da" />
             <Text style={styles.threadFooterText}>
-              {"💬"} {item.thread_reply_count}{" "}
+              {item.thread_reply_count}{" "}
               {item.thread_reply_count === 1 ? "reply" : "replies"}
             </Text>
           </TouchableOpacity>
@@ -619,10 +626,13 @@ export function ChatScreen({ route, navigation }: Props) {
       {replyingTo && (
         <View style={styles.replyBar}>
           <Text style={styles.replyBarText} numberOfLines={1}>
-            ↩ Replying to {getAuthorName(replyingTo.author_id)}
+            Replying to {getAuthorName(replyingTo.author_id)}
           </Text>
-          <TouchableOpacity onPress={() => setReplyingTo(null)}>
-            <Text style={styles.replyBarClose}>✕</Text>
+          <TouchableOpacity
+            onPress={() => setReplyingTo(null)}
+            style={{ paddingLeft: 8 }}
+          >
+            <Feather name="x" size={16} color="#72767d" />
           </TouchableOpacity>
         </View>
       )}
@@ -632,9 +642,21 @@ export function ChatScreen({ route, navigation }: Props) {
         <View style={styles.filesPreview}>
           {pendingFiles.map((f, i) => (
             <View key={i} style={styles.fileChip}>
-              <Text style={styles.fileChipIcon}>
-                {f.type.startsWith("image/") ? "🖼️" : "📄"}
-              </Text>
+              {f.type.startsWith("image/") ? (
+                <Feather
+                  name="image"
+                  size={14}
+                  color="#dcddde"
+                  style={{ marginRight: 4 }}
+                />
+              ) : (
+                <Feather
+                  name="file-text"
+                  size={14}
+                  color="#dcddde"
+                  style={{ marginRight: 4 }}
+                />
+              )}
               <Text style={styles.fileChipName} numberOfLines={1}>
                 {f.name}
               </Text>
@@ -642,8 +664,9 @@ export function ChatScreen({ route, navigation }: Props) {
                 onPress={() =>
                   setPendingFiles((prev) => prev.filter((_, j) => j !== i))
                 }
+                style={{ marginLeft: 4 }}
               >
-                <Text style={styles.fileChipRemove}>✕</Text>
+                <Feather name="x" size={14} color="#72767d" />
               </TouchableOpacity>
             </View>
           ))}
@@ -653,7 +676,7 @@ export function ChatScreen({ route, navigation }: Props) {
       {/* Input bar */}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={handlePickFile} style={styles.attachBtn}>
-          <Text style={styles.attachBtnText}>📎</Text>
+          <Feather name="paperclip" size={20} color="#b9bbbe" />
         </TouchableOpacity>
         <TextInput
           style={styles.textInput}
@@ -677,7 +700,7 @@ export function ChatScreen({ route, navigation }: Props) {
           {isSending ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.sendBtnText}>➤</Text>
+            <Feather name="send" size={16} color="#fff" />
           )}
         </TouchableOpacity>
       </View>
@@ -765,14 +788,14 @@ const styles = StyleSheet.create({
   },
   messageRow: {
     flexDirection: "row",
-    marginBottom: 2,
+    marginBottom: 6,
     alignItems: "flex-end",
   },
   messageRowOwn: {
     flexDirection: "row-reverse",
   },
   messageRowCompact: {
-    marginBottom: 1,
+    marginBottom: 3,
   },
   avatar: {
     width: 36,
@@ -856,9 +879,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 6,
     marginBottom: 4,
-  },
-  attachmentIcon: {
-    marginRight: 6,
   },
   attachmentName: {
     color: "#dcddde",
@@ -948,10 +968,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
-  replyBarClose: {
-    color: "#72767d",
-    fontSize: 16,
-  },
   filesPreview: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -970,18 +986,10 @@ const styles = StyleSheet.create({
     padding: 6,
     maxWidth: 200,
   },
-  fileChipIcon: {
-    marginRight: 4,
-  },
   fileChipName: {
     color: "#dcddde",
     fontSize: 12,
     flex: 1,
-  },
-  fileChipRemove: {
-    color: "#72767d",
-    fontSize: 14,
-    marginLeft: 4,
   },
   inputBar: {
     flexDirection: "row",
@@ -996,9 +1004,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingBottom: 8,
     marginRight: 6,
-  },
-  attachBtnText: {
-    fontSize: 20,
   },
   textInput: {
     flex: 1,
@@ -1021,10 +1026,6 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: "#4f545c",
-  },
-  sendBtnText: {
-    color: "#fff",
-    fontSize: 16,
   },
   pickerOverlay: {
     flex: 1,
@@ -1060,6 +1061,9 @@ const styles = StyleSheet.create({
     fontSize: 26,
   },
   threadFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     marginLeft: 52,
     marginTop: 2,
     marginBottom: 4,

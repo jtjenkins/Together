@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
 import { MessageItem } from "./MessageItem";
@@ -19,8 +20,8 @@ export function ThreadPanel({
   const sendThreadReply = useMessageStore((s) => s.sendThreadReply);
   const threadCache = useMessageStore((s) => s.threadCache);
   const messages = useMessageStore((s) => s.messages);
-  const isLoading = useMessageStore((s) => s.isLoading);
-  const storeError = useMessageStore((s) => s.error);
+  const isLoading = useMessageStore((s) => s.isThreadLoading);
+  const storeError = useMessageStore((s) => s.threadError);
   const members = useServerStore((s) => s.members);
 
   const [inputValue, setInputValue] = useState("");
@@ -85,7 +86,7 @@ export function ThreadPanel({
           onClick={onClose}
           title="Close thread"
         >
-          &#x2715;
+          <X size={16} />
         </button>
       </div>
 

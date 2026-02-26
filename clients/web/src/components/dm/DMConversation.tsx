@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
+import { X, Send } from "lucide-react";
 import { useDmStore } from "../../stores/dmStore";
 import { useReadStateStore } from "../../stores/readStateStore";
 import { useAuthStore } from "../../stores/authStore";
@@ -91,7 +92,7 @@ export function DMConversation({ channelId }: DMConversationProps) {
     <div className={styles.container}>
       {error && (
         <div className={styles.errorBanner} role="alert" onClick={clearError}>
-          {error} &times;
+          {error} <X size={14} />
         </div>
       )}
       <div className={styles.header}>
@@ -195,7 +196,7 @@ export function DMConversation({ channelId }: DMConversationProps) {
           onClick={handleSend}
           disabled={!inputValue.trim()}
         >
-          &#9658;
+          <Send size={16} />
         </button>
       </div>
     </div>

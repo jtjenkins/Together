@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ServersStackParamList } from "../navigation";
 import { useVoiceStore } from "../stores/voiceStore";
@@ -229,8 +230,8 @@ export function VoiceScreen({ route, navigation }: Props) {
           {isSelf ? " (you)" : ""}
         </Text>
         <View style={styles.participantIcons}>
-          {muted && <Text style={styles.stateIcon}>🔇</Text>}
-          {deafened && <Text style={styles.stateIcon}>🔕</Text>}
+          {muted && <Feather name="mic-off" size={16} color="#72767d" />}
+          {deafened && <Feather name="volume-x" size={16} color="#72767d" />}
         </View>
       </View>
     );
@@ -246,8 +247,9 @@ export function VoiceScreen({ route, navigation }: Props) {
               clearVoiceError();
               setRtcError(null);
             }}
+            style={{ paddingLeft: 12 }}
           >
-            <Text style={styles.errorDismiss}>✕</Text>
+            <Feather name="x" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
       )}
@@ -292,9 +294,21 @@ export function VoiceScreen({ route, navigation }: Props) {
                 style={[styles.controlBtn, isMuted && styles.controlBtnActive]}
                 onPress={handleToggleMute}
               >
-                <Text style={styles.controlBtnIcon}>
-                  {isMuted ? "🔇" : "🎤"}
-                </Text>
+                {isMuted ? (
+                  <Feather
+                    name="mic-off"
+                    size={24}
+                    color="#dcddde"
+                    style={styles.controlBtnIcon}
+                  />
+                ) : (
+                  <Feather
+                    name="mic"
+                    size={24}
+                    color="#dcddde"
+                    style={styles.controlBtnIcon}
+                  />
+                )}
                 <Text style={styles.controlBtnLabel}>
                   {isMuted ? "Unmute" : "Mute"}
                 </Text>
@@ -307,9 +321,21 @@ export function VoiceScreen({ route, navigation }: Props) {
                 ]}
                 onPress={handleToggleDeafen}
               >
-                <Text style={styles.controlBtnIcon}>
-                  {isDeafened ? "🔕" : "🎧"}
-                </Text>
+                {isDeafened ? (
+                  <Feather
+                    name="volume-x"
+                    size={24}
+                    color="#dcddde"
+                    style={styles.controlBtnIcon}
+                  />
+                ) : (
+                  <Feather
+                    name="headphones"
+                    size={24}
+                    color="#dcddde"
+                    style={styles.controlBtnIcon}
+                  />
+                )}
                 <Text style={styles.controlBtnLabel}>
                   {isDeafened ? "Undeafen" : "Deafen"}
                 </Text>
@@ -319,7 +345,12 @@ export function VoiceScreen({ route, navigation }: Props) {
                 style={[styles.controlBtn, styles.controlBtnLeave]}
                 onPress={handleLeave}
               >
-                <Text style={styles.controlBtnIcon}>📞</Text>
+                <Feather
+                  name="phone-off"
+                  size={24}
+                  color="#dcddde"
+                  style={styles.controlBtnIcon}
+                />
                 <Text style={styles.controlBtnLabel}>Leave</Text>
               </TouchableOpacity>
             </View>
@@ -347,11 +378,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     flex: 1,
-  },
-  errorDismiss: {
-    color: "#fff",
-    fontSize: 18,
-    paddingLeft: 12,
   },
   participantsSection: {
     flex: 1,
@@ -404,9 +430,6 @@ const styles = StyleSheet.create({
   participantIcons: {
     flexDirection: "row",
     gap: 4,
-  },
-  stateIcon: {
-    fontSize: 16,
   },
   emptyText: {
     color: "#72767d",
@@ -472,7 +495,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f04747",
   },
   controlBtnIcon: {
-    fontSize: 24,
     marginBottom: 4,
   },
   controlBtnLabel: {

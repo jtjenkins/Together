@@ -9,6 +9,7 @@ Phase 1 (Database Foundation) has been successfully completed. All database sche
 ## Deliverables
 
 ### 1. Database Schema (12 Tables Created)
+
 - `users` - User authentication and profiles
 - `sessions` - JWT refresh token storage
 - `servers` - Discord-like guilds
@@ -23,6 +24,7 @@ Phase 1 (Database Foundation) has been successfully completed. All database sche
 - `voice_states` - Voice channel membership tracking
 
 ### 2. Indexes (42 Total)
+
 - Username and email indexes for fast lookups
 - **Critical**: `idx_messages_channel_time` for pagination (0.028ms query time)
 - Full-text search GIN index on message content
@@ -30,6 +32,7 @@ Phase 1 (Database Foundation) has been successfully completed. All database sche
 - Permission override indexes for authorization checks
 
 ### 3. Seed Data
+
 - 5 test users (alice, bob, charlie, diana, eve)
 - All passwords: `password123`
 - 1 test server: "Gaming Squad"
@@ -40,20 +43,24 @@ Phase 1 (Database Foundation) has been successfully completed. All database sche
 ## Validation Tests ✅
 
 ### Constraint Validation
+
 - ✅ Unique username constraint works correctly
 - ✅ Unique email constraint enforced
 - ✅ Foreign key constraints prevent orphaned records
 
 ### Cascading Deletes
+
 - ✅ Tested: Server deletion → Channel deletion → Message deletion
 - ✅ All cascading relationships work as designed
 
 ### Index Performance
+
 - ✅ Message pagination query: **0.028ms execution time**
 - ✅ Index scan used (not sequential scan)
 - ✅ Performance well within <50ms target
 
 ### Full-Text Search
+
 - ✅ GIN index operational
 - ✅ English language search working
 - ✅ Search query: "game | tonight" → found 1 message
@@ -69,6 +76,7 @@ Phase 1 (Database Foundation) has been successfully completed. All database sche
 ## Files Created/Modified
 
 ### New Files
+
 - `server/Cargo.toml` - Rust project configuration
 - `server/src/main.rs` - Basic entry point
 - `server/.env` - Database connection config
@@ -84,6 +92,7 @@ Phase 1 (Database Foundation) has been successfully completed. All database sche
 - `server/README.md` - Server documentation
 
 ### Fixed During Implementation
+
 - `20240216000003_roles_and_permissions.sql` - Fixed PRIMARY KEY constraint
   - **Issue**: `COALESCE()` not allowed in PRIMARY KEY definition
   - **Solution**: Added UUID `id` column, used `UNIQUE NULLS NOT DISTINCT` constraint
@@ -91,11 +100,13 @@ Phase 1 (Database Foundation) has been successfully completed. All database sche
 ## Commands Reference
 
 ### One-Time Setup
+
 ```bash
 ./scripts/setup-dev.sh  # Installs Rust, sqlx-cli, starts DB, runs migrations
 ```
 
 ### Database Operations (sqlx-cli - Rails-like)
+
 ```bash
 cd server
 sqlx migrate run      # Run pending migrations
@@ -105,6 +116,7 @@ sqlx migrate add name # Create new migration
 ```
 
 ### Docker Operations
+
 ```bash
 # Start database
 docker-compose -f docker-compose.dev.yml up -d
@@ -117,11 +129,13 @@ docker-compose -f docker-compose.dev.yml logs -f postgres
 ```
 
 ### Direct Database Access
+
 ```bash
 docker-compose -f docker-compose.dev.yml exec -T postgres psql -U together -d together_dev
 ```
 
 ### Useful Queries
+
 ```sql
 -- List all tables
 \dt
@@ -150,6 +164,7 @@ Phase 2 will implement the core backend REST API:
 6. **Rate limiting** to prevent abuse
 
 **Prerequisites for Phase 2**:
+
 - Install Rust toolchain (rustup) if not already installed
 - Verify `cargo` command is available
 - Install `sqlx-cli` for compile-time query verification

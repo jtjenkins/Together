@@ -5,6 +5,7 @@
 **Build from the foundation up**: Database → Backend API → UI Clients
 
 This approach ensures:
+
 - Solid data model before writing business logic
 - Complete API before building UIs
 - Each layer can be tested independently
@@ -14,15 +15,15 @@ This approach ensures:
 
 ## Timeline Overview
 
-| Phase | Duration | Focus | Deliverable |
-|-------|----------|-------|-------------|
-| **Phase 1: Database Foundation** | Week 1 | Schema design, migrations | Working PostgreSQL database |
-| **Phase 2: Core Backend** | Week 2-3 | Auth, basic CRUD | REST API functional |
-| **Phase 3: Real-Time Backend** | Week 4-5 | WebSocket, chat | Real-time messaging works |
-| **Phase 4: Voice Backend** | Week 6-7 | WebRTC SFU | Voice channels work |
-| **Phase 5: Desktop UI** | Week 8-10 | Tauri app | Desktop client complete |
-| **Phase 6: Web UI** | Week 11-12 | React web app | Web client complete |
-| **Phase 7: Mobile UI** | Week 13-14 | React Native | Mobile apps complete |
+| Phase                            | Duration   | Focus                     | Deliverable                 |
+| -------------------------------- | ---------- | ------------------------- | --------------------------- |
+| **Phase 1: Database Foundation** | Week 1     | Schema design, migrations | Working PostgreSQL database |
+| **Phase 2: Core Backend**        | Week 2-3   | Auth, basic CRUD          | REST API functional         |
+| **Phase 3: Real-Time Backend**   | Week 4-5   | WebSocket, chat           | Real-time messaging works   |
+| **Phase 4: Voice Backend**       | Week 6-7   | WebRTC SFU                | Voice channels work         |
+| **Phase 5: Desktop UI**          | Week 8-10  | Tauri app                 | Desktop client complete     |
+| **Phase 6: Web UI**              | Week 11-12 | React web app             | Web client complete         |
+| **Phase 7: Mobile UI**           | Week 13-14 | React Native              | Mobile apps complete        |
 
 **Total**: 14 weeks to full v1.0
 
@@ -31,11 +32,13 @@ This approach ensures:
 # Phase 1: Database Foundation (Week 1)
 
 ## Goal
+
 Complete, tested PostgreSQL schema ready for all features
 
 ## Tasks
 
 ### 1.1 Environment Setup
+
 **Duration**: 1 day
 
 - [ ] Install PostgreSQL 16 locally
@@ -44,12 +47,14 @@ Complete, tested PostgreSQL schema ready for all features
 - [ ] Create `.env.example` with database credentials
 
 **Deliverable**:
+
 ```bash
 docker-compose -f docker-compose.dev.yml up -d
 # PostgreSQL running on localhost:5432
 ```
 
 ### 1.2 Migration System Setup
+
 **Duration**: 1 day
 
 - [ ] Choose migration tool (sqlx-cli or diesel-cli)
@@ -58,6 +63,7 @@ docker-compose -f docker-compose.dev.yml up -d
 - [ ] Create initial migration: `000_init.sql`
 
 **Deliverable**:
+
 ```bash
 cargo install sqlx-cli --no-default-features --features postgres
 sqlx database create
@@ -65,6 +71,7 @@ sqlx migrate run
 ```
 
 ### 1.3 Core Schema - Users & Auth
+
 **Duration**: 1 day
 
 **Migration**: `001_users_and_auth.sql`
@@ -115,12 +122,14 @@ CREATE TRIGGER update_users_updated_at
 ```
 
 **Acceptance**:
+
 - [ ] Can create user
 - [ ] Can create session
 - [ ] Unique constraints work
 - [ ] Indexes exist
 
 ### 1.4 Core Schema - Servers & Channels
+
 **Duration**: 1 day
 
 **Migration**: `002_servers_and_channels.sql`
@@ -172,12 +181,14 @@ CREATE TRIGGER update_servers_updated_at
 ```
 
 **Acceptance**:
+
 - [ ] Can create server
 - [ ] Can add members
 - [ ] Can create channels
 - [ ] Cascading deletes work
 
 ### 1.5 Roles & Permissions Schema
+
 **Duration**: 1 day
 
 **Migration**: `003_roles_and_permissions.sql`
@@ -223,12 +234,14 @@ CREATE INDEX idx_channel_perms_channel ON channel_permission_overrides(channel_i
 ```
 
 **Acceptance**:
+
 - [ ] Can create roles with permissions
 - [ ] Can assign roles to members
 - [ ] Can set channel overrides
 - [ ] Permission bitfield stored correctly
 
 ### 1.6 Messages Schema
+
 **Duration**: 1 day
 
 **Migration**: `004_messages.sql`
@@ -286,12 +299,14 @@ CREATE INDEX idx_attachments_message ON attachments(message_id);
 ```
 
 **Acceptance**:
+
 - [ ] Can insert messages efficiently
 - [ ] Can paginate messages (before/after)
 - [ ] Full-text search works
 - [ ] Can add reactions and attachments
 
 ### 1.7 Voice Schema
+
 **Duration**: 1 day
 
 **Migration**: `005_voice.sql`
@@ -313,13 +328,16 @@ CREATE INDEX idx_voice_states_channel ON voice_states(channel_id);
 ```
 
 **Acceptance**:
+
 - [ ] Can track voice channel membership
 - [ ] Can query who's in a channel efficiently
 
 ### 1.8 Testing & Validation
+
 **Duration**: 1 day
 
 **Tasks**:
+
 - [ ] Write SQL test scripts for each table
 - [ ] Test all foreign key constraints
 - [ ] Test cascading deletes
@@ -328,6 +346,7 @@ CREATE INDEX idx_voice_states_channel ON voice_states(channel_id);
 - [ ] Document schema in `docs/database-schema.md`
 
 **Seed Data Script**: `seeds/dev_data.sql`
+
 ```sql
 -- Create test users
 INSERT INTO users (username, email, password_hash) VALUES
@@ -344,17 +363,20 @@ INSERT INTO servers (name, owner_id) VALUES
 ## Phase 1 Deliverables
 
 ✅ **Database Schema Complete**:
+
 - All tables created with proper constraints
 - Indexes optimized for query patterns
 - Cascading deletes configured
 - Seed data for development
 
 ✅ **Documentation**:
+
 - Entity-Relationship diagram
 - Schema documentation
 - Migration guide
 
 ✅ **Validation**:
+
 - All constraints tested
 - Performance verified
 - Seed data script works
@@ -364,12 +386,15 @@ INSERT INTO servers (name, owner_id) VALUES
 # Phase 2: Core Backend (Week 2-3)
 
 ## Goal
+
 REST API with authentication, basic CRUD operations
 
 ## 2.1 Project Setup
+
 **Duration**: 1 day
 
 **Tasks**:
+
 - [ ] Initialize Rust project: `cargo init --name together-server`
 - [ ] Add dependencies to `Cargo.toml`
 - [ ] Create module structure
@@ -377,6 +402,7 @@ REST API with authentication, basic CRUD operations
 - [ ] Create `.env` handling
 
 **Cargo.toml**:
+
 ```toml
 [package]
 name = "together-server"
@@ -413,6 +439,7 @@ validator = { version = "0.16", features = ["derive"] }
 ```
 
 **Module Structure**:
+
 ```rust
 // src/main.rs
 mod config;
@@ -426,9 +453,11 @@ mod error;
 **Deliverable**: `cargo run` compiles and starts server on `http://localhost:8080`
 
 ## 2.2 Database Connection
+
 **Duration**: 1 day
 
 **Tasks**:
+
 - [ ] Create `db/mod.rs` with connection pool
 - [ ] Add database health check
 - [ ] Test connection on startup
@@ -448,14 +477,17 @@ pub async fn health_check(pool: &PgPool) -> Result<(), sqlx::Error> {
 ```
 
 **Acceptance**:
+
 - [ ] Server connects to database on startup
 - [ ] Health check passes
 - [ ] Graceful error if database unavailable
 
 ## 2.3 Models & DTOs
+
 **Duration**: 1 day
 
 **Tasks**:
+
 - [ ] Create model structs matching database schema
 - [ ] Create DTO (Data Transfer Object) structs for API
 - [ ] Implement conversions between models and DTOs
@@ -504,6 +536,7 @@ impl From<User> for UserDto {
 ```
 
 **Models to Create**:
+
 - [ ] User, UserDto
 - [ ] Server, ServerDto
 - [ ] Channel, ChannelDto
@@ -511,11 +544,13 @@ impl From<User> for UserDto {
 - [ ] Role, RoleDto
 
 ## 2.4 Authentication System
+
 **Duration**: 2 days
 
 **Tasks**:
 
 ### JWT Handling
+
 ```rust
 // src/auth/jwt.rs
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
@@ -555,6 +590,7 @@ pub fn validate_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken:
 ```
 
 ### Password Hashing
+
 ```rust
 // src/auth/password.rs
 use bcrypt::{hash, verify, DEFAULT_COST};
@@ -569,6 +605,7 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, bcrypt::Bcryp
 ```
 
 ### Auth Middleware
+
 ```rust
 // src/auth/middleware.rs
 use axum::{
@@ -599,12 +636,14 @@ pub async fn auth_middleware(
 ```
 
 **Acceptance**:
+
 - [ ] Can hash passwords with bcrypt
 - [ ] Can create JWTs
 - [ ] Can validate JWTs
 - [ ] Auth middleware rejects invalid tokens
 
 ## 2.5 User Endpoints
+
 **Duration**: 2 days
 
 **Endpoints to Implement**:
@@ -642,6 +681,7 @@ pub struct AuthResponse {
 ```
 
 **Database Queries**:
+
 ```rust
 // src/db/users.rs
 use sqlx::PgPool;
@@ -677,6 +717,7 @@ pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<Option<Us
 ```
 
 **Tests**:
+
 - [ ] Register new user succeeds
 - [ ] Register duplicate username fails
 - [ ] Login with correct password succeeds
@@ -684,9 +725,11 @@ pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<Option<Us
 - [ ] Protected endpoint requires auth
 
 ## 2.6 Server & Channel Endpoints
+
 **Duration**: 2 days
 
 **Endpoints**:
+
 ```rust
 // Servers
 // POST   /api/servers
@@ -705,14 +748,17 @@ pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<Option<Us
 ```
 
 **Permission Checks**:
+
 - [ ] Only owner can delete server
 - [ ] Members can view channels
 - [ ] Check permissions before mutations
 
 ## 2.7 Role & Permission System
+
 **Duration**: 2 days
 
 **Permission Bitflags**:
+
 ```rust
 // src/models/permissions.rs
 use bitflags::bitflags;
@@ -752,6 +798,7 @@ pub async fn calculate_permissions(
 ```
 
 **Endpoints**:
+
 ```rust
 // POST   /api/servers/:id/roles
 // PATCH  /api/roles/:id
@@ -760,9 +807,11 @@ pub async fn calculate_permissions(
 ```
 
 ## 2.8 Testing & Documentation
+
 **Duration**: 1 day
 
 **Integration Tests**:
+
 ```rust
 // tests/auth_test.rs
 #[tokio::test]
@@ -782,6 +831,7 @@ async fn test_register_and_login() {
 ```
 
 **API Documentation**:
+
 - [ ] Create OpenAPI spec
 - [ ] Document all endpoints
 - [ ] Add example requests/responses
@@ -789,6 +839,7 @@ async fn test_register_and_login() {
 ## Phase 2 Deliverables
 
 ✅ **Working REST API**:
+
 - User registration and login
 - Server CRUD
 - Channel CRUD
@@ -796,11 +847,13 @@ async fn test_register_and_login() {
 - Permission system
 
 ✅ **Testing**:
+
 - Unit tests for auth
 - Integration tests for endpoints
-- >70% code coverage
+- > 70% code coverage
 
 ✅ **Documentation**:
+
 - API documentation
 - Setup instructions
 
@@ -809,18 +862,22 @@ async fn test_register_and_login() {
 # Phase 3: Real-Time Backend (Week 4-5)
 
 ## Goal
+
 WebSocket gateway with real-time chat
 
 ## 3.1 WebSocket Setup
+
 **Duration**: 2 days
 
 **Dependencies**:
+
 ```toml
 axum = { version = "0.7", features = ["ws"] }
 tokio = { version = "1", features = ["sync"] }
 ```
 
 **Connection Manager**:
+
 ```rust
 // src/websocket/connection_manager.rs
 use std::collections::HashMap;
@@ -862,6 +919,7 @@ impl ConnectionManager {
 ```
 
 **WebSocket Handler**:
+
 ```rust
 // src/websocket/handler.rs
 use axum::{
@@ -918,15 +976,18 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
 ```
 
 **Acceptance**:
+
 - [ ] Client can connect with JWT
 - [ ] Receives READY event
 - [ ] Heartbeat working
 - [ ] Disconnect handled gracefully
 
 ## 3.2 Message Events
+
 **Duration**: 2 days
 
 **Event Types**:
+
 ```rust
 // src/websocket/events.rs
 use serde::{Serialize, Deserialize};
@@ -947,6 +1008,7 @@ pub const PRESENCE_UPDATE: &str = "PRESENCE_UPDATE";
 ```
 
 **Message Handler**:
+
 ```rust
 async fn handle_message_create(
     pool: &PgPool,
@@ -974,6 +1036,7 @@ async fn handle_message_create(
 ```
 
 ## 3.3 Message REST Endpoints
+
 **Duration**: 1 day
 
 ```rust
@@ -986,9 +1049,11 @@ async fn handle_message_create(
 ```
 
 ## 3.4 Presence System
+
 **Duration**: 1 day
 
 **Presence Tracking**:
+
 ```rust
 // Update user status
 pub async fn update_presence(
@@ -1016,6 +1081,7 @@ pub async fn update_presence(
 ```
 
 ## 3.5 File Uploads
+
 **Duration**: 1 day
 
 ```rust
@@ -1065,6 +1131,7 @@ pub async fn upload_file(
 ## Phase 3 Deliverables
 
 ✅ **Real-Time Chat**:
+
 - WebSocket connection working
 - Message create/update/delete events
 - Typing indicators
@@ -1072,6 +1139,7 @@ pub async fn upload_file(
 - File uploads
 
 ✅ **Message History**:
+
 - Pagination working
 - Search functional
 - Edit/delete working
@@ -1081,17 +1149,21 @@ pub async fn upload_file(
 # Phase 4: Voice Backend (Week 6-7)
 
 ## Goal
+
 WebRTC SFU for voice channels
 
 ## 4.1 WebRTC Setup
+
 **Duration**: 2 days
 
 **Dependencies**:
+
 ```toml
 webrtc = "0.9"
 ```
 
 **SFU Manager**:
+
 ```rust
 // src/voice/sfu.rs
 use webrtc::peer_connection::PeerConnection;
@@ -1124,9 +1196,11 @@ impl SfuManager {
 ```
 
 ## 4.2 Voice Signaling
+
 **Duration**: 2 days
 
 **WebSocket Events**:
+
 ```rust
 // VOICE_STATE_UPDATE - join/leave channel
 // VOICE_SERVER_UPDATE - send SDP offer
@@ -1134,6 +1208,7 @@ impl SfuManager {
 ```
 
 ## 4.3 Voice State Tracking
+
 **Duration**: 1 day
 
 ```rust
@@ -1143,6 +1218,7 @@ impl SfuManager {
 ```
 
 ## 4.4 TURN Server Setup
+
 **Duration**: 1 day
 
 - [ ] Install coturn
@@ -1152,6 +1228,7 @@ impl SfuManager {
 ## Phase 4 Deliverables
 
 ✅ **Voice Chat Working**:
+
 - Can join/leave voice channels
 - Audio transmitted via WebRTC
 - Mute/unmute working
@@ -1168,6 +1245,7 @@ These phases focus on building the user interfaces. Since you specified back-to-
 - **Phase 7**: Mobile (React Native)
 
 Each would include:
+
 - Component structure
 - State management
 - API integration

@@ -5,12 +5,14 @@
 This roadmap outlines the phased development of Together using a **monolithic architecture** optimized for small communities (20-500 users). Faster development, simpler deployment, lower costs.
 
 **Timeline Estimate**:
+
 - MVP (Phase 1-2): **6-8 weeks** with 1-2 developers
 - v1.0 (Phase 3): +4 weeks
 - Polish (Phase 4): +2 weeks
 - **Total**: ~3-4 months to production-ready
 
 **Why faster than microservices**:
+
 - No service coordination overhead
 - Single codebase, single language
 - Simpler testing and deployment
@@ -24,6 +26,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 **Goal**: Project setup and development environment
 
 ### Tasks
+
 - [ ] Initialize monorepo structure (`server/` and `clients/`)
 - [ ] Set up Rust project with Axum
 - [ ] Configure PostgreSQL with Docker Compose
@@ -33,12 +36,14 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Create shared TypeScript types package
 
 ### Deliverables
+
 - `server/` compiles and runs (`cargo run`)
 - PostgreSQL running with initial schema
 - `docker-compose.yml` works locally
 - CI pipeline passes
 
 ### Exit Criteria
+
 - Developer can run full stack in 2 commands
 - Database migrations apply successfully
 - Basic health check endpoint works
@@ -52,6 +57,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Tasks
 
 #### Backend (Rust)
+
 - [ ] User registration with bcrypt password hashing
 - [ ] Login with JWT (access + refresh tokens)
 - [ ] Logout / session revocation
@@ -63,6 +69,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Permission middleware
 
 #### Database
+
 - [ ] Users table with auth fields
 - [ ] Servers table
 - [ ] Channels table
@@ -70,11 +77,13 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Server membership table
 
 #### Testing
+
 - [ ] Unit tests for auth logic
 - [ ] Integration tests for API endpoints
 - [ ] Permission system tests
 
 ### Deliverables
+
 - Working REST API
   - `POST /api/auth/register`
   - `POST /api/auth/login`
@@ -85,9 +94,10 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - Tests passing
 
 ### Exit Criteria
+
 - User can register, login, create server
 - Permission checks work correctly
-- >70% test coverage
+- > 70% test coverage
 
 ---
 
@@ -98,6 +108,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Tasks
 
 #### WebSocket Gateway
+
 - [ ] WebSocket upgrade handler
 - [ ] Connection state management (in-memory HashMap)
 - [ ] JWT validation on connect
@@ -108,6 +119,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Rate limiting (100 msg/min per user)
 
 #### Chat Functionality
+
 - [ ] Messages table with indexes
 - [ ] Send message endpoint
 - [ ] Get message history (pagination)
@@ -118,6 +130,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] File upload/download (filesystem storage)
 
 #### Desktop Client (Tauri)
+
 - [ ] Login/register UI
 - [ ] Server list sidebar
 - [ ] Channel list
@@ -128,6 +141,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Typing indicators UI
 
 ### Deliverables
+
 - Real-time chat working end-to-end
 - Desktop app functional for text chat
 - File uploads working
@@ -135,6 +149,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - Users can @mention others
 
 ### Exit Criteria
+
 - Team dogfoods the app for internal communication
 - Message delivery < 50ms in same region
 - History loads < 100ms for 50 messages
@@ -149,6 +164,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Tasks
 
 #### Voice Module (WebRTC SFU)
+
 - [ ] WebRTC peer connection management
 - [ ] SDP offer/answer exchange (signaling)
 - [ ] ICE candidate handling
@@ -159,12 +175,14 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Voice activity detection (VAD)
 
 #### Infrastructure
+
 - [ ] STUN server configuration
 - [ ] TURN server setup (coturn) for NAT traversal
 - [ ] UDP port range allocation
 - [ ] Voice quality metrics
 
 #### Desktop Client
+
 - [ ] Voice channel UI
 - [ ] Voice connection indicator
 - [ ] Participant list with avatars
@@ -175,12 +193,14 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Audio device selection
 
 ### Deliverables
+
 - Join/leave voice channels
 - Clear voice communication (64kbps Opus)
 - Mute/unmute/deafen working
 - Voice quality acceptable for gaming
 
 ### Exit Criteria
+
 - Voice latency < 150ms end-to-end
 - Packet loss < 2% under normal conditions
 - 5-person voice channel stable for 1 hour
@@ -195,6 +215,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Tasks
 
 #### Web Client
+
 - [ ] Port desktop UI to web (React + Vite)
 - [ ] Responsive layout for desktop/tablet/mobile
 - [ ] WebSocket connection in browser
@@ -204,6 +225,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Browser notifications
 
 #### Mobile Client (React Native)
+
 - [ ] Navigation structure (React Navigation)
 - [ ] Server list screen
 - [ ] Channel list screen
@@ -215,6 +237,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Background audio handling
 
 ### Deliverables
+
 - Web client at `app.together.yourdomain.com`
 - iOS app (TestFlight)
 - Android app (internal testing)
@@ -222,6 +245,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - Mobile voice functional
 
 ### Exit Criteria
+
 - All three clients (desktop/web/mobile) work
 - Feature parity for core functionality
 - Mobile app daily-usable
@@ -235,6 +259,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Tasks
 
 #### Features
+
 - [ ] Emoji reactions (Unicode only)
 - [ ] Message threading (optional)
 - [ ] User presence (online/away/dnd/offline)
@@ -244,6 +269,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Unread indicators
 
 #### Backend
+
 - [ ] Database connection pooling tuning
 - [ ] Query optimization
 - [ ] Logging with tracing
@@ -251,6 +277,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Health check with details
 
 #### DevOps
+
 - [ ] Production Docker Compose
 - [ ] Automated backups script
 - [ ] NGINX reverse proxy config
@@ -259,6 +286,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Deployment documentation
 
 #### Documentation
+
 - [ ] API documentation (OpenAPI spec)
 - [ ] WebSocket protocol docs
 - [ ] Self-hosting guide
@@ -266,12 +294,14 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Troubleshooting guide
 
 ### Deliverables
+
 - v1.0 release binaries
 - Complete documentation
 - Production deployment guide
 - Automated backup system
 
 ### Exit Criteria
+
 - All P0/P1 features complete
 - No known critical bugs
 - Documentation complete
@@ -286,6 +316,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Tasks
 
 #### Discord Bridge Bot
+
 - [ ] Discord bot setup
 - [ ] Message sync Discord → Together
 - [ ] User mapping system
@@ -294,22 +325,26 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - [ ] Rate limiting compliance
 
 #### Import Tools
+
 - [ ] Discord export parser
 - [ ] Server structure import (channels, roles)
 - [ ] Message history import
 - [ ] Invite generation for existing Discord users
 
 #### Documentation
+
 - [ ] Migration guide
 - [ ] Bridge setup instructions
 - [ ] FAQ for Discord switchers
 
 ### Deliverables
+
 - Discord bridge bot functional
 - Import CLI tool
 - Migration documentation
 
 ### Exit Criteria
+
 - Test community successfully migrated
 - Bridge stable for 1+ week
 - Import tested with 10k+ messages
@@ -318,30 +353,30 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 
 ## Feature Comparison by Phase
 
-| Feature | Phase 1 | Phase 2 | Phase 3 | Phase 4 | Phase 5 |
-|---------|---------|---------|---------|---------|---------|
-| **Backend** |
-| Auth/Users | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Servers/Channels | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Permissions | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Messages | ❌ | ✅ | ✅ | ✅ | ✅ |
-| WebSocket | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Voice | ❌ | ❌ | ✅ | ✅ | ✅ |
-| DMs | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Reactions | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Clients** |
-| Desktop | Basic | ✅ | ✅ | ✅ | ✅ |
-| Web | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Mobile | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Feature          | Phase 1 | Phase 2 | Phase 3 | Phase 4 | Phase 5 |
+| ---------------- | ------- | ------- | ------- | ------- | ------- |
+| **Backend**      |
+| Auth/Users       | ✅      | ✅      | ✅      | ✅      | ✅      |
+| Servers/Channels | ✅      | ✅      | ✅      | ✅      | ✅      |
+| Permissions      | ✅      | ✅      | ✅      | ✅      | ✅      |
+| Messages         | ❌      | ✅      | ✅      | ✅      | ✅      |
+| WebSocket        | ❌      | ✅      | ✅      | ✅      | ✅      |
+| Voice            | ❌      | ❌      | ✅      | ✅      | ✅      |
+| DMs              | ❌      | ❌      | ❌      | ❌      | ✅      |
+| Reactions        | ❌      | ❌      | ❌      | ❌      | ✅      |
+| **Clients**      |
+| Desktop          | Basic   | ✅      | ✅      | ✅      | ✅      |
+| Web              | ❌      | ❌      | ❌      | ✅      | ✅      |
+| Mobile           | ❌      | ❌      | ❌      | ✅      | ✅      |
 
 ---
 
 ## Development Velocity Comparison
 
-| Architecture | MVP Time | Team Size | LOC | Complexity |
-|--------------|----------|-----------|-----|------------|
-| **Monolithic (This)** | 6-8 weeks | 1-2 devs | ~15k | Low |
-| Microservices | 12-16 weeks | 3-4 devs | ~35k | High |
+| Architecture          | MVP Time    | Team Size | LOC  | Complexity |
+| --------------------- | ----------- | --------- | ---- | ---------- |
+| **Monolithic (This)** | 6-8 weeks   | 1-2 devs  | ~15k | Low        |
+| Microservices         | 12-16 weeks | 3-4 devs  | ~35k | High       |
 
 **Savings**: 6-8 weeks faster, half the team size, 57% less code.
 
@@ -352,10 +387,12 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Development Team (Minimum)
 
 **Option 1: Solo Developer** (slower)
+
 - 1 Full-stack developer (Rust + React)
 - Timeline: 10-12 weeks
 
 **Option 2: Small Team** (recommended)
+
 - 1 Backend developer (Rust)
 - 1 Frontend developer (React/React Native)
 - Timeline: 6-8 weeks
@@ -363,16 +400,19 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Infrastructure
 
 **Development**:
+
 - Local machines
 - Docker Desktop
 - GitHub (free)
 
 **Production (20-100 users)**:
+
 - 1 VPS: $10-20/month (Hetzner, DigitalOcean)
 - Domain + SSL: $15/year
 - **Total**: ~$25/month
 
 **Production (100-500 users)**:
+
 - 1 VPS: $20-40/month (4vCPU, 8GB RAM)
 - Domain + SSL: $15/year
 - Backups: $5/month
@@ -385,16 +425,19 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Technical Risks
 
 **Voice Quality**
+
 - **Risk**: WebRTC may not deliver Discord-quality voice
 - **Mitigation**: Test Pion early (Week 6), acceptable if 80% of Discord quality
 - **Fallback**: If unusable, evaluate alternatives or defer voice to v2.0
 
 **Database Performance**
+
 - **Risk**: PostgreSQL can't handle load
 - **Mitigation**: PostgreSQL handles 10k writes/sec - 100x more than needed
 - **Test**: Load test with 1M messages in Phase 2
 
 **Single Point of Failure**
+
 - **Risk**: Monolith crashes = everything down
 - **Mitigation**: Acceptable for small teams, simple restart solves most issues
 - **Future**: If needed, add horizontal scaling later
@@ -402,10 +445,12 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ### Schedule Risks
 
 **Scope Creep**
+
 - **Mitigation**: Strict P0/P1 adherence, "nice to have" deferred
 - Weekly scope review
 
 **Developer Availability**
+
 - **Mitigation**: 6-8 week timeline has buffer, can slip 2 weeks
 - Document everything for knowledge transfer
 
@@ -414,22 +459,26 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ## Success Metrics
 
 ### Phase 2 (Text MVP)
+
 - ✅ Message delivery P99 < 50ms
 - ✅ Support 50 concurrent users
 - ✅ 0 critical security issues
 - ✅ Team dogfoods daily
 
 ### Phase 3 (Voice MVP)
+
 - ✅ Voice latency P99 < 150ms
 - ✅ 5 concurrent speakers stable
 - ✅ 95% call completion rate
 
 ### Phase 4 (Multi-Platform)
+
 - ✅ All three clients functional
 - ✅ Mobile app TestFlight approved
 - ✅ Crash rate < 1%
 
 ### Phase 5 (v1.0)
+
 - ✅ All P0/P1 features done
 - ✅ Complete documentation
 - ✅ Production deployment successful
@@ -440,6 +489,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 ## Post-v1.0 Features (Backlog)
 
 ### P2 Features (Nice to Have)
+
 - Video calls (WebRTC video tracks)
 - Screen sharing
 - Custom server emoji
@@ -449,6 +499,7 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - Bot API
 
 ### P3 Features (Maybe)
+
 - End-to-end encryption for DMs
 - Voice recording/playback
 - Server discovery (opt-in)
@@ -456,7 +507,9 @@ This roadmap outlines the phased development of Together using a **monolithic ar
 - Live streaming (Go Live)
 
 ### Community Requests
+
 Will be prioritized based on:
+
 1. User feedback
 2. Implementation complexity
 3. Maintenance burden
@@ -485,6 +538,7 @@ Week  │ Phase                           │ Deliverable
 ## Key Decisions
 
 ### Already Decided
+
 ✅ Monolithic architecture (single Rust binary)
 ✅ PostgreSQL only (no ScyllaDB, no Redis initially)
 ✅ Tauri for desktop
@@ -492,6 +546,7 @@ Week  │ Phase                           │ Deliverable
 ✅ Pion for WebRTC
 
 ### To Decide By Week
+
 - **Week 6**: Voice quality acceptable? (Pion evaluation)
 - **Week 10**: Mobile platform priority? (iOS first vs Android first)
 - **Week 13**: Release v1.0 or add more features?
@@ -504,12 +559,14 @@ Week  │ Phase                           │ Deliverable
 This roadmap delivers a fully-functional Discord alternative in **14 weeks** with a **1-2 person team**.
 
 **Key Advantages**:
+
 - 50% faster than microservices approach
 - 60% less code to maintain
 - $390/month cheaper infrastructure
 - Simple deployment and operations
 
 **Trade-offs**:
+
 - Limited to ~500 users without scaling effort
 - Single point of failure (acceptable for small communities)
 - Voice may not match Discord quality (acceptable if 80% as good)

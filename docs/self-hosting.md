@@ -36,14 +36,14 @@ cp .env.example .env
 
 Open `.env` and fill in every variable:
 
-| Variable | Description | Example |
-|---|---|---|
-| `POSTGRES_USER` | PostgreSQL username | `together` |
-| `POSTGRES_PASSWORD` | PostgreSQL password — **change this** | `s3cur3-p@ssword` |
-| `POSTGRES_DB` | Database name | `together_prod` |
-| `JWT_SECRET` | Secret used to sign JWTs — must be 32+ characters. Generate with `openssl rand -hex 32` | *(random hex string)* |
-| `ALLOWED_ORIGINS` | Comma-separated origins allowed for CORS. Set to your domain(s) in production. | `https://chat.example.com` |
-| `BIND_PORT` | Host port the server listens on (default `8080`) | `8080` |
+| Variable            | Description                                                                             | Example                    |
+| ------------------- | --------------------------------------------------------------------------------------- | -------------------------- |
+| `POSTGRES_USER`     | PostgreSQL username                                                                     | `together`                 |
+| `POSTGRES_PASSWORD` | PostgreSQL password — **change this**                                                   | `s3cur3-p@ssword`          |
+| `POSTGRES_DB`       | Database name                                                                           | `together_prod`            |
+| `JWT_SECRET`        | Secret used to sign JWTs — must be 32+ characters. Generate with `openssl rand -hex 32` | _(random hex string)_      |
+| `ALLOWED_ORIGINS`   | Comma-separated origins allowed for CORS. Set to your domain(s) in production.          | `https://chat.example.com` |
+| `BIND_PORT`         | Host port the server listens on (default `8080`)                                        | `8080`                     |
 
 > **Security note**: `JWT_SECRET` must be kept secret and should never be committed to version
 > control. If it leaks, rotate it immediately — all active sessions will be invalidated.
@@ -57,6 +57,7 @@ docker compose up -d
 ```
 
 This command:
+
 1. Builds the Together server image from source (first run takes ~2 min)
 2. Starts PostgreSQL and waits for it to be healthy
 3. Starts the Together server (migrations run automatically on startup)
@@ -95,6 +96,7 @@ Connect.
 
 **Web (React):**
 Set the `VITE_API_URL` environment variable before building:
+
 ```bash
 cd clients/web
 VITE_API_URL=http://your-server:8080 npm run build
@@ -182,9 +184,11 @@ Together itself speaks plain HTTP. For TLS termination in front of Together, two
 well:
 
 **Cloudflare Tunnel** (easiest, free):
+
 ```bash
 cloudflared tunnel --url http://localhost:8080
 ```
+
 Cloudflare handles TLS and provides a public hostname. No port forwarding needed.
 
 **Reverse proxy** (nginx, Caddy, Traefik):
@@ -193,6 +197,7 @@ Together does not need any reverse proxy-specific configuration — it handles W
 natively.
 
 Example Caddy config:
+
 ```
 chat.example.com {
     reverse_proxy localhost:8080
@@ -203,14 +208,14 @@ chat.example.com {
 
 ## Environment variable reference
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `POSTGRES_USER` | Yes | — | PostgreSQL username |
-| `POSTGRES_PASSWORD` | Yes | — | PostgreSQL password |
-| `POSTGRES_DB` | Yes | — | PostgreSQL database name |
-| `DATABASE_URL` | Auto | *(set by compose)* | Full connection URL; Compose sets this automatically |
-| `JWT_SECRET` | Yes | — | JWT signing secret (32+ chars) |
-| `APP_ENV` | No | `development` | Set to `production` for JSON logs and strict CORS |
-| `ALLOWED_ORIGINS` | No | *(empty = block all cross-origin)* | Comma-separated allowed CORS origins |
-| `BIND_PORT` | No | `8080` | Host port mapped to container port 8080 |
-| `RUST_LOG` | No | `together_server=info,...` | Log level filter (tracing-subscriber format) |
+| Variable            | Required | Default                            | Description                                          |
+| ------------------- | -------- | ---------------------------------- | ---------------------------------------------------- |
+| `POSTGRES_USER`     | Yes      | —                                  | PostgreSQL username                                  |
+| `POSTGRES_PASSWORD` | Yes      | —                                  | PostgreSQL password                                  |
+| `POSTGRES_DB`       | Yes      | —                                  | PostgreSQL database name                             |
+| `DATABASE_URL`      | Auto     | _(set by compose)_                 | Full connection URL; Compose sets this automatically |
+| `JWT_SECRET`        | Yes      | —                                  | JWT signing secret (32+ chars)                       |
+| `APP_ENV`           | No       | `development`                      | Set to `production` for JSON logs and strict CORS    |
+| `ALLOWED_ORIGINS`   | No       | _(empty = block all cross-origin)_ | Comma-separated allowed CORS origins                 |
+| `BIND_PORT`         | No       | `8080`                             | Host port mapped to container port 8080              |
+| `RUST_LOG`          | No       | `together_server=info,...`         | Log level filter (tracing-subscriber format)         |

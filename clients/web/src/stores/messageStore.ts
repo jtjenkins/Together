@@ -21,6 +21,10 @@ interface MessageState {
   threadCache: Record<string, Message[]>;
   /** ID of the root message whose thread panel is open; null when closed. */
   activeThreadId: string | null;
+  /** Loading state specific to thread reply fetching. */
+  isThreadLoading: boolean;
+  /** Error specific to thread reply fetching. */
+  threadError: string | null;
 
   fetchMessages: (channelId: string, before?: string) => Promise<void>;
   sendMessage: (
@@ -60,6 +64,8 @@ export const useMessageStore = create<MessageState>((set) => ({
   attachmentCache: {},
   threadCache: {},
   activeThreadId: null,
+  isThreadLoading: false,
+  threadError: null,
 
   fetchMessages: async (channelId, before) => {
     set({ isLoading: true });
@@ -213,19 +219,19 @@ export const useMessageStore = create<MessageState>((set) => ({
   closeThread: () => set({ activeThreadId: null }),
 
   fetchThreadReplies: async (channelId, messageId) => {
-    set({ isLoading: true, error: null });
+    set({ isThreadLoading: true, threadError: null });
     try {
       const replies = await api.listThreadReplies(channelId, messageId);
       set((state) => ({
         threadCache: { ...state.threadCache, [messageId]: replies },
-        isLoading: false,
+        isThreadLoading: false,
       }));
     } catch (err) {
       const message =
         err instanceof ApiRequestError
           ? err.message
           : "Failed to load thread replies";
-      set({ error: message, isLoading: false });
+      set({ threadError: message, isThreadLoading: false });
     }
   },
 
@@ -234,18 +240,27 @@ export const useMessageStore = create<MessageState>((set) => ({
       const reply = await api.createThreadReply(channelId, messageId, {
         content,
       });
-      set((state) => ({
-        threadCache: {
-          ...state.threadCache,
-          [messageId]: [...(state.threadCache[messageId] ?? []), reply],
-        },
-        // Bump the reply count on the root message optimistically.
-        messages: state.messages.map((m) =>
-          m.id === messageId
-            ? { ...m, thread_reply_count: m.thread_reply_count + 1 }
-            : m,
-        ),
-      }));
+      set((state) => {
+        const existing = state.threadCache[messageId] ?? [];
+        const alreadyAdded = existing.some((r) => r.id === reply.id);
+        return {
+          threadCache: {
+            ...state.threadCache,
+            [messageId]: alreadyAdded ? existing : [...existing, reply],
+          },
+          // Bump the reply count only if the WS handler hasn't already done so.
+          messages: state.messages.map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  thread_reply_count: alreadyAdded
+                    ? m.thread_reply_count
+                    : m.thread_reply_count + 1,
+                }
+              : m,
+          ),
+        };
+      });
     } catch (err) {
       const message =
         err instanceof ApiRequestError

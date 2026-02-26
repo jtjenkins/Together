@@ -26,28 +26,28 @@ All messages in both directions use the same JSON envelope:
 ```json
 {
   "op": "OPCODE",
-  "t":  "EVENT_TYPE",
-  "d":  { }
+  "t": "EVENT_TYPE",
+  "d": {}
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `op` | string | Opcode — identifies the message type |
-| `t` | string \| null | Event type — present only on `DISPATCH` messages |
-| `d` | object \| null | Payload — shape depends on `op` and `t` |
+| Field | Type           | Description                                      |
+| ----- | -------------- | ------------------------------------------------ |
+| `op`  | string         | Opcode — identifies the message type             |
+| `t`   | string \| null | Event type — present only on `DISPATCH` messages |
+| `d`   | object \| null | Payload — shape depends on `op` and `t`          |
 
 ---
 
 ## Opcodes
 
-| Opcode | Direction | Description |
-|---|---|---|
-| `DISPATCH` | Server → Client | Delivers a named event (`t` field is set) |
-| `HEARTBEAT` | Client → Server | Keep-alive ping to prevent connection timeout |
-| `HEARTBEAT_ACK` | Server → Client | Pong response to a `HEARTBEAT` |
-| `PRESENCE_UPDATE` | Both | Update or receive a user's online status |
-| `VOICE_SIGNAL` | Both | WebRTC signaling payload (SDP or ICE candidate) |
+| Opcode            | Direction       | Description                                     |
+| ----------------- | --------------- | ----------------------------------------------- |
+| `DISPATCH`        | Server → Client | Delivers a named event (`t` field is set)       |
+| `HEARTBEAT`       | Client → Server | Keep-alive ping to prevent connection timeout   |
+| `HEARTBEAT_ACK`   | Server → Client | Pong response to a `HEARTBEAT`                  |
+| `PRESENCE_UPDATE` | Both            | Update or receive a user's online status        |
+| `VOICE_SIGNAL`    | Both            | WebRTC signaling payload (SDP or ICE candidate) |
 
 ---
 
@@ -78,23 +78,23 @@ The server list uses the raw server shape (not the REST `ServerDto`) — it does
 ```json
 {
   "op": "DISPATCH",
-  "t":  "READY",
-  "d":  {
+  "t": "READY",
+  "d": {
     "user": {
-      "id":            "uuid",
-      "username":      "alice",
-      "email":         "alice@example.com",
-      "avatar_url":    null,
-      "status":        "online",
+      "id": "uuid",
+      "username": "alice",
+      "email": "alice@example.com",
+      "avatar_url": null,
+      "status": "online",
       "custom_status": null,
-      "created_at":    "2025-01-01T00:00:00Z"
+      "created_at": "2025-01-01T00:00:00Z"
     },
     "servers": [
       {
-        "id":         "uuid",
-        "name":       "My Gaming Server",
-        "owner_id":   "uuid",
-        "icon_url":   null,
+        "id": "uuid",
+        "name": "My Gaming Server",
+        "owner_id": "uuid",
+        "icon_url": null,
         "created_at": "2025-01-01T00:00:00Z",
         "updated_at": "2025-01-01T00:00:00Z"
       }
@@ -114,15 +114,15 @@ Sent to all clients in a channel when a new message is posted.
 ```json
 {
   "op": "DISPATCH",
-  "t":  "MESSAGE_CREATE",
-  "d":  {
-    "id":         "uuid",
+  "t": "MESSAGE_CREATE",
+  "d": {
+    "id": "uuid",
     "channel_id": "uuid",
-    "author_id":  "uuid",
-    "content":    "Hello, everyone!",
-    "reply_to":   null,
-    "edited_at":  null,
-    "deleted":    false,
+    "author_id": "uuid",
+    "content": "Hello, everyone!",
+    "reply_to": null,
+    "edited_at": null,
+    "deleted": false,
     "created_at": "2025-01-01T12:00:00Z"
   }
 }
@@ -135,15 +135,15 @@ Sent when a message is edited.
 ```json
 {
   "op": "DISPATCH",
-  "t":  "MESSAGE_UPDATE",
-  "d":  {
-    "id":         "uuid",
+  "t": "MESSAGE_UPDATE",
+  "d": {
+    "id": "uuid",
     "channel_id": "uuid",
-    "author_id":  "uuid",
-    "content":    "Edited message content",
-    "reply_to":   null,
-    "edited_at":  "2025-01-01T12:05:00Z",
-    "deleted":    false,
+    "author_id": "uuid",
+    "content": "Edited message content",
+    "reply_to": null,
+    "edited_at": "2025-01-01T12:05:00Z",
+    "deleted": false,
     "created_at": "2025-01-01T12:00:00Z"
   }
 }
@@ -156,9 +156,9 @@ Sent when a message is deleted.
 ```json
 {
   "op": "DISPATCH",
-  "t":  "MESSAGE_DELETE",
-  "d":  {
-    "id":         "uuid",
+  "t": "MESSAGE_DELETE",
+  "d": {
+    "id": "uuid",
     "channel_id": "uuid"
   }
 }
@@ -171,10 +171,10 @@ Sent to all members of a shared server when a user changes their online status.
 ```json
 {
   "op": "DISPATCH",
-  "t":  "PRESENCE_UPDATE",
-  "d":  {
-    "user_id":       "uuid",
-    "status":        "online",
+  "t": "PRESENCE_UPDATE",
+  "d": {
+    "user_id": "uuid",
+    "status": "online",
     "custom_status": null
   }
 }
@@ -190,16 +190,16 @@ The `username` field is injected by the server on every broadcast.
 ```json
 {
   "op": "DISPATCH",
-  "t":  "VOICE_STATE_UPDATE",
-  "d":  {
-    "user_id":     "uuid",
-    "channel_id":  "uuid",
-    "self_mute":   false,
-    "self_deaf":   false,
+  "t": "VOICE_STATE_UPDATE",
+  "d": {
+    "user_id": "uuid",
+    "channel_id": "uuid",
+    "self_mute": false,
+    "self_deaf": false,
     "server_mute": false,
     "server_deaf": false,
-    "joined_at":   "2025-01-01T12:00:00Z",
-    "username":    "alice"
+    "joined_at": "2025-01-01T12:00:00Z",
+    "username": "alice"
   }
 }
 ```
@@ -214,12 +214,12 @@ The signal fields are at the top level of `d` alongside `from_user_id`.
 ```json
 {
   "op": "DISPATCH",
-  "t":  "VOICE_SIGNAL",
-  "d":  {
+  "t": "VOICE_SIGNAL",
+  "d": {
     "from_user_id": "uuid",
-    "type":         "offer",
-    "sdp":          "v=0\r\no=- ...",
-    "candidate":    null
+    "type": "offer",
+    "sdp": "v=0\r\no=- ...",
+    "candidate": null
   }
 }
 ```
@@ -249,7 +249,7 @@ Messages with unknown status values are silently dropped.
 ```json
 {
   "op": "PRESENCE_UPDATE",
-  "d":  {
+  "d": {
     "status": "away"
   }
 }
@@ -264,11 +264,11 @@ top level of `d` — there is no nested `signal` wrapper object.
 ```json
 {
   "op": "VOICE_SIGNAL",
-  "d":  {
+  "d": {
     "to_user_id": "uuid",
-    "type":       "offer",
-    "sdp":        "v=0\r\no=- ...",
-    "candidate":  null
+    "type": "offer",
+    "sdp": "v=0\r\no=- ...",
+    "candidate": null
   }
 }
 ```
@@ -326,10 +326,10 @@ thundering-herd problems after a server restart.
 
 ## Connection Close Codes
 
-| Code | Meaning |
-|---|---|
+| Code | Meaning                                 |
+| ---- | --------------------------------------- |
 | 1000 | Normal closure (intentional disconnect) |
-| 1001 | Server going away (restart/shutdown) |
+| 1001 | Server going away (restart/shutdown)    |
 
 Authentication failures result in a `401` HTTP response before the WebSocket upgrade completes,
 not a WebSocket close frame. Invalid messages (malformed JSON, unknown opcodes) are silently

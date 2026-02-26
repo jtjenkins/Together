@@ -165,6 +165,40 @@ describe("serverStore", () => {
     });
   });
 
+  describe("joinServer", () => {
+    it("should call api.joinServer with the correct server ID", async () => {
+      vi.mocked(api.joinServer).mockResolvedValueOnce({ message: "ok" });
+      vi.mocked(api.listServers).mockResolvedValueOnce([]);
+
+      await useServerStore.getState().joinServer("server-1");
+
+      expect(api.joinServer).toHaveBeenCalledWith("server-1");
+    });
+
+    it("should call fetchServers after a successful join", async () => {
+      const servers = [mockServer()];
+      vi.mocked(api.joinServer).mockResolvedValueOnce({ message: "ok" });
+      vi.mocked(api.listServers).mockResolvedValueOnce(servers);
+
+      await useServerStore.getState().joinServer("server-1");
+
+      expect(api.listServers).toHaveBeenCalledTimes(1);
+      expect(useServerStore.getState().servers).toEqual(servers);
+    });
+
+    it("should set error on the store and re-throw on failure", async () => {
+      vi.mocked(api.joinServer).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      await expect(
+        useServerStore.getState().joinServer("server-1"),
+      ).rejects.toBeDefined();
+
+      expect(useServerStore.getState().error).toBe("Failed to join server");
+    });
+  });
+
   describe("fetchDiscoverableServers", () => {
     it("should populate discoverableServers and clear loading on success", async () => {
       const servers = [mockServer({ id: "s-public", is_public: true })];
@@ -185,6 +219,22 @@ describe("serverStore", () => {
       expect(useServerStore.getState().browseError).toBeTruthy();
       expect(useServerStore.getState().isBrowseLoading).toBe(false);
       expect(useServerStore.getState().discoverableServers).toEqual([]);
+    });
+
+    it("should extract message from ApiRequestError when browseServers fails", async () => {
+      const { ApiRequestError: MockApiRequestError } = await import(
+        "../api/client"
+      );
+      vi.mocked(api.browseServers).mockRejectedValueOnce(
+        new MockApiRequestError(500, "Internal Server Error"),
+      );
+
+      await useServerStore.getState().fetchDiscoverableServers();
+
+      expect(useServerStore.getState().browseError).toBe(
+        "Internal Server Error",
+      );
+      expect(useServerStore.getState().isBrowseLoading).toBe(false);
     });
 
     it("should reset browseError to null before fetching", async () => {
