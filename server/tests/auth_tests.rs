@@ -493,5 +493,5 @@ async fn refresh_token_requires_auth_field() {
 
     // Empty refresh_token string should fail validation.
     let (status, _) = common::post_json(app, "/auth/refresh", json!({ "refresh_token": "" })).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }

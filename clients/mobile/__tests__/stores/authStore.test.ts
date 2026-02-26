@@ -8,6 +8,7 @@ jest.mock("../../src/api/client", () => ({
     register: jest.fn(),
     login: jest.fn(),
     getCurrentUser: jest.fn(),
+    getToken: jest.fn(),
     setToken: jest.fn(),
     updateCurrentUser: jest.fn(),
     setSessionExpiredCallback: jest.fn(),
