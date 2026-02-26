@@ -49,10 +49,9 @@ export function ServerSetupScreen(_props: Props) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       try {
-        const res = await fetch(`${trimmed}/api/health`, {
+        await fetch(`${trimmed}/api/health`, {
           signal: controller.signal,
         });
-        if (!res.ok) throw new Error(`Server returned ${res.status}`);
       } finally {
         clearTimeout(timeoutId);
       }

@@ -105,15 +105,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   restoreSession: async () => {
     const token = storage.getItem(TOKEN_KEY);
-    if (!token) {
+    const refreshToken = storage.getItem(REFRESH_KEY);
+
+    if (!token && !refreshToken) {
       set({ isLoading: false });
       return;
     }
 
-    api.setToken(token);
+    // Set whatever access token we have (may be expired — the API client's
+    // 401 interceptor will automatically exchange the refresh token for a new
+    // one and retry, so we don't need to handle that case explicitly here).
+    if (token) {
+      api.setToken(token);
+    }
+
     try {
       const user = await api.getCurrentUser();
-      gateway.connect(token);
+      // Use api.getToken() rather than the captured `token` variable: the
+      // interceptor may have silently swapped in a fresh access token.
+      const activeToken = api.getToken()!;
+      gateway.connect(activeToken);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (err) {
       if (
@@ -133,3 +144,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+// When the API client exhausts the refresh token (session truly dead),
+// clear all credentials and drop back to the Auth screen automatically.
+api.setSessionExpiredCallback(() => {
+  storage.removeItem(TOKEN_KEY);
+  storage.removeItem(REFRESH_KEY);
+  api.setToken(null);
+  gateway.disconnect();
+  useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
+});

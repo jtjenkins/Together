@@ -36,6 +36,12 @@ function resolveApiBase(): string {
 class ApiClient {
   private accessToken: string | null = null;
   private apiBase: string = resolveApiBase();
+  private onSessionExpired: (() => void) | null = null;
+
+  /** Register a callback invoked when the refresh token is rejected (session truly dead). */
+  setSessionExpiredCallback(cb: () => void): void {
+    this.onSessionExpired = cb;
+  }
 
   setToken(token: string | null) {
     this.accessToken = token;
@@ -57,7 +63,10 @@ class ApiClient {
 
   private async request<T>(
     path: string,
-    options: RequestInit & { skipContentType?: boolean } = {},
+    options: RequestInit & {
+      skipContentType?: boolean;
+      skipRefresh?: boolean;
+    } = {},
   ): Promise<T> {
     if (!this.apiBase) {
       throw new Error(
@@ -65,7 +74,7 @@ class ApiClient {
       );
     }
 
-    const { skipContentType, ...fetchOptions } = options;
+    const { skipContentType, skipRefresh, ...fetchOptions } = options;
     const headers: Record<string, string> = {
       ...(skipContentType ? {} : { "Content-Type": "application/json" }),
       ...(fetchOptions.headers as Record<string, string>),
@@ -81,6 +90,13 @@ class ApiClient {
     });
 
     if (!res.ok) {
+      // On 401, try to silently refresh the access token and retry once
+      if (res.status === 401 && !skipRefresh) {
+        const refreshed = await this.tryRefresh();
+        if (refreshed) {
+          return this.request<T>(path, { ...options, skipRefresh: true });
+        }
+      }
       const body = await res.json().catch(() => ({ error: "Unknown error" }));
       throw new ApiRequestError(res.status, body.error || "Request failed");
     }
@@ -92,12 +108,34 @@ class ApiClient {
     return res.json();
   }
 
+  /** Exchange a stored refresh token for a new access token. Returns true on success. */
+  private async tryRefresh(): Promise<boolean> {
+    const refreshToken = localStorage.getItem("together_refresh_token");
+    if (!refreshToken) return false;
+    try {
+      const res = await this.request<AuthResponse>("/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({ refresh_token: refreshToken }),
+        skipRefresh: true,
+      });
+      localStorage.setItem("together_access_token", res.access_token);
+      localStorage.setItem("together_refresh_token", res.refresh_token);
+      this.accessToken = res.access_token;
+      return true;
+    } catch {
+      // Refresh token was rejected — the session is truly dead
+      this.onSessionExpired?.();
+      return false;
+    }
+  }
+
   // ─── Auth ──────────────────────────────────────────────────
 
   register(data: RegisterRequest): Promise<AuthResponse> {
     return this.request("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
+      skipRefresh: true,
     });
   }
 
@@ -105,6 +143,7 @@ class ApiClient {
     return this.request("/auth/login", {
       method: "POST",
       body: JSON.stringify(data),
+      skipRefresh: true,
     });
   }
 

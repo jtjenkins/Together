@@ -106,15 +106,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   restoreSession: async () => {
     const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+
+    if (!token && !refreshToken) {
       set({ isLoading: false });
       return;
     }
 
-    api.setToken(token);
+    if (token) {
+      api.setToken(token);
+    }
+
     try {
       const user = await api.getCurrentUser();
-      gateway.connect(token);
+      const activeToken = api.getToken()!;
+      gateway.connect(activeToken);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (err) {
       if (
@@ -134,3 +140,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+// When the API client exhausts the refresh token (session truly dead),
+// clear all credentials and drop back to the Auth screen automatically.
+api.setSessionExpiredCallback(() => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  api.setToken(null);
+  gateway.disconnect();
+  useAuthStore.setState({
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+  });
+});

@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -139,22 +140,41 @@ function MainTabs() {
         tabBarStyle: { backgroundColor: "#1a1a2e", borderTopColor: "#36393f" },
         tabBarActiveTintColor: "#7289da",
         tabBarInactiveTintColor: "#72767d",
+        tabBarItemStyle: { paddingTop: 6 },
       }}
     >
       <Tab.Screen
         name="ServersTab"
         component={ServersNavigator}
-        options={{ title: "Servers", tabBarLabel: "Servers" }}
+        options={{
+          title: "Servers",
+          tabBarLabel: "Servers",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="hash" size={size} color={color} />
+          ),
+        }}
       />
       <Tab.Screen
         name="DirectMessagesTab"
         component={DmNavigator}
-        options={{ title: "Messages", tabBarLabel: "Messages" }}
+        options={{
+          title: "Messages",
+          tabBarLabel: "Messages",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="message-circle" size={size} color={color} />
+          ),
+        }}
       />
       <Tab.Screen
         name="SettingsTab"
         component={SettingsScreen}
-        options={{ title: "Settings", tabBarLabel: "Settings" }}
+        options={{
+          title: "Settings",
+          tabBarLabel: "Settings",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="settings" size={size} color={color} />
+          ),
+        }}
       />
     </Tab.Navigator>
   );

@@ -1,12 +1,13 @@
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use tracing::info;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
     auth::{
         create_access_token, create_refresh_token, hash_password, hash_refresh_token,
-        verify_password,
+        validate_token, verify_password, TokenType,
     },
     error::{AppError, AppResult},
     models::{User, UserDto},
@@ -26,6 +27,11 @@ pub struct RegisterRequest {
     /// max = 128 prevents bcrypt's 72-byte truncation from becoming a DoS vector
     #[validate(length(min = 8, max = 128))]
     pub password: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RefreshRequest {
+    pub refresh_token: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -166,6 +172,46 @@ pub async fn login(
     Ok(Json(AuthResponse {
         access_token,
         refresh_token,
+        user: user.into(),
+    }))
+}
+
+pub async fn refresh_token(
+    State(state): State<AppState>,
+    Json(req): Json<RefreshRequest>,
+) -> AppResult<Json<AuthResponse>> {
+    // Validate JWT signature and expiry
+    let claims = validate_token(&req.refresh_token, &state.jwt_secret)
+        .map_err(|_| AppError::Auth("Invalid or expired refresh token".into()))?;
+
+    if claims.token_type != TokenType::Refresh {
+        return Err(AppError::Auth("Not a refresh token".into()));
+    }
+
+    let token_hash = hash_refresh_token(&req.refresh_token);
+
+    // Confirm the session exists and hasn't expired in the DB.
+    // Using query_as instead of query! avoids updating the sqlx offline cache.
+    let row = sqlx::query_as::<_, (Uuid,)>(
+        "SELECT user_id FROM sessions WHERE refresh_token_hash = $1 AND expires_at > NOW()",
+    )
+    .bind(&token_hash)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| AppError::Auth("Session not found or expired".into()))?;
+
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(row.0)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| AppError::Auth("User not found".into()))?;
+
+    // Issue a new access token; the refresh token is reused until it expires
+    let access_token = create_access_token(user.id, user.username.clone(), &state.jwt_secret)?;
+
+    Ok(Json(AuthResponse {
+        access_token,
+        refresh_token: req.refresh_token,
         user: user.into(),
     }))
 }
