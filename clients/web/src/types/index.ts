@@ -119,6 +119,8 @@ export interface Message {
   edited_at: string | null;
   deleted: boolean;
   created_at: string;
+  poll?: PollDto;
+  event?: ServerEventDto;
 }
 
 export interface CreateMessageRequest {
@@ -294,4 +296,49 @@ export interface LinkPreviewDto {
 
 export interface ApiError {
   error: string;
+}
+
+// ─── Poll ─────────────────────────────────────────────────────────────────
+
+export interface PollOption {
+  id: string;
+  text: string;
+  votes: number;
+}
+
+export interface PollDto {
+  id: string;
+  question: string;
+  options: PollOption[];
+  total_votes: number;
+  user_vote: string | null; // option_id or null
+}
+
+// ─── Server Event ─────────────────────────────────────────────────────────
+
+export interface ServerEventDto {
+  id: string;
+  name: string;
+  description: string | null;
+  starts_at: string; // ISO 8601
+  created_by: string | null;
+  created_at: string;
+}
+
+// ─── Giphy ────────────────────────────────────────────────────────────────
+
+export interface GifResult {
+  url: string;
+  preview_url: string;
+  title: string;
+  width: number;
+  height: number;
+}
+
+// ─── WebSocket Poll Event ─────────────────────────────────────────────────
+
+export interface PollVoteEvent {
+  poll_id: string;
+  channel_id: string;
+  updated_poll: PollDto;
 }
