@@ -17,6 +17,7 @@ import {
   ActionSheetIOS,
   Platform,
   Image,
+  Linking,
   Modal,
   Animated,
 } from "react-native";
@@ -32,6 +33,8 @@ import * as DocumentPicker from "expo-document-picker";
 import type { Message, Attachment, ReactionCount } from "../types";
 import type { MobileFile } from "../api/client";
 import { EMOJI_CATEGORIES, parseEmoji } from "../utils/emoji";
+import { extractUrls, isImageUrl } from "../utils/links";
+import { LinkPreview } from "../components/LinkPreview";
 
 type Props = NativeStackScreenProps<ServersStackParamList, "Chat">;
 
@@ -51,28 +54,74 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString();
 }
 
-/** Split content on @word boundaries and return an array of Text-compatible spans.
- *  Also converts :emoji_name: patterns to actual emoji characters. */
-function renderMentionSpans(
+/** Renders message content: converts :emoji: codes, renders image URLs inline,
+ *  linkifies other URLs, and highlights @mentions.
+ *  Returns rendered nodes plus the first non-image URL for the preview card. */
+function renderContent(
   content: string,
   memberUsernames: Set<string>,
   currentUsername: string | null,
-): React.ReactNode[] {
+): { nodes: React.ReactNode[]; firstLinkUrl: string | null } {
   const processed = parseEmoji(content);
-  return processed.split(/(@\w+)/g).map((part, i) => {
-    const stripped = part.startsWith("@") ? part.slice(1) : null;
-    if (stripped !== null) {
-      if (stripped === "everyone" || memberUsernames.has(stripped)) {
-        const isSelf = stripped !== "everyone" && stripped === currentUsername;
-        return (
-          <Text key={i} style={isSelf ? mentionSelfStyle : mentionStyle}>
-            {part}
-          </Text>
+
+  const allUrls = extractUrls(processed);
+  const firstLinkUrl = allUrls.find((u) => !isImageUrl(u)) ?? null;
+
+  const urlPattern = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+  const parts = processed.split(urlPattern);
+  const urlMatches = [...processed.matchAll(urlPattern)].map((m) => m[0]);
+
+  const nodes: React.ReactNode[] = [];
+
+  parts.forEach((textPart, i) => {
+    if (textPart) {
+      textPart.split(/(@\w+)/g).forEach((chunk, j) => {
+        const stripped = chunk.startsWith("@") ? chunk.slice(1) : null;
+        if (stripped !== null) {
+          if (stripped === "everyone" || memberUsernames.has(stripped)) {
+            const isSelf =
+              stripped !== "everyone" && stripped === currentUsername;
+            nodes.push(
+              <Text
+                key={`t${i}-${j}`}
+                style={isSelf ? mentionSelfStyle : mentionStyle}
+              >
+                {chunk}
+              </Text>,
+            );
+            return;
+          }
+        }
+        nodes.push(<Text key={`t${i}-${j}`}>{chunk}</Text>);
+      });
+    }
+
+    const url = urlMatches[i];
+    if (url) {
+      if (isImageUrl(url)) {
+        nodes.push(
+          <Image
+            key={`u${i}`}
+            source={{ uri: url }}
+            style={inlineImageStyle}
+            resizeMode="contain"
+          />,
+        );
+      } else {
+        nodes.push(
+          <Text
+            key={`u${i}`}
+            style={linkStyle}
+            onPress={() => Linking.openURL(url)}
+          >
+            {url}
+          </Text>,
         );
       }
     }
-    return <Text key={i}>{part}</Text>;
   });
+
+  return { nodes, firstLinkUrl };
 }
 
 const mentionStyle = {
@@ -88,6 +137,17 @@ const mentionSelfStyle = {
   fontWeight: "500" as const,
   borderRadius: 3,
 };
+
+const linkStyle = {
+  color: "#00aff4" as const,
+};
+
+const inlineImageStyle = {
+  width: 200,
+  height: 150,
+  borderRadius: 4,
+  marginTop: 4,
+} as const;
 
 function shouldShowHeader(msg: Message, prev: Message | null): boolean {
   if (!prev) return true;
@@ -816,15 +876,24 @@ export function ChatScreen({ route, navigation }: Props) {
               </View>
             ) : (
               <>
-                {item.content !== "\u200b" && (
-                  <Text style={isOwn ? styles.contentOwn : styles.content}>
-                    {renderMentionSpans(
+                {item.content !== "\u200b" &&
+                  (() => {
+                    const { nodes, firstLinkUrl } = renderContent(
                       item.content,
                       memberUsernameSet,
                       user?.username ?? null,
-                    )}
-                  </Text>
-                )}
+                    );
+                    return (
+                      <>
+                        <Text
+                          style={isOwn ? styles.contentOwn : styles.content}
+                        >
+                          {nodes}
+                        </Text>
+                        {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
+                      </>
+                    );
+                  })()}
                 {renderAttachments(item.id)}
               </>
             )}
