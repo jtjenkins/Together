@@ -100,7 +100,6 @@ fn validation_error(e: validator::ValidationErrors) -> AppError {
 struct PollMapRow {
     id: uuid::Uuid,
     message_id: uuid::Uuid,
-    channel_id: uuid::Uuid,
 }
 
 #[derive(sqlx::FromRow)]
@@ -130,7 +129,7 @@ async fn enrich_messages(
 
     // Map message_id → (poll_id, channel_id)
     let poll_rows = sqlx::query_as::<_, PollMapRow>(
-        "SELECT id, message_id, channel_id FROM polls WHERE message_id = ANY($1)",
+        "SELECT id, message_id FROM polls WHERE message_id = ANY($1)",
     )
     .bind(&ids as &[uuid::Uuid])
     .fetch_all(pool)

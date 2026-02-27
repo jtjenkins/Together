@@ -23,7 +23,7 @@ export function parseMarkdown(text: string): MarkdownSegment[] {
   let counter = 0;
 
   function placeholder(seg: MarkdownSegment): string {
-    const id = `\x00PLACEHOLDER_${counter++}\x00`;
+    const id = `\uE000PLACEHOLDER_${counter++}\uE000`;
     placeholders.push({ id, segment: seg });
     return id;
   }
@@ -87,7 +87,7 @@ export function parseMarkdown(text: string): MarkdownSegment[] {
 
     outer: while (remaining.length > 0) {
       // Check placeholders first
-      const phMatch = remaining.match(/\x00PLACEHOLDER_\d+\x00/);
+      const phMatch = remaining.match(/\uE000PLACEHOLDER_\d+\uE000/);
       if (phMatch && phMatch.index !== undefined) {
         const before = remaining.slice(0, phMatch.index);
         if (before) result.push(...parseInner(before));
