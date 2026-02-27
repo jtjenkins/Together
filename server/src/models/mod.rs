@@ -428,3 +428,110 @@ pub struct UnreadCount {
     pub channel_id: Uuid,
     pub unread_count: i64,
 }
+
+// ── MessageDto ─────────────────────────────────────────────────────────────
+/// API response for a message. Wraps Message with optional rich content.
+#[derive(Debug, Serialize)]
+pub struct MessageDto {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub author_id: Option<Uuid>,
+    pub content: String,
+    pub reply_to: Option<Uuid>,
+    pub mention_user_ids: Vec<Uuid>,
+    pub mention_everyone: bool,
+    pub thread_id: Option<Uuid>,
+    pub thread_reply_count: i32,
+    pub edited_at: Option<DateTime<Utc>>,
+    pub deleted: bool,
+    pub created_at: DateTime<Utc>,
+    /// Some when the message was created by /poll
+    pub poll: Option<PollDto>,
+    /// Some when the message was created by /event
+    pub event: Option<ServerEventDto>,
+}
+
+impl MessageDto {
+    pub fn from_message(msg: Message) -> Self {
+        Self {
+            id: msg.id,
+            channel_id: msg.channel_id,
+            author_id: msg.author_id,
+            content: msg.content,
+            reply_to: msg.reply_to,
+            mention_user_ids: msg.mention_user_ids,
+            mention_everyone: msg.mention_everyone,
+            thread_id: msg.thread_id,
+            thread_reply_count: msg.thread_reply_count,
+            edited_at: msg.edited_at,
+            deleted: msg.deleted,
+            created_at: msg.created_at,
+            poll: None,
+            event: None,
+        }
+    }
+}
+
+// ── Poll Models ────────────────────────────────────────────────────────────
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PollOption {
+    pub id: Uuid,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PollDto {
+    pub id: Uuid,
+    pub question: String,
+    pub options: Vec<PollOptionDto>,
+    pub total_votes: i64,
+    /// The option_id the calling user voted for, or None
+    pub user_vote: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PollOptionDto {
+    pub id: Uuid,
+    pub text: String,
+    pub votes: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePollPayload {
+    pub question: String,
+    /// 2 to 10 option texts; IDs are generated server-side
+    pub options: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CastVotePayload {
+    pub option_id: Uuid,
+}
+
+// ── Server Event Models ─────────────────────────────────────────────────────
+#[derive(Debug, Serialize)]
+pub struct ServerEventDto {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub starts_at: DateTime<Utc>,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateEventPayload {
+    pub name: String,
+    pub description: Option<String>,
+    pub starts_at: DateTime<Utc>,
+}
+
+// ── Giphy ───────────────────────────────────────────────────────────────────
+#[derive(Debug, Serialize)]
+pub struct GifResult {
+    pub url: String,
+    pub preview_url: String,
+    pub title: String,
+    pub width: u32,
+    pub height: u32,
+}
