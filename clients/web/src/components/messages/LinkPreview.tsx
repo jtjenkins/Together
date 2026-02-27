@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { LinkPreviewDto } from "../../types";
 import styles from "./LinkPreview.module.css";
