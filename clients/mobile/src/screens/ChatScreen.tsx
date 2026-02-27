@@ -17,6 +17,7 @@ import {
   ActionSheetIOS,
   Platform,
   Image,
+  Linking,
   Modal,
   Animated,
 } from "react-native";
@@ -32,6 +33,8 @@ import * as DocumentPicker from "expo-document-picker";
 import type { Message, Attachment, ReactionCount } from "../types";
 import type { MobileFile } from "../api/client";
 import { EMOJI_CATEGORIES, parseEmoji } from "../utils/emoji";
+import { extractUrls, isImageUrl } from "../utils/links";
+import { LinkPreview } from "../components/LinkPreview";
 
 type Props = NativeStackScreenProps<ServersStackParamList, "Chat">;
 
@@ -51,28 +54,96 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString();
 }
 
-/** Split content on @word boundaries and return an array of Text-compatible spans.
- *  Also converts :emoji_name: patterns to actual emoji characters. */
-function renderMentionSpans(
+interface RenderedContent {
+  /** Text-compatible nodes (strings, mention spans, link spans) — for inside <Text>. */
+  textNodes: React.ReactNode[];
+  /** Inline image blocks extracted from the message — rendered outside <Text>. */
+  imageNodes: React.ReactNode[];
+  /** The first non-image URL in the message, for the preview card. */
+  firstLinkUrl: string | null;
+}
+
+/** Renders message content: emoji codes, mention highlighting, inline images, and link highlighting.
+ *  Returns text nodes (for <Text>), image nodes (for <View>), and the first link URL for a preview card. */
+function renderContent(
   content: string,
   memberUsernames: Set<string>,
   currentUsername: string | null,
-): React.ReactNode[] {
+): RenderedContent {
   const processed = parseEmoji(content);
-  return processed.split(/(@\w+)/g).map((part, i) => {
-    const stripped = part.startsWith("@") ? part.slice(1) : null;
-    if (stripped !== null) {
-      if (stripped === "everyone" || memberUsernames.has(stripped)) {
-        const isSelf = stripped !== "everyone" && stripped === currentUsername;
-        return (
-          <Text key={i} style={isSelf ? mentionSelfStyle : mentionStyle}>
-            {part}
-          </Text>
+
+  const allUrls = extractUrls(processed);
+  const firstLinkUrl = allUrls.find((u) => !isImageUrl(u)) ?? null;
+
+  const urlPattern = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+  const parts = processed.split(urlPattern);
+  const urlMatches = [...processed.matchAll(urlPattern)].map((m) => m[0]);
+
+  const textNodes: React.ReactNode[] = [];
+  const imageNodes: React.ReactNode[] = [];
+
+  parts.forEach((textPart, i) => {
+    if (textPart) {
+      textPart.split(/(@\w+)/g).forEach((chunk, j) => {
+        const stripped = chunk.startsWith("@") ? chunk.slice(1) : null;
+        if (stripped !== null) {
+          if (stripped === "everyone" || memberUsernames.has(stripped)) {
+            const isSelf =
+              stripped !== "everyone" && stripped === currentUsername;
+            textNodes.push(
+              <Text
+                key={`t${i}-${j}`}
+                style={isSelf ? mentionSelfStyle : mentionStyle}
+              >
+                {chunk}
+              </Text>,
+            );
+            return;
+          }
+        }
+        textNodes.push(<Text key={`t${i}-${j}`}>{chunk}</Text>);
+      });
+    }
+
+    const url = urlMatches[i];
+    if (url) {
+      if (isImageUrl(url)) {
+        // Image goes into imageNodes (outside <Text>)
+        imageNodes.push(
+          <Image
+            key={`u${i}`}
+            source={{ uri: url }}
+            style={inlineImageStyle}
+            resizeMode="contain"
+          />,
+        );
+      } else {
+        // Non-image link stays in textNodes (inside <Text>)
+        textNodes.push(
+          <Text
+            key={`u${i}`}
+            style={linkStyle}
+            onPress={() => {
+              Linking.openURL(url).catch((err: unknown) => {
+                console.warn("[ChatScreen] Linking.openURL failed", {
+                  url,
+                  err,
+                });
+                Alert.alert(
+                  "Could not open link",
+                  "This link cannot be opened on your device.",
+                );
+              });
+            }}
+          >
+            {url}
+          </Text>,
         );
       }
     }
-    return <Text key={i}>{part}</Text>;
   });
+
+  return { textNodes, imageNodes, firstLinkUrl };
 }
 
 const mentionStyle = {
@@ -88,6 +159,17 @@ const mentionSelfStyle = {
   fontWeight: "500" as const,
   borderRadius: 3,
 };
+
+const linkStyle = {
+  color: "#00aff4" as const,
+};
+
+const inlineImageStyle = {
+  width: 200,
+  height: 150,
+  borderRadius: 4,
+  marginTop: 4,
+} as const;
 
 function shouldShowHeader(msg: Message, prev: Message | null): boolean {
   if (!prev) return true;
@@ -816,15 +898,30 @@ export function ChatScreen({ route, navigation }: Props) {
               </View>
             ) : (
               <>
-                {item.content !== "\u200b" && (
-                  <Text style={isOwn ? styles.contentOwn : styles.content}>
-                    {renderMentionSpans(
-                      item.content,
-                      memberUsernameSet,
-                      user?.username ?? null,
-                    )}
-                  </Text>
-                )}
+                {item.content !== "\u200b" &&
+                  (() => {
+                    const { textNodes, imageNodes, firstLinkUrl } =
+                      renderContent(
+                        item.content,
+                        memberUsernameSet,
+                        user?.username ?? null,
+                      );
+                    return (
+                      <>
+                        <Text
+                          style={isOwn ? styles.contentOwn : styles.content}
+                        >
+                          {textNodes}
+                        </Text>
+                        {imageNodes.length > 0 && (
+                          <View style={styles.inlineImagesRow}>
+                            {imageNodes}
+                          </View>
+                        )}
+                        {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
+                      </>
+                    );
+                  })()}
                 {renderAttachments(item.id)}
               </>
             )}
@@ -1192,6 +1289,10 @@ const styles = StyleSheet.create({
   },
   attachmentsRow: {
     marginTop: 6,
+  },
+  inlineImagesRow: {
+    marginTop: 4,
+    gap: 4,
   },
   attachmentImage: {
     width: 200,

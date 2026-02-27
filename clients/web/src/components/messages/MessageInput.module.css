@@ -63,12 +63,10 @@
   color: var(--text-muted);
 }
 
+/* When any of the strip elements sit above the input, flatten its top corners */
 .container:has(.replyBar) .input,
-.container:has(.filePreview) .input {
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-}
-
-.container:has(.replyBar):has(.filePreview) .input {
+.container:has(.filePreview) .input,
+.container:has(.composePreview) .input {
   border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
@@ -135,6 +133,54 @@
 
 .fileRemove:hover {
   color: var(--accent-red);
+}
+
+/* ── Compose preview (link / image preview before send) ──── */
+
+.composePreview {
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+}
+
+/* First strip gets rounded top corners; subsequent strips are flat on top */
+.container:has(.replyBar) .filePreview,
+.container:has(.replyBar) .composePreview {
+  border-radius: 0;
+}
+
+.container:has(.filePreview) .composePreview {
+  border-radius: 0;
+}
+
+/* When replyBar is first and nothing else above the input */
+.replyBar:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+/* filePreview gets rounded top only when it's the topmost strip */
+.filePreview:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+/* composePreview gets rounded top only when it's the topmost strip */
+.composePreview:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.composeImagePreview {
+  max-height: 120px;
+  max-width: 200px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Input wrapper (relative container for emoji autocomplete) ── */
+
+.inputWrapper {
+  position: relative;
 }
 
 /* ── Attach button ────────────────────────── */

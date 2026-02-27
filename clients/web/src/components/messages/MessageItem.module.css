@@ -386,3 +386,28 @@
 .own .deletedContent {
   padding: 4px 56px 4px 0;
 }
+
+/* ── Inline image URLs ───────────────────────────────────────────────────── */
+.imageLink {
+  display: block;
+  margin-top: 4px;
+}
+
+.inlineImage {
+  max-width: 400px;
+  max-height: 300px;
+  border-radius: 4px;
+  object-fit: contain;
+  display: block;
+}
+
+/* ── Plain URL links in message text ─────────────────────────────────────── */
+.link {
+  color: #00aff4;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.link:hover {
+  text-decoration: underline;
+}

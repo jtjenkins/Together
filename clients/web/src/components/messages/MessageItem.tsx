@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CornerDownRight,
   FileText,
@@ -13,46 +13,99 @@ import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
 import { formatMessageTime } from "../../utils/formatTime";
 import { parseEmoji } from "../../utils/emoji";
+import { extractUrls, isImageUrl } from "../../utils/links";
 import { api } from "../../api/client";
 import { ReactionBar } from "./ReactionBar";
 import { EmojiPicker } from "./EmojiPicker";
+import { LinkPreview } from "./LinkPreview";
 import type { MemberDto, Message, ReactionCount } from "../../types";
 import styles from "./MessageItem.module.css";
 
-/** Split content on @word boundaries and wrap matched mentions in styled spans.
- *  Also converts :emoji_name: patterns to actual emoji characters. */
-function renderMentions(
+interface RenderedContent {
+  nodes: React.ReactNode[];
+  /** First non-image URL in the message, used to display the link preview card.
+   *  Null when the message contains no linkable (non-image) URLs. */
+  firstLinkUrl: string | null;
+}
+
+function renderContent(
   content: string,
   members: MemberDto[],
   currentUserId: string | null,
-): React.ReactNode {
-  // Pre-process :name: → emoji character, then split on mentions
+): RenderedContent {
   const processed = parseEmoji(content);
-  return processed.split(/(@\w+)/g).map((part, i) => {
-    const stripped = part.startsWith("@") ? part.slice(1) : null;
-    if (stripped !== null) {
-      if (stripped === "everyone") {
-        return (
-          <span key={i} className={styles.mention}>
-            {part}
-          </span>
-        );
-      }
-      const matched = members.find((m) => m.username === stripped);
-      if (matched) {
-        const isSelf = matched.user_id === currentUserId;
-        return (
-          <span
-            key={i}
-            className={`${styles.mention} ${isSelf ? styles.mentionSelf : ""}`}
+
+  const allUrls = extractUrls(processed);
+  const firstLinkUrl = allUrls.find((u) => !isImageUrl(u)) ?? null;
+
+  const urlPattern = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+  const parts = processed.split(urlPattern);
+  const urlMatches = [...processed.matchAll(urlPattern)].map((m) => m[0]);
+
+  const nodes: React.ReactNode[] = [];
+
+  parts.forEach((textPart, i) => {
+    if (textPart) {
+      textPart.split(/(@\w+)/g).forEach((chunk, j) => {
+        const stripped = chunk.startsWith("@") ? chunk.slice(1) : null;
+        if (stripped !== null) {
+          if (stripped === "everyone") {
+            nodes.push(
+              <span key={`t${i}-${j}`} className={styles.mention}>
+                {chunk}
+              </span>,
+            );
+            return;
+          }
+          const matched = members.find((m) => m.username === stripped);
+          if (matched) {
+            const isSelf = matched.user_id === currentUserId;
+            nodes.push(
+              <span
+                key={`t${i}-${j}`}
+                className={`${styles.mention} ${isSelf ? styles.mentionSelf : ""}`}
+              >
+                {chunk}
+              </span>,
+            );
+            return;
+          }
+        }
+        nodes.push(chunk);
+      });
+    }
+
+    const url = urlMatches[i];
+    if (url) {
+      if (isImageUrl(url)) {
+        nodes.push(
+          <a
+            key={`u${i}`}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className={styles.imageLink}
           >
-            {part}
-          </span>
+            <img src={url} alt="" className={styles.inlineImage} />
+          </a>,
+        );
+      } else {
+        nodes.push(
+          <a
+            key={`u${i}`}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className={styles.link}
+          >
+            {url}
+          </a>,
         );
       }
     }
-    return part;
   });
+
+  return { nodes, firstLinkUrl };
 }
 
 interface MessageItemProps {
@@ -141,11 +194,34 @@ export function MessageItem({
           }
           return [...prev, { emoji, count: 1, me: true }];
         });
-      } catch {
-        // Non-fatal
+      } catch (err: unknown) {
+        console.warn(
+          "[MessageItem] quick react failed, reverting optimistic update",
+          err,
+        );
+        // Revert the optimistic update by re-fetching authoritative state from the server
+        api
+          .listReactions(channelId, message.id)
+          .then(setReactions)
+          .catch(() => {
+            // Non-fatal: stale reactions are visible but not persisted
+          });
       }
     },
     [channelId, message.id],
+  );
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // `members` is intentionally omitted from the dep array to avoid re-rendering
+  // all messages whenever anyone joins/leaves. Mention highlighting can be
+  // slightly stale, which is acceptable.
+  const { nodes: contentNodes, firstLinkUrl } = useMemo(
+    () =>
+      message.content !== "\u200b"
+        ? renderContent(message.content, members, user?.id ?? null)
+        : { nodes: [], firstLinkUrl: null },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [message.content, message.id, user?.id],
   );
 
   if (message.deleted) {
@@ -224,9 +300,10 @@ export function MessageItem({
           ) : (
             <>
               {message.content !== "\u200b" && (
-                <div className={styles.text}>
-                  {renderMentions(message.content, members, user?.id ?? null)}
-                </div>
+                <>
+                  <div className={styles.text}>{contentNodes}</div>
+                  {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
+                </>
               )}
               {attachments.length > 0 && (
                 <div className={styles.attachments}>

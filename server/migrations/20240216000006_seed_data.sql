@@ -23,6 +23,7 @@ INSERT INTO users (id, username, email, password_hash, status) VALUES
     ('00000000-0000-0000-0000-000000000004', 'diana', 'diana@together.local', '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6', 'dnd'),
     ('00000000-0000-0000-0000-000000000005', 'eve', 'eve@together.local', '$2y$12$uhTWJx6CF9kaz18nshDvrevyG04ZxtMHtWN5cNPUswVJ.OCG8kMJ6', 'offline');
 
+
 -- Create test server
 INSERT INTO servers (id, name, owner_id) VALUES
     ('00000000-0000-0000-0000-000000000100', 'Gaming Squad', '00000000-0000-0000-0000-000000000001');
@@ -32,7 +33,8 @@ INSERT INTO server_members (user_id, server_id, nickname) VALUES
     ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000100', NULL),
     ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000100', 'Bobby'),
     ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000100', NULL),
-    ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000100', NULL);
+    ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000100', NULL),
+    ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000100', NULL);
 
 -- Create roles
 -- Permission bits: VIEW_CHANNEL=1, SEND_MESSAGES=2, MANAGE_MESSAGES=4, ATTACH_FILES=8,
@@ -59,8 +61,9 @@ INSERT INTO channels (id, server_id, name, type, category, position) VALUES
     ('00000000-0000-0000-0000-000000000303', '00000000-0000-0000-0000-000000000100', 'strategy', 'text', 'GAMING', 3),
     -- Voice channels
     ('00000000-0000-0000-0000-000000000400', '00000000-0000-0000-0000-000000000100', 'Voice Lobby', 'voice', 'VOICE', 4),
-    ('00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000100', 'Game Room 1', 'voice', 'VOICE', 5),
-    ('00000000-0000-0000-0000-000000000402', '00000000-0000-0000-0000-000000000100', 'Game Room 2', 'voice', 'VOICE', 6);
+    ('00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000100', 'gaming', 'voice', 'VOICE', 5),
+    ('00000000-0000-0000-0000-000000000402', '00000000-0000-0000-0000-000000000100', 'Game Room 1', 'voice', 'VOICE', 6),
+    ('00000000-0000-0000-0000-000000000403', '00000000-0000-0000-0000-000000000100', 'Game Room 2', 'voice', 'VOICE', 7);
 
 -- Create sample messages
 INSERT INTO messages (id, channel_id, author_id, content, created_at) VALUES
@@ -85,8 +88,8 @@ BEGIN
     RAISE NOTICE '✅ Seed data created successfully';
     RAISE NOTICE '📊 Summary:';
     RAISE NOTICE '   - 5 test users (password: "password123")';
-    RAISE NOTICE '   - 1 test server: "Gaming Squad"';
-    RAISE NOTICE '   - 7 channels (4 text, 3 voice)';
+    RAISE NOTICE '   - 1 test server: "Gaming Squad" (all 5 users)';
+    RAISE NOTICE '   - 8 channels (4 text, 4 voice incl. gaming)';
     RAISE NOTICE '   - 6 sample messages';
     RAISE NOTICE '   - 3 roles with permissions';
     RAISE NOTICE '';

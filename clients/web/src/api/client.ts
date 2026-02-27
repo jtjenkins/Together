@@ -22,6 +22,7 @@ import type {
   DirectMessageChannel,
   DirectMessage,
   ReactionCount,
+  LinkPreviewDto,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -431,6 +432,12 @@ class ApiClient {
   ): Promise<ReactionCount[]> {
     return this.request(
       `/channels/${channelId}/messages/${messageId}/reactions`,
+    );
+  }
+
+  getLinkPreview(url: string): Promise<LinkPreviewDto> {
+    return this.request<LinkPreviewDto>(
+      `/link-preview?url=${encodeURIComponent(url)}`,
     );
   }
 }

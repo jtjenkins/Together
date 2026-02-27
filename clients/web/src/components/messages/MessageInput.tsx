@@ -2,6 +2,7 @@ import {
   useState,
   useRef,
   useCallback,
+  useEffect,
   type FormEvent,
   type KeyboardEvent,
   type DragEvent,
@@ -9,6 +10,10 @@ import {
 import { Paperclip, ImageIcon, FileText, ArrowUp } from "lucide-react";
 import { useMessageStore } from "../../stores/messageStore";
 import { useChannelStore } from "../../stores/channelStore";
+import { extractUrls, isImageUrl } from "../../utils/links";
+import { searchEmoji } from "../../utils/emoji";
+import { EmojiAutocomplete } from "./EmojiAutocomplete";
+import { LinkPreview } from "./LinkPreview";
 import styles from "./MessageInput.module.css";
 
 interface MessageInputProps {
@@ -19,6 +24,9 @@ export function MessageInput({ channelId }: MessageInputProps) {
   const [content, setContent] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [emojiQuery, setEmojiQuery] = useState<string | null>(null);
+  const [emojiActiveIdx, setEmojiActiveIdx] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const sendMessage = useMessageStore((s) => s.sendMessage);
   const replyingTo = useMessageStore((s) => s.replyingTo);
   const setReplyingTo = useMessageStore((s) => s.setReplyingTo);
@@ -27,6 +35,15 @@ export function MessageInput({ channelId }: MessageInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const channel = channels.find((c) => c.id === channelId);
+
+  // Debounced URL detection for compose-time link/image preview
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const urls = extractUrls(content);
+      setPreviewUrl(urls[0] ?? null);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [content]);
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const files = Array.from(newFiles);
@@ -60,13 +77,68 @@ export function MessageInput({ channelId }: MessageInputProps) {
       );
       setContent("");
       setPendingFiles([]);
+      setEmojiQuery(null);
+      setEmojiActiveIdx(0);
       inputRef.current?.focus();
     } catch {
       // Error shown via store
     }
   };
 
+  /** Detect emoji trigger inline — called from onChange and onSelect on the textarea. */
+  function detectEmojiTrigger() {
+    const cursor = inputRef.current?.selectionStart ?? content.length;
+    const before = content.slice(0, cursor);
+    const match = before.match(/:([a-zA-Z0-9_+-]{1,})$/);
+    setEmojiQuery(match ? match[1] : null);
+    if (!match) setEmojiActiveIdx(0);
+  }
+
+  /** Apply a selected emoji, replacing the :query text. */
+  function applyEmoji(emoji: string) {
+    const cursor = inputRef.current?.selectionStart ?? content.length;
+    const before = content.slice(0, cursor);
+    const colonIdx = before.lastIndexOf(":");
+    const after = content.slice(cursor);
+    const next = before.slice(0, colonIdx) + emoji + after;
+    setContent(next);
+    setEmojiQuery(null);
+    setEmojiActiveIdx(0);
+    // Restore focus and move cursor after the inserted emoji
+    requestAnimationFrame(() => {
+      const pos = colonIdx + [...emoji].length; // handle multi-codepoint emoji
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(pos, pos);
+    });
+  }
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (emojiQuery !== null) {
+      const results = searchEmoji(emojiQuery, 8);
+      if (results.length > 0) {
+        if (e.key === "ArrowDown") {
+          setEmojiActiveIdx((i) => Math.min(i + 1, results.length - 1));
+          e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          setEmojiActiveIdx((i) => Math.max(i - 1, 0));
+          e.preventDefault();
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          applyEmoji(results[emojiActiveIdx].emoji);
+          e.preventDefault();
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        setEmojiQuery(null);
+        e.preventDefault();
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -147,48 +219,80 @@ export function MessageInput({ channelId }: MessageInputProps) {
         </div>
       )}
 
-      <form className={styles.form} onSubmit={handleSubmit}>
-        <button
-          type="button"
-          className={styles.attachBtn}
-          onClick={() => fileInputRef.current?.click()}
-          title="Attach files"
-          aria-label="Attach files"
-        >
-          <Paperclip size={18} />
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className={styles.fileInput}
-          onChange={(e) => {
-            if (e.target.files) addFiles(e.target.files);
-            // Reset so the same file can be re-added after removal
-            e.target.value = "";
-          }}
-        />
-        <textarea
-          ref={inputRef}
-          className={styles.input}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={`Message #${channel?.name ?? "channel"}`}
-          rows={1}
-          maxLength={4000}
-          aria-label="Message input"
-        />
-        <button
-          type="submit"
-          className={styles.sendBtn}
-          disabled={!content.trim() && pendingFiles.length === 0}
-          aria-label="Send message"
-          title="Send message"
-        >
-          <ArrowUp size={18} />
-        </button>
-      </form>
+      {previewUrl && (
+        <div className={styles.composePreview}>
+          {isImageUrl(previewUrl) ? (
+            <img
+              src={previewUrl}
+              className={styles.composeImagePreview}
+              alt="Image preview"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <LinkPreview url={previewUrl} />
+          )}
+        </div>
+      )}
+
+      <div className={styles.inputWrapper}>
+        {emojiQuery !== null && (
+          <EmojiAutocomplete
+            query={emojiQuery}
+            activeIndex={emojiActiveIdx}
+            onSelect={applyEmoji}
+            onClose={() => setEmojiQuery(null)}
+          />
+        )}
+
+        <form className={styles.form} onSubmit={handleSubmit}>
+          <button
+            type="button"
+            className={styles.attachBtn}
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach files"
+            aria-label="Attach files"
+          >
+            <Paperclip size={18} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className={styles.fileInput}
+            onChange={(e) => {
+              if (e.target.files) addFiles(e.target.files);
+              // Reset so the same file can be re-added after removal
+              e.target.value = "";
+            }}
+          />
+          <textarea
+            ref={inputRef}
+            className={styles.input}
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              detectEmojiTrigger();
+            }}
+            onSelect={detectEmojiTrigger}
+            onKeyDown={handleKeyDown}
+            placeholder={`Message #${channel?.name ?? "channel"}`}
+            rows={1}
+            maxLength={4000}
+            aria-label="Message input"
+          />
+          <button
+            type="submit"
+            className={styles.sendBtn}
+            disabled={!content.trim() && pendingFiles.length === 0}
+            aria-label="Send message"
+            title="Send message"
+          >
+            <ArrowUp size={18} />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

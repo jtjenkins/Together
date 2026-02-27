@@ -1,0 +1,50 @@
+.dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 300;
+  min-width: 200px;
+  max-width: 320px;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.active {
+  background: var(--bg-hover);
+  color: var(--accent-primary);
+}
+
+.emojiChar {
+  font-size: 18px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.emojiName {
+  color: var(--text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active .emojiName {
+  color: var(--accent-primary);
+}

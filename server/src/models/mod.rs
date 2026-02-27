@@ -394,6 +394,9 @@ pub struct ReactionCount {
     pub me: bool,
 }
 
+pub mod link_preview;
+pub use link_preview::LinkPreviewDto;
+
 // ============================================================================
 // Read State Models
 // ============================================================================

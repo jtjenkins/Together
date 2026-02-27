@@ -51,6 +51,9 @@ bcrypt = "0.15"              # Password hashing
 sha2 = "0.10"                # SHA-256 for refresh token hashing (deterministic)
 validator = { version = "0.16", features = ["derive"] }  # Input validation
 axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers for auth
+scraper = "0.19"             # HTML parsing for OG tag extraction
+url = "2"                    # URL parsing (used by reqwest internally, now explicit)
+reqwest = { version = "0.11", features = ["json"] }  # HTTP client for link preview fetching
 
 # Phase 3+ dependencies (add as needed):
 # tokio-tungstenite = "0.21"   # WebSocket (Phase 3)
@@ -59,7 +62,6 @@ axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers f
 
 [dev-dependencies]
 tokio-test = "0.4"
-reqwest = { version = "0.11", features = ["json"] }
 http-body-util = "0.1"   # BodyExt::collect() for reading response bodies in tests
 
 [[bin]]

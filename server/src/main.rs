@@ -9,6 +9,9 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
 use together_server::config::Config;
 use together_server::state::AppState;
 use together_server::websocket::ConnectionManager;
@@ -96,6 +99,7 @@ async fn main() {
         jwt_secret: config.jwt_secret,
         connections: ConnectionManager::new(),
         upload_dir: config.upload_dir.clone(),
+        link_preview_cache: Arc::new(Mutex::new(HashMap::new())),
     };
 
     // Prometheus metrics layer
@@ -105,6 +109,10 @@ async fn main() {
     let app = Router::new()
         // Health check + metrics
         .route("/health", get(handlers::health_check))
+        .route(
+            "/link-preview",
+            get(handlers::link_preview::get_link_preview),
+        )
         .route(
             "/metrics",
             get(move || async move { metric_handle.render() }),

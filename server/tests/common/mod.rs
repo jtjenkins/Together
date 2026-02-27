@@ -11,8 +11,9 @@ use axum::{
 use http_body_util::BodyExt;
 use serde_json::Value;
 use sqlx::PgPool;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tower::ServiceExt;
 
 use together_server::{
@@ -51,6 +52,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
         jwt_secret: Arc::from(TEST_JWT_SECRET),
         connections: ConnectionManager::new(),
         upload_dir: test_upload_dir(),
+        link_preview_cache: Arc::new(Mutex::new(HashMap::new())),
     };
     Router::new()
         .route("/health", get(handlers::health_check))
@@ -181,6 +183,11 @@ pub fn create_test_app(pool: PgPool) -> Router {
         .route(
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
+        )
+        // Link preview
+        .route(
+            "/link-preview",
+            get(handlers::link_preview::get_link_preview),
         )
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
