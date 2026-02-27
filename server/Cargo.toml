@@ -60,6 +60,8 @@ axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers f
 [dev-dependencies]
 tokio-test = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
+scraper = "0.19"             # HTML parsing for OG tag extraction
+url = "2"                    # URL parsing (used by reqwest internally, now explicit)
 http-body-util = "0.1"   # BodyExt::collect() for reading response bodies in tests
 
 [[bin]]
