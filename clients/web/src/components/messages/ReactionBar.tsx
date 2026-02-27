@@ -2,9 +2,8 @@ import { useState, useCallback } from "react";
 import { SmilePlus } from "lucide-react";
 import { api } from "../../api/client";
 import type { ReactionCount } from "../../types";
+import { EmojiPicker } from "./EmojiPicker";
 import styles from "./ReactionBar.module.css";
-
-const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
 
 interface ReactionBarProps {
   messageId: string;
@@ -90,17 +89,10 @@ export function ReactionBar({
           <SmilePlus size={16} />
         </button>
         {showPicker && (
-          <div className={styles.picker}>
-            {QUICK_EMOJIS.map((emoji) => (
-              <button
-                key={emoji}
-                className={styles.pickerEmoji}
-                onClick={() => toggleReaction(emoji)}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
+          <EmojiPicker
+            onSelect={toggleReaction}
+            onClose={() => setShowPicker(false)}
+          />
         )}
       </div>
     </div>
