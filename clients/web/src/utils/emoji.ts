@@ -827,7 +827,7 @@ for (const cat of EMOJI_CATEGORIES) {
 
 /** Replace :name: patterns in text with actual emoji characters. */
 export function parseEmoji(text: string): string {
-  return text.replace(/:([a-zA-Z0-9_+\-]+):/g, (match, name) => {
+  return text.replace(/:([a-zA-Z0-9_+-]+):/g, (match, name) => {
     return NAME_TO_EMOJI.get(name) ?? match;
   });
 }
