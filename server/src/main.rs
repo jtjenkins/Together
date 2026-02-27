@@ -124,6 +124,7 @@ async fn main() {
             "/link-preview",
             get(handlers::link_preview::get_link_preview),
         )
+        .route("/giphy/search", get(handlers::giphy::search_giphy))
         .route(
             "/metrics",
             get(move || async move { metric_handle.render() }),

@@ -10,6 +10,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use serde_json::Value;
+use reqwest;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -47,12 +48,19 @@ pub async fn test_pool() -> PgPool {
 
 /// Build the full application router wired to a test database pool.
 pub fn create_test_app(pool: PgPool) -> Router {
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("Failed to build test HTTP client");
+
     let state = AppState {
         pool,
         jwt_secret: Arc::from(TEST_JWT_SECRET),
         connections: ConnectionManager::new(),
         upload_dir: test_upload_dir(),
         link_preview_cache: Arc::new(Mutex::new(HashMap::new())),
+        http_client,
+        giphy_api_key: None,
     };
     Router::new()
         .route("/health", get(handlers::health_check))

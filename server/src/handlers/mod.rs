@@ -2,6 +2,7 @@ pub mod attachments;
 pub mod auth;
 pub mod channels;
 pub mod dm;
+pub mod giphy;
 pub mod link_preview;
 pub mod messages;
 pub mod reactions;
