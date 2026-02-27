@@ -18,7 +18,11 @@ export function LinkPreview({ url }: LinkPreviewProps) {
       .then((d) => {
         if (!cancelled) setData(d);
       })
-      .catch(() => {})
+      .catch((err: unknown) => {
+        // Link preview failures are non-fatal — the component renders nothing.
+        // Log so systematic failures (auth regression, server down) are visible.
+        console.warn("[LinkPreview] fetch failed", { url, err });
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });

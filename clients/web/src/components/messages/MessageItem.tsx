@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CornerDownRight,
   FileText,
@@ -21,11 +21,18 @@ import { LinkPreview } from "./LinkPreview";
 import type { MemberDto, Message, ReactionCount } from "../../types";
 import styles from "./MessageItem.module.css";
 
+interface RenderedContent {
+  nodes: React.ReactNode[];
+  /** First non-image URL in the message, used to display the link preview card.
+   *  Null when the message contains no linkable (non-image) URLs. */
+  firstLinkUrl: string | null;
+}
+
 function renderContent(
   content: string,
   members: MemberDto[],
   currentUserId: string | null,
-): { nodes: React.ReactNode[]; firstLinkUrl: string | null } {
+): RenderedContent {
   const processed = parseEmoji(content);
 
   const allUrls = extractUrls(processed);
@@ -187,11 +194,34 @@ export function MessageItem({
           }
           return [...prev, { emoji, count: 1, me: true }];
         });
-      } catch {
-        // Non-fatal
+      } catch (err: unknown) {
+        console.warn(
+          "[MessageItem] quick react failed, reverting optimistic update",
+          err,
+        );
+        // Revert the optimistic update by re-fetching authoritative state from the server
+        api
+          .listReactions(channelId, message.id)
+          .then(setReactions)
+          .catch(() => {
+            // Non-fatal: stale reactions are visible but not persisted
+          });
       }
     },
     [channelId, message.id],
+  );
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // `members` is intentionally omitted from the dep array to avoid re-rendering
+  // all messages whenever anyone joins/leaves. Mention highlighting can be
+  // slightly stale, which is acceptable.
+  const { nodes: contentNodes, firstLinkUrl } = useMemo(
+    () =>
+      message.content !== "\u200b"
+        ? renderContent(message.content, members, user?.id ?? null)
+        : { nodes: [], firstLinkUrl: null },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [message.content, message.id, user?.id],
   );
 
   if (message.deleted) {
@@ -269,20 +299,12 @@ export function MessageItem({
             </div>
           ) : (
             <>
-              {message.content !== "\u200b" &&
-                (() => {
-                  const { nodes, firstLinkUrl } = renderContent(
-                    message.content,
-                    members,
-                    user?.id ?? null,
-                  );
-                  return (
-                    <>
-                      <div className={styles.text}>{nodes}</div>
-                      {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
-                    </>
-                  );
-                })()}
+              {message.content !== "\u200b" && (
+                <>
+                  <div className={styles.text}>{contentNodes}</div>
+                  {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
+                </>
+              )}
               {attachments.length > 0 && (
                 <div className={styles.attachments}>
                   {attachments.map((att) =>
