@@ -22,6 +22,7 @@ import type {
   DirectMessageChannel,
   DirectMessage,
   ReactionCount,
+  LinkPreviewDto,
 } from "../types";
 import { storage } from "../utils/storage";
 import { SERVER_URL_KEY, TOKEN_KEY, REFRESH_KEY } from "../utils/platform";
@@ -431,6 +432,14 @@ class ApiClient {
 
   ackChannel(channelId: string): Promise<void> {
     return this.request(`/channels/${channelId}/ack`, { method: "POST" });
+  }
+
+  // ─── Link Preview ──────────────────────────────────────────
+
+  getLinkPreview(url: string): Promise<LinkPreviewDto> {
+    return this.request<LinkPreviewDto>(
+      `/link-preview?url=${encodeURIComponent(url)}`,
+    );
   }
 
   /** Resolve an attachment URL for use in Image sources. */

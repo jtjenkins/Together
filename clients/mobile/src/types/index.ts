@@ -301,3 +301,13 @@ export interface MessageDeleteEvent {
 export interface ApiError {
   error: string;
 }
+
+// ─── Link Preview Types ───────────────────────────────────────────────────
+
+export interface LinkPreviewDto {
+  url: string;
+  title: string | null;
+  description: string | null;
+  image: string | null;
+  site_name: string | null;
+}
