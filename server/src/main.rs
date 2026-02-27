@@ -110,6 +110,10 @@ async fn main() {
         // Health check + metrics
         .route("/health", get(handlers::health_check))
         .route(
+            "/link-preview",
+            get(handlers::link_preview::get_link_preview),
+        )
+        .route(
             "/metrics",
             get(move || async move { metric_handle.render() }),
         )

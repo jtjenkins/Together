@@ -1,10 +1,17 @@
 use std::net::IpAddr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use axum::extract::{Query, State};
+use axum::Json;
+use reqwest::Client as ReqwestClient;
 use scraper::{Html, Selector};
+use serde::Deserialize;
 use url::Url;
 
+use crate::auth::AuthUser;
+use crate::error::{AppError, AppResult};
 use crate::models::LinkPreviewDto;
+use crate::state::AppState;
 
 pub const CACHE_TTL: Duration = Duration::from_secs(86_400);
 pub const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
@@ -20,12 +27,12 @@ pub fn is_private_ip(ip: IpAddr) -> bool {
             let o = v4.octets();
             matches!(
                 o,
-                [127, ..] |
-                [10, ..] |
-                [169, 254, ..] |
-                [192, 168, ..] |
-                [0, ..] |
-                [255, 255, 255, 255]
+                [127, ..]
+                    | [10, ..]
+                    | [169, 254, ..]
+                    | [192, 168, ..]
+                    | [0, ..]
+                    | [255, 255, 255, 255]
             ) || (o[0] == 172 && (16..=31).contains(&o[1]))
         }
         IpAddr::V6(v6) => {
@@ -41,8 +48,7 @@ pub fn is_private_ip(ip: IpAddr) -> bool {
 pub fn extract_og_data(html: &str, base_url: &str) -> LinkPreviewDto {
     let document = Html::parse_document(html);
 
-    let title = get_meta_property(&document, "og:title")
-        .or_else(|| get_title_tag(&document));
+    let title = get_meta_property(&document, "og:title").or_else(|| get_title_tag(&document));
 
     let description = get_meta_property(&document, "og:description")
         .or_else(|| get_meta_name(&document, "description"));
@@ -88,6 +94,91 @@ fn get_title_tag(doc: &Html) -> Option<String> {
         .next()
         .map(|el| el.text().collect::<String>().trim().to_string())
         .filter(|s| !s.is_empty())
+}
+
+// ── Query params ───────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct LinkPreviewQuery {
+    pub url: String,
+}
+
+// ── Handler ────────────────────────────────────────────────────────────────
+
+/// GET /link-preview?url=<encoded-url>
+///
+/// Returns Open Graph metadata for the given URL, with results cached for 24 hours.
+/// Requires authentication. Rejects private/loopback IPs (SSRF protection).
+pub async fn get_link_preview(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Query(params): Query<LinkPreviewQuery>,
+) -> AppResult<Json<LinkPreviewDto>> {
+    let url_str = params.url.clone();
+
+    // ── Validate URL ──────────────────────────────────────────────────────
+    let parsed = Url::parse(&url_str).map_err(|_| AppError::Validation("Invalid URL".into()))?;
+
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => {
+            return Err(AppError::Validation(
+                "Only http/https URLs are supported".into(),
+            ))
+        }
+    }
+
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| AppError::Validation("URL has no host".into()))?
+        .to_string();
+
+    // ── SSRF: resolve hostname and check all IPs ──────────────────────────
+    let lookup_target = format!("{}:80", host);
+    let addrs = tokio::net::lookup_host(&lookup_target)
+        .await
+        .map_err(|_| AppError::Validation("Could not resolve URL host".into()))?;
+
+    for addr in addrs {
+        if is_private_ip(addr.ip()) {
+            return Err(AppError::Validation(
+                "URL resolves to a private or reserved address".into(),
+            ));
+        }
+    }
+
+    // ── Check cache ───────────────────────────────────────────────────────
+    {
+        let cache = state.link_preview_cache.lock().unwrap();
+        if let Some((dto, cached_at)) = cache.get(&url_str) {
+            if cached_at.elapsed() < CACHE_TTL {
+                return Ok(Json(dto.clone()));
+            }
+        }
+    }
+
+    // ── Fetch and parse ───────────────────────────────────────────────────
+    let client = ReqwestClient::builder()
+        .timeout(FETCH_TIMEOUT)
+        .user_agent(USER_AGENT)
+        .build()
+        .map_err(|_| AppError::Internal)?;
+
+    let response = client.get(&url_str).send().await.map_err(|e| {
+        tracing::warn!(error = ?e, url = %url_str, "Failed to fetch URL for link preview");
+        AppError::Validation("Failed to fetch URL".into())
+    })?;
+
+    let html: String = response.text().await.map_err(|_| AppError::Internal)?;
+    let dto = extract_og_data(&html, &url_str);
+
+    // ── Store in cache ────────────────────────────────────────────────────
+    {
+        let mut cache = state.link_preview_cache.lock().unwrap();
+        cache.insert(url_str, (dto.clone(), Instant::now()));
+    }
+
+    Ok(Json(dto))
 }
 
 // ── Unit tests ─────────────────────────────────────────────────────────────
