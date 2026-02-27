@@ -4,6 +4,7 @@ import type {
   CreateMessageRequest,
   MessageDeleteEvent,
   Attachment,
+  PollDto,
 } from "../types";
 import { api, ApiRequestError } from "../api/client";
 
@@ -39,6 +40,7 @@ interface MessageState {
   removeMessage: (event: MessageDeleteEvent) => void;
   setReplyingTo: (message: Message | null) => void;
   cacheAttachments: (messageId: string, attachments: Attachment[]) => void;
+  updateMessagePoll: (pollId: string, poll: PollDto) => void;
   clearMessages: () => void;
   clearError: () => void;
 
@@ -182,6 +184,14 @@ export const useMessageStore = create<MessageState>((set) => ({
   updateMessage: (message) => {
     set((state) => ({
       messages: state.messages.map((m) => (m.id === message.id ? message : m)),
+    }));
+  },
+
+  updateMessagePoll: (pollId, poll) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.poll?.id === pollId ? { ...m, poll } : m,
+      ),
     }));
   },
 
