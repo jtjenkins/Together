@@ -246,6 +246,19 @@ async fn main() {
             "/files/:message_id/*filepath",
             get(handlers::attachments::serve_file),
         )
+        // Poll routes (protected, nested under channel)
+        .route(
+            "/channels/:channel_id/polls",
+            post(handlers::polls::create_poll),
+        )
+        .route("/polls/:poll_id", get(handlers::polls::get_poll))
+        .route("/polls/:poll_id/vote", post(handlers::polls::cast_vote))
+        // Event routes (protected, nested under channel or server)
+        .route(
+            "/channels/:channel_id/events",
+            post(handlers::events::create_event),
+        )
+        .route("/servers/:id/events", get(handlers::events::list_events))
         // Voice routes (protected, nested under channel)
         .route(
             "/channels/:channel_id/voice",
