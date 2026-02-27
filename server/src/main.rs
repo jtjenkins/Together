@@ -94,12 +94,23 @@ async fn main() {
         .expect("Failed to create upload directory");
     info!("📂 Upload directory: {}", config.upload_dir.display());
 
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("Failed to build HTTP client");
+
+    let giphy_api_key = std::env::var("GIPHY_API_KEY")
+        .ok()
+        .map(|k| Arc::from(k.as_str()));
+
     let app_state = AppState {
         pool,
         jwt_secret: config.jwt_secret,
         connections: ConnectionManager::new(),
         upload_dir: config.upload_dir.clone(),
         link_preview_cache: Arc::new(Mutex::new(HashMap::new())),
+        http_client,
+        giphy_api_key,
     };
 
     // Prometheus metrics layer
