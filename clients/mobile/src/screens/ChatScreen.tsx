@@ -36,6 +36,17 @@ import { EMOJI_CATEGORIES, parseEmoji } from "../utils/emoji";
 import { extractUrls, isImageUrl } from "../utils/links";
 import { parseMarkdown, type MarkdownSegment } from "../utils/markdown";
 import { LinkPreview } from "../components/LinkPreview";
+import {
+  SlashCommandPicker,
+  detectSlashTrigger,
+  type SlashCommand,
+} from "../components/SlashCommandPicker";
+import { GifPickerModal } from "../components/GifPickerModal";
+import { PollFormModal } from "../components/PollFormModal";
+import { EventFormModal } from "../components/EventFormModal";
+import { PollCard } from "../components/PollCard";
+import { EventCard } from "../components/EventCard";
+import type { GifResult } from "../types";
 
 type Props = NativeStackScreenProps<ServersStackParamList, "Chat">;
 
@@ -559,11 +570,21 @@ export function ChatScreen({ route, navigation }: Props) {
     deleteMessage,
     setReplyingTo,
     clearMessages,
+    updateMessagePoll,
   } = useMessageStore();
 
   const [content, setContent] = useState("");
   const [pendingFiles, setPendingFiles] = useState<MobileFile[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // ── Slash commands state ──────────────────────────────────
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  type ActiveCommand =
+    | { type: "giphy"; query: string }
+    | { type: "poll"; prefill: string }
+    | { type: "event"; prefill: string }
+    | null;
+  const [activeCommand, setActiveCommand] = useState<ActiveCommand>(null);
   const [editContent, setEditContent] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
@@ -685,6 +706,42 @@ export function ChatScreen({ route, navigation }: Props) {
       // Error handled by store
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // ── Slash command handlers ────────────────────────────────
+
+  const handleSlashSelect = (command: SlashCommand) => {
+    setSlashQuery(null);
+
+    if (command.name === "spoiler") {
+      if (content.trim()) {
+        setContent(`||${content.trim()}||`);
+      } else {
+        setContent("||||");
+      }
+      return;
+    }
+
+    const slashIdx = content.lastIndexOf("/");
+    const argText = content.slice(slashIdx + command.name.length + 1).trim();
+    setContent("");
+
+    if (command.name === "giphy") {
+      setActiveCommand({ type: "giphy", query: argText });
+    } else if (command.name === "poll") {
+      setActiveCommand({ type: "poll", prefill: argText });
+    } else if (command.name === "event") {
+      setActiveCommand({ type: "event", prefill: argText });
+    }
+  };
+
+  const handleGifSelect = async (gif: GifResult) => {
+    setActiveCommand(null);
+    try {
+      await sendMessage(channelId, { content: gif.url });
+    } catch {
+      // Error handled by store
     }
   };
 
@@ -1063,6 +1120,15 @@ export function ChatScreen({ route, navigation }: Props) {
                     );
                   })()}
                 {renderAttachments(item.id)}
+                {item.poll && (
+                  <PollCard
+                    poll={item.poll}
+                    onUpdate={(updated) =>
+                      updateMessagePoll(updated.id, updated)
+                    }
+                  />
+                )}
+                {item.event && <EventCard event={item.event} />}
               </>
             )}
             <Text style={styles.timestamp}>{formatTime(item.created_at)}</Text>
@@ -1176,6 +1242,11 @@ export function ChatScreen({ route, navigation }: Props) {
         </View>
       )}
 
+      {/* Slash command picker — shown above input bar when / is typed */}
+      {slashQuery !== null && (
+        <SlashCommandPicker query={slashQuery} onSelect={handleSlashSelect} />
+      )}
+
       {/* Input bar */}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={handlePickFile} style={styles.attachBtn}>
@@ -1184,7 +1255,11 @@ export function ChatScreen({ route, navigation }: Props) {
         <TextInput
           style={styles.textInput}
           value={content}
-          onChangeText={setContent}
+          onChangeText={(text) => {
+            setContent(text);
+            const trigger = detectSlashTrigger(text, text.length);
+            setSlashQuery(trigger);
+          }}
           placeholder="Message…"
           placeholderTextColor="#72767d"
           multiline
@@ -1304,6 +1379,30 @@ export function ChatScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* GIF / Poll / Event command modals */}
+      <GifPickerModal
+        visible={activeCommand?.type === "giphy"}
+        initialQuery={
+          activeCommand?.type === "giphy" ? activeCommand.query : ""
+        }
+        onSelect={handleGifSelect}
+        onClose={() => setActiveCommand(null)}
+      />
+      <PollFormModal
+        visible={activeCommand?.type === "poll"}
+        channelId={channelId}
+        prefill={activeCommand?.type === "poll" ? activeCommand.prefill : ""}
+        onSubmit={() => setActiveCommand(null)}
+        onClose={() => setActiveCommand(null)}
+      />
+      <EventFormModal
+        visible={activeCommand?.type === "event"}
+        channelId={channelId}
+        prefill={activeCommand?.type === "event" ? activeCommand.prefill : ""}
+        onSubmit={() => setActiveCommand(null)}
+        onClose={() => setActiveCommand(null)}
+      />
     </View>
   );
 }
