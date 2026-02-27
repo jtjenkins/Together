@@ -9,7 +9,6 @@ use axum::{
     Router,
 };
 use http_body_util::BodyExt;
-use reqwest;
 use serde_json::Value;
 use sqlx::PgPool;
 use std::collections::HashMap;
