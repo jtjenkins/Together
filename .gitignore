@@ -57,5 +57,8 @@ coverage/
 tmp/
 temp/
 
+# Git worktrees
+.worktrees/
+
 # Backup files
 backups/
