@@ -18,6 +18,28 @@ services:
       retries: 5
     restart: unless-stopped
 
+  server:
+    build: .
+    container_name: together-server-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://together:together_dev_password@postgres:5432/together_dev
+      JWT_SECRET: dev_jwt_secret_not_for_production_use
+      APP_ENV: development
+      ALLOWED_ORIGINS: ""
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      RUST_LOG: together_server=debug,tower_http=debug,sqlx=warn
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads_dev_data:/app/uploads
+    restart: unless-stopped
+
 volumes:
   postgres_dev_data:
+    driver: local
+  uploads_dev_data:
     driver: local
