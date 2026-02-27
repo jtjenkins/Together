@@ -31,10 +31,9 @@ import { api } from "../api/client";
 import * as DocumentPicker from "expo-document-picker";
 import type { Message, Attachment, ReactionCount } from "../types";
 import type { MobileFile } from "../api/client";
+import { EMOJI_CATEGORIES, parseEmoji } from "../utils/emoji";
 
 type Props = NativeStackScreenProps<ServersStackParamList, "Chat">;
-
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -52,13 +51,15 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString();
 }
 
-/** Split content on @word boundaries and return an array of Text-compatible spans. */
+/** Split content on @word boundaries and return an array of Text-compatible spans.
+ *  Also converts :emoji_name: patterns to actual emoji characters. */
 function renderMentionSpans(
   content: string,
   memberUsernames: Set<string>,
   currentUsername: string | null,
 ): React.ReactNode[] {
-  return content.split(/(@\w+)/g).map((part, i) => {
+  const processed = parseEmoji(content);
+  return processed.split(/(@\w+)/g).map((part, i) => {
     const stripped = part.startsWith("@") ? part.slice(1) : null;
     if (stripped !== null) {
       if (stripped === "everyone" || memberUsernames.has(stripped)) {
@@ -99,6 +100,213 @@ function shouldShowHeader(msg: Message, prev: Message | null): boolean {
   if (msg.reply_to !== null) return true;
   return false;
 }
+
+// ─── EmojiPickerSheet ───────────────────────────────────────
+
+interface EmojiPickerSheetProps {
+  messageId: string | null;
+  onSelect: (messageId: string, emoji: string) => void;
+  onClose: () => void;
+}
+
+function EmojiPickerSheet({
+  messageId,
+  onSelect,
+  onClose,
+}: EmojiPickerSheetProps) {
+  const [query, setQuery] = React.useState("");
+  const [activeCat, setActiveCat] = React.useState(0);
+
+  const searchResults = React.useMemo(() => {
+    if (!query.trim()) return null;
+    const q = query.toLowerCase();
+    const results: { emoji: string; name: string }[] = [];
+    for (const cat of EMOJI_CATEGORIES) {
+      for (const entry of cat.emojis) {
+        if (
+          entry.name.includes(q) ||
+          entry.aliases?.some((a) => a.includes(q))
+        ) {
+          results.push(entry);
+          if (results.length >= 80) return results;
+        }
+      }
+    }
+    return results;
+  }, [query]);
+
+  const displayEmojis = searchResults ?? EMOJI_CATEGORIES[activeCat].emojis;
+
+  const handleSelect = (emoji: string) => {
+    if (messageId) onSelect(messageId, emoji);
+    onClose();
+  };
+
+  return (
+    <View style={pickerStyles.card}>
+      {/* Header */}
+      <View style={pickerStyles.header}>
+        <Text style={pickerStyles.title}>Add Reaction</Text>
+        <TouchableOpacity onPress={onClose} style={pickerStyles.closeBtn}>
+          <Feather name="x" size={18} color="#b9bbbe" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Search */}
+      <View style={pickerStyles.searchRow}>
+        <View style={pickerStyles.searchBox}>
+          <Feather
+            name="search"
+            size={14}
+            color="#72767d"
+            style={{ marginRight: 6 }}
+          />
+          <TextInput
+            style={pickerStyles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search emoji…"
+            placeholderTextColor="#72767d"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+      </View>
+
+      {/* Category tabs */}
+      {!searchResults && (
+        <View style={pickerStyles.tabs}>
+          {EMOJI_CATEGORIES.map((cat, i) => (
+            <TouchableOpacity
+              key={cat.label}
+              style={[
+                pickerStyles.tab,
+                i === activeCat && pickerStyles.tabActive,
+              ]}
+              onPress={() => setActiveCat(i)}
+            >
+              <Text style={pickerStyles.tabText}>{cat.icon}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Emoji grid */}
+      <FlatList
+        data={displayEmojis}
+        keyExtractor={(item) => item.emoji + item.name}
+        numColumns={8}
+        style={pickerStyles.grid}
+        contentContainerStyle={pickerStyles.gridContent}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={pickerStyles.emojiBtn}
+            onPress={() => handleSelect(item.emoji)}
+          >
+            <Text style={pickerStyles.emojiText}>{item.emoji}</Text>
+          </TouchableOpacity>
+        )}
+        ListEmptyComponent={
+          <Text style={pickerStyles.noResults}>No results</Text>
+        }
+      />
+    </View>
+  );
+}
+
+const pickerStyles = StyleSheet.create({
+  card: {
+    backgroundColor: "#16213e",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: 420,
+    width: "100%" as const,
+    paddingBottom: 20,
+  },
+  header: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  title: {
+    color: "#b9bbbe",
+    fontSize: 13,
+    fontWeight: "600" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  searchRow: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  searchBox: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    backgroundColor: "#1e2a4a",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  searchInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 14,
+    padding: 0,
+  },
+  tabs: {
+    flexDirection: "row" as const,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#0f3460",
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center" as const,
+    paddingVertical: 6,
+    borderRadius: 6,
+    opacity: 0.5,
+  },
+  tabActive: {
+    backgroundColor: "rgba(114,137,218,0.2)",
+    opacity: 1,
+  },
+  tabText: {
+    fontSize: 18,
+  },
+  grid: {
+    flex: 1,
+  },
+  gridContent: {
+    paddingHorizontal: 8,
+    paddingTop: 6,
+  },
+  emojiBtn: {
+    flex: 1,
+    aspectRatio: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    borderRadius: 6,
+    padding: 4,
+  },
+  emojiText: {
+    fontSize: 22,
+  },
+  noResults: {
+    color: "#72767d",
+    textAlign: "center" as const,
+    marginTop: 20,
+    fontSize: 14,
+  },
+});
+
+// ────────────────────────────────────────────────────────────
 
 export function ChatScreen({ route, navigation }: Props) {
   const { channelId, serverId } = route.params;
@@ -767,7 +975,7 @@ export function ChatScreen({ route, navigation }: Props) {
       <Modal
         visible={reactionPickerMessageId !== null}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setReactionPickerMessageId(null)}
       >
         <TouchableOpacity
@@ -775,27 +983,13 @@ export function ChatScreen({ route, navigation }: Props) {
           activeOpacity={1}
           onPress={() => setReactionPickerMessageId(null)}
         >
-          <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Add Reaction</Text>
-            <View style={styles.pickerRow}>
-              {QUICK_REACTIONS.map((emoji) => (
-                <TouchableOpacity
-                  key={emoji}
-                  style={styles.pickerEmoji}
-                  onPress={() => {
-                    if (reactionPickerMessageId) {
-                      handleReactionPickerSelect(
-                        reactionPickerMessageId,
-                        emoji,
-                      );
-                    }
-                  }}
-                >
-                  <Text style={styles.pickerEmojiText}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <EmojiPickerSheet
+              messageId={reactionPickerMessageId}
+              onSelect={handleReactionPickerSelect}
+              onClose={() => setReactionPickerMessageId(null)}
+            />
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
@@ -1163,35 +1357,7 @@ const styles = StyleSheet.create({
   pickerOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pickerCard: {
-    backgroundColor: "#16213e",
-    borderRadius: 12,
-    padding: 20,
-    minWidth: 280,
-  },
-  pickerTitle: {
-    color: "#b9bbbe",
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  pickerRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  pickerEmoji: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#1a1a2e",
-  },
-  pickerEmojiText: {
-    fontSize: 26,
+    justifyContent: "flex-end",
   },
   threadFooter: {
     flexDirection: "row",

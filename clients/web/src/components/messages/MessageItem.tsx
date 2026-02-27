@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   CornerDownRight,
   FileText,
@@ -12,20 +12,23 @@ import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
 import { formatMessageTime } from "../../utils/formatTime";
+import { parseEmoji } from "../../utils/emoji";
 import { api } from "../../api/client";
 import { ReactionBar } from "./ReactionBar";
+import { EmojiPicker } from "./EmojiPicker";
 import type { MemberDto, Message, ReactionCount } from "../../types";
 import styles from "./MessageItem.module.css";
 
-const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
-
-/** Split content on @word boundaries and wrap matched mentions in styled spans. */
+/** Split content on @word boundaries and wrap matched mentions in styled spans.
+ *  Also converts :emoji_name: patterns to actual emoji characters. */
 function renderMentions(
   content: string,
   members: MemberDto[],
   currentUserId: string | null,
 ): React.ReactNode {
-  return content.split(/(@\w+)/g).map((part, i) => {
+  // Pre-process :name: → emoji character, then split on mentions
+  const processed = parseEmoji(content);
+  return processed.split(/(@\w+)/g).map((part, i) => {
     const stripped = part.startsWith("@") ? part.slice(1) : null;
     if (stripped !== null) {
       if (stripped === "everyone") {
@@ -85,7 +88,7 @@ export function MessageItem({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
-  const [showQuickPicker, setShowQuickPicker] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const [reactions, setReactions] = useState<ReactionCount[]>([]);
 
   const isOwnMessage = message.author_id === user?.id;
@@ -124,23 +127,26 @@ export function MessageItem({
     }
   };
 
-  const handleQuickReact = async (emoji: string) => {
-    setShowQuickPicker(false);
-    try {
-      await api.addReaction(channelId, message.id, emoji);
-      setReactions((prev) => {
-        const existing = prev.find((r) => r.emoji === emoji);
-        if (existing) {
-          return prev.map((r) =>
-            r.emoji === emoji ? { ...r, count: r.count + 1, me: true } : r,
-          );
-        }
-        return [...prev, { emoji, count: 1, me: true }];
-      });
-    } catch {
-      // Non-fatal
-    }
-  };
+  const handleQuickReact = useCallback(
+    async (emoji: string) => {
+      setShowPicker(false);
+      try {
+        await api.addReaction(channelId, message.id, emoji);
+        setReactions((prev) => {
+          const existing = prev.find((r) => r.emoji === emoji);
+          if (existing) {
+            return prev.map((r) =>
+              r.emoji === emoji ? { ...r, count: r.count + 1, me: true } : r,
+            );
+          }
+          return [...prev, { emoji, count: 1, me: true }];
+        });
+      } catch {
+        // Non-fatal
+      }
+    },
+    [channelId, message.id],
+  );
 
   if (message.deleted) {
     return (
@@ -157,7 +163,7 @@ export function MessageItem({
   return (
     <div
       className={`${styles.message} ${isOwnMessage ? styles.own : ""} ${showHeader ? styles.withHeader : styles.compact}`}
-      onMouseLeave={() => setShowQuickPicker(false)}
+      onMouseLeave={() => setShowPicker(false)}
     >
       {message.reply_to && replyContent && (
         <div className={styles.replyBar}>
@@ -276,7 +282,7 @@ export function MessageItem({
           <div className={styles.actions}>
             <button
               className={styles.actionBtn}
-              onClick={() => setShowQuickPicker((v) => !v)}
+              onClick={() => setShowPicker((v) => !v)}
               title="Add Reaction"
             >
               <SmilePlus size={14} />
@@ -318,17 +324,12 @@ export function MessageItem({
                 </button>
               </>
             )}
-            {showQuickPicker && (
-              <div className={styles.quickPicker}>
-                {QUICK_EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    className={styles.quickEmoji}
-                    onClick={() => handleQuickReact(emoji)}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+            {showPicker && (
+              <div className={styles.pickerAnchor}>
+                <EmojiPicker
+                  onSelect={handleQuickReact}
+                  onClose={() => setShowPicker(false)}
+                />
               </div>
             )}
           </div>
