@@ -184,6 +184,11 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
         )
+        // Link preview
+        .route(
+            "/link-preview",
+            get(handlers::link_preview::get_link_preview),
+        )
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)

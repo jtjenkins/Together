@@ -17,6 +17,30 @@ pub const CACHE_TTL: Duration = Duration::from_secs(86_400);
 pub const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
 pub const USER_AGENT: &str =
     "Mozilla/5.0 (compatible; TogetherLinkBot/1.0; +https://github.com/jtjenkins/Together)";
+const MAX_CACHE_ENTRIES: usize = 10_000;
+
+/// One entry in the link-preview in-memory cache.
+///
+/// `cached_at` records when the metadata was fetched; entries are valid for
+/// `CACHE_TTL` (24 hours) after that point.
+#[derive(Clone)]
+pub struct LinkPreviewCacheEntry {
+    pub dto: LinkPreviewDto,
+    cached_at: Instant,
+}
+
+impl LinkPreviewCacheEntry {
+    fn new(dto: LinkPreviewDto) -> Self {
+        Self {
+            dto,
+            cached_at: Instant::now(),
+        }
+    }
+
+    pub fn is_fresh(&self) -> bool {
+        self.cached_at.elapsed() < CACHE_TTL
+    }
+}
 
 // ── Public helpers ─────────────────────────────────────────────────────────
 
@@ -53,7 +77,8 @@ pub fn extract_og_data(html: &str, base_url: &str) -> LinkPreviewDto {
     let description = get_meta_property(&document, "og:description")
         .or_else(|| get_meta_name(&document, "description"));
 
-    let image = get_meta_property(&document, "og:image");
+    let image = get_meta_property(&document, "og:image")
+        .filter(|url| url.starts_with("http://") || url.starts_with("https://"));
 
     let site_name = get_meta_property(&document, "og:site_name").or_else(|| {
         Url::parse(base_url)
@@ -135,11 +160,19 @@ pub async fn get_link_preview(
 
     // ── SSRF: resolve hostname and check all IPs ──────────────────────────
     let lookup_target = format!("{}:80", host);
-    let addrs = tokio::net::lookup_host(&lookup_target)
+    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host(&lookup_target)
         .await
-        .map_err(|_| AppError::Validation("Could not resolve URL host".into()))?;
+        .map_err(|e| {
+            tracing::warn!(
+                error = ?e,
+                host = %host,
+                "DNS lookup failed for link preview URL"
+            );
+            AppError::Validation("Could not resolve URL host".into())
+        })?
+        .collect();
 
-    for addr in addrs {
+    for addr in &addrs {
         if is_private_ip(addr.ip()) {
             return Err(AppError::Validation(
                 "URL resolves to a private or reserved address".into(),
@@ -147,35 +180,70 @@ pub async fn get_link_preview(
         }
     }
 
+    // Pin the first resolved IP to the reqwest client to prevent DNS rebinding
+    // (TOCTOU race where attacker-controlled DNS switches IPs between our check and reqwest's lookup).
+    let pinned_addr = addrs
+        .first()
+        .copied()
+        .ok_or_else(|| AppError::Validation("Could not resolve URL host".into()))?;
+
     // ── Check cache ───────────────────────────────────────────────────────
     {
-        let cache = state.link_preview_cache.lock().unwrap();
-        if let Some((dto, cached_at)) = cache.get(&url_str) {
-            if cached_at.elapsed() < CACHE_TTL {
-                return Ok(Json(dto.clone()));
+        let cache = state.link_preview_cache.lock().unwrap_or_else(|poisoned| {
+            tracing::error!("link_preview_cache mutex is poisoned; recovering");
+            poisoned.into_inner()
+        });
+        if let Some(entry) = cache.get(&url_str) {
+            if entry.is_fresh() {
+                return Ok(Json(entry.dto.clone()));
             }
         }
     }
 
     // ── Fetch and parse ───────────────────────────────────────────────────
+    // Build a per-request client with the validated IP pinned to prevent DNS rebinding.
     let client = ReqwestClient::builder()
         .timeout(FETCH_TIMEOUT)
         .user_agent(USER_AGENT)
+        .resolve(&host, pinned_addr)
         .build()
-        .map_err(|_| AppError::Internal)?;
+        .map_err(|e| {
+            tracing::error!(error = ?e, "Failed to build reqwest client for link preview");
+            AppError::Internal
+        })?;
 
     let response = client.get(&url_str).send().await.map_err(|e| {
         tracing::warn!(error = ?e, url = %url_str, "Failed to fetch URL for link preview");
         AppError::Validation("Failed to fetch URL".into())
     })?;
 
-    let html: String = response.text().await.map_err(|_| AppError::Internal)?;
+    // Cap response body at 1 MB to prevent memory exhaustion from large/streaming responses.
+    let bytes = response.bytes().await.map_err(|e| {
+        tracing::warn!(
+            error = ?e,
+            url = %url_str,
+            "Failed to read response body for link preview"
+        );
+        AppError::Internal
+    })?;
+    const MAX_BODY_BYTES: usize = 1_048_576; // 1 MB
+    let html = if bytes.len() > MAX_BODY_BYTES {
+        String::from_utf8_lossy(&bytes[..MAX_BODY_BYTES]).into_owned()
+    } else {
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
+
     let dto = extract_og_data(&html, &url_str);
 
-    // ── Store in cache ────────────────────────────────────────────────────
+    // ── Store in cache (skip if cache is full) ────────────────────────────
     {
-        let mut cache = state.link_preview_cache.lock().unwrap();
-        cache.insert(url_str, (dto.clone(), Instant::now()));
+        let mut cache = state.link_preview_cache.lock().unwrap_or_else(|poisoned| {
+            tracing::error!("link_preview_cache mutex is poisoned; recovering");
+            poisoned.into_inner()
+        });
+        if cache.len() < MAX_CACHE_ENTRIES {
+            cache.insert(url_str, LinkPreviewCacheEntry::new(dto.clone()));
+        }
     }
 
     Ok(Json(dto))
@@ -298,5 +366,66 @@ mod tests {
         let html = r#"<html><head><meta property="og:title" content="   "/></head></html>"#;
         let dto = extract_og_data(html, "https://example.com");
         assert!(dto.title.is_none());
+    }
+
+    #[test]
+    fn allows_172_15_just_outside_private_range() {
+        assert!(!is_private_ip("172.15.255.255".parse().unwrap()));
+    }
+
+    #[test]
+    fn allows_172_32_just_outside_private_range() {
+        assert!(!is_private_ip("172.32.0.0".parse().unwrap()));
+    }
+
+    #[test]
+    fn blocks_ipv6_ula() {
+        assert!(is_private_ip("fc00::1".parse().unwrap()));
+        assert!(is_private_ip("fd00::1".parse().unwrap()));
+    }
+
+    #[test]
+    fn blocks_ipv6_link_local() {
+        assert!(is_private_ip("fe80::1".parse().unwrap()));
+    }
+
+    #[test]
+    fn meta_description_fallback() {
+        let html = r#"<html><head>
+            <meta name="description" content="Plain meta desc"/>
+        </head></html>"#;
+        let dto = extract_og_data(html, "https://example.com");
+        assert_eq!(dto.description.as_deref(), Some("Plain meta desc"));
+    }
+
+    #[test]
+    fn og_description_takes_precedence_over_meta_description() {
+        let html = r#"<html><head>
+            <meta property="og:description" content="OG desc"/>
+            <meta name="description" content="Plain desc"/>
+        </head></html>"#;
+        let dto = extract_og_data(html, "https://example.com");
+        assert_eq!(dto.description.as_deref(), Some("OG desc"));
+    }
+
+    #[test]
+    fn rejects_non_https_og_image() {
+        let html = r#"<html><head>
+            <meta property="og:image" content="data:image/png;base64,abc"/>
+        </head></html>"#;
+        let dto = extract_og_data(html, "https://example.com");
+        assert!(dto.image.is_none());
+    }
+
+    #[test]
+    fn accepts_https_og_image() {
+        let html = r#"<html><head>
+            <meta property="og:image" content="https://cdn.example.com/img.png"/>
+        </head></html>"#;
+        let dto = extract_og_data(html, "https://example.com");
+        assert_eq!(
+            dto.image.as_deref(),
+            Some("https://cdn.example.com/img.png")
+        );
     }
 }

@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 
 use sqlx::PgPool;
 
-use crate::models::LinkPreviewDto;
+use crate::handlers::link_preview::LinkPreviewCacheEntry;
 use crate::websocket::ConnectionManager;
 
 /// Shared application state passed to all handlers and extractors.
@@ -21,7 +20,7 @@ pub struct AppState {
     pub upload_dir: PathBuf,
     /// In-memory cache for Open Graph link preview metadata.
     ///
-    /// Keyed by canonical URL string. Each entry holds the fetched DTO and the
-    /// `Instant` at which it was cached; entries older than 24 hours are re-fetched.
-    pub link_preview_cache: Arc<Mutex<HashMap<String, (LinkPreviewDto, Instant)>>>,
+    /// Keyed by canonical URL string. Entries older than 24 hours are re-fetched.
+    /// Capped at 10,000 entries to bound memory usage.
+    pub link_preview_cache: Arc<Mutex<HashMap<String, LinkPreviewCacheEntry>>>,
 }
