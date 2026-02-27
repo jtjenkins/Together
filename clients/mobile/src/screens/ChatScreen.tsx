@@ -54,14 +54,22 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString();
 }
 
-/** Renders message content: converts :emoji: codes, renders image URLs inline,
- *  linkifies other URLs, and highlights @mentions.
- *  Returns rendered nodes plus the first non-image URL for the preview card. */
+interface RenderedContent {
+  /** Text-compatible nodes (strings, mention spans, link spans) — for inside <Text>. */
+  textNodes: React.ReactNode[];
+  /** Inline image blocks extracted from the message — rendered outside <Text>. */
+  imageNodes: React.ReactNode[];
+  /** The first non-image URL in the message, for the preview card. */
+  firstLinkUrl: string | null;
+}
+
+/** Renders message content: emoji codes, mention highlighting, inline images, and link highlighting.
+ *  Returns text nodes (for <Text>), image nodes (for <View>), and the first link URL for a preview card. */
 function renderContent(
   content: string,
   memberUsernames: Set<string>,
   currentUsername: string | null,
-): { nodes: React.ReactNode[]; firstLinkUrl: string | null } {
+): RenderedContent {
   const processed = parseEmoji(content);
 
   const allUrls = extractUrls(processed);
@@ -71,7 +79,8 @@ function renderContent(
   const parts = processed.split(urlPattern);
   const urlMatches = [...processed.matchAll(urlPattern)].map((m) => m[0]);
 
-  const nodes: React.ReactNode[] = [];
+  const textNodes: React.ReactNode[] = [];
+  const imageNodes: React.ReactNode[] = [];
 
   parts.forEach((textPart, i) => {
     if (textPart) {
@@ -81,7 +90,7 @@ function renderContent(
           if (stripped === "everyone" || memberUsernames.has(stripped)) {
             const isSelf =
               stripped !== "everyone" && stripped === currentUsername;
-            nodes.push(
+            textNodes.push(
               <Text
                 key={`t${i}-${j}`}
                 style={isSelf ? mentionSelfStyle : mentionStyle}
@@ -92,14 +101,15 @@ function renderContent(
             return;
           }
         }
-        nodes.push(<Text key={`t${i}-${j}`}>{chunk}</Text>);
+        textNodes.push(<Text key={`t${i}-${j}`}>{chunk}</Text>);
       });
     }
 
     const url = urlMatches[i];
     if (url) {
       if (isImageUrl(url)) {
-        nodes.push(
+        // Image goes into imageNodes (outside <Text>)
+        imageNodes.push(
           <Image
             key={`u${i}`}
             source={{ uri: url }}
@@ -108,11 +118,23 @@ function renderContent(
           />,
         );
       } else {
-        nodes.push(
+        // Non-image link stays in textNodes (inside <Text>)
+        textNodes.push(
           <Text
             key={`u${i}`}
             style={linkStyle}
-            onPress={() => Linking.openURL(url)}
+            onPress={() => {
+              Linking.openURL(url).catch((err: unknown) => {
+                console.warn("[ChatScreen] Linking.openURL failed", {
+                  url,
+                  err,
+                });
+                Alert.alert(
+                  "Could not open link",
+                  "This link cannot be opened on your device.",
+                );
+              });
+            }}
           >
             {url}
           </Text>,
@@ -121,7 +143,7 @@ function renderContent(
     }
   });
 
-  return { nodes, firstLinkUrl };
+  return { textNodes, imageNodes, firstLinkUrl };
 }
 
 const mentionStyle = {
@@ -878,18 +900,24 @@ export function ChatScreen({ route, navigation }: Props) {
               <>
                 {item.content !== "\u200b" &&
                   (() => {
-                    const { nodes, firstLinkUrl } = renderContent(
-                      item.content,
-                      memberUsernameSet,
-                      user?.username ?? null,
-                    );
+                    const { textNodes, imageNodes, firstLinkUrl } =
+                      renderContent(
+                        item.content,
+                        memberUsernameSet,
+                        user?.username ?? null,
+                      );
                     return (
                       <>
                         <Text
                           style={isOwn ? styles.contentOwn : styles.content}
                         >
-                          {nodes}
+                          {textNodes}
                         </Text>
+                        {imageNodes.length > 0 && (
+                          <View style={styles.inlineImagesRow}>
+                            {imageNodes}
+                          </View>
+                        )}
                         {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
                       </>
                     );
@@ -1261,6 +1289,10 @@ const styles = StyleSheet.create({
   },
   attachmentsRow: {
     marginTop: 6,
+  },
+  inlineImagesRow: {
+    marginTop: 4,
+    gap: 4,
   },
   attachmentImage: {
     width: 200,

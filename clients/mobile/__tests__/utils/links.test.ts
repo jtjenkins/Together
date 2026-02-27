@@ -27,6 +27,36 @@ describe("extractUrls", () => {
   it("returns empty for text with no URLs", () => {
     expect(extractUrls("no links here")).toEqual([]);
   });
+
+  it("strips trailing period", () => {
+    expect(extractUrls("visit https://example.com.")).toEqual([
+      "https://example.com",
+    ]);
+  });
+
+  it("strips trailing comma", () => {
+    expect(extractUrls("see https://example.com, then go")).toEqual([
+      "https://example.com",
+    ]);
+  });
+
+  it("strips trailing closing paren", () => {
+    expect(extractUrls("(https://example.com)")).toEqual([
+      "https://example.com",
+    ]);
+  });
+
+  it("does not strip trailing slash", () => {
+    expect(extractUrls("go to https://example.com/")).toEqual([
+      "https://example.com/",
+    ]);
+  });
+
+  it("does not strip path characters", () => {
+    expect(extractUrls("see https://example.com/path.html")).toEqual([
+      "https://example.com/path.html",
+    ]);
+  });
 });
 
 describe("isImageUrl", () => {

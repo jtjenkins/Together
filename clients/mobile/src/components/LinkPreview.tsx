@@ -7,6 +7,7 @@ import {
   Linking,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { api } from "../api/client";
 import type { LinkPreviewDto } from "../types";
@@ -26,8 +27,10 @@ export function LinkPreview({ url }: LinkPreviewProps) {
       .then((d) => {
         if (!cancelled) setData(d);
       })
-      .catch(() => {
-        // Non-fatal: component renders nothing on error
+      .catch((err: unknown) => {
+        // Link preview failures are non-fatal — the component renders nothing.
+        // Log so systematic failures (auth regression, server down) are visible.
+        console.warn("[LinkPreview] fetch failed", { url, err });
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -50,7 +53,15 @@ export function LinkPreview({ url }: LinkPreviewProps) {
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => Linking.openURL(url)}
+      onPress={() => {
+        Linking.openURL(url).catch((err: unknown) => {
+          console.warn("[LinkPreview] Linking.openURL failed", { url, err });
+          Alert.alert(
+            "Could not open link",
+            "This link cannot be opened on your device.",
+          );
+        });
+      }}
       activeOpacity={0.8}
     >
       <View style={styles.content}>
