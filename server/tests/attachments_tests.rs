@@ -71,6 +71,30 @@ fn txt_file<'a>(name: &'a str, data: &'a [u8]) -> MultipartFile<'a> {
     }
 }
 
+/// Minimal 1×1 PNG (67 bytes). Magic bytes let `infer` detect it as `image/png`.
+/// Use this instead of plain-text fixtures wherever the upload must succeed
+/// (plain ASCII has no magic bytes and is rejected as `application/octet-stream`).
+fn png_file(name: &'static str) -> MultipartFile<'static> {
+    // 1×1 transparent PNG, hex-encoded.
+    static PNG_1X1: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR length + type
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // width=1, height=1
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, // bit depth, color type, ...
+        0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, // IDAT length + type
+        0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, // IDAT data
+        0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC, // IDAT data cont.
+        0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, // IEND length + type
+        0x44, 0xAE, 0x42, 0x60, 0x82, // IEND data
+    ];
+    MultipartFile {
+        field_name: "files",
+        filename: name,
+        content_type: "image/png",
+        data: PNG_1X1,
+    }
+}
+
 // ── POST /messages/:message_id/attachments ────────────────────────────────────
 
 #[tokio::test]
@@ -80,22 +104,18 @@ async fn upload_single_file_returns_201() {
     let app = create_test_app(pool);
 
     let uri = format!("/messages/{}/attachments", f.message_id);
-    let (status, body) = post_multipart_authed(
-        app,
-        &uri,
-        &f.owner_token,
-        &[txt_file("hello.txt", b"Hello, World!")],
-    )
-    .await;
+    let file = png_file("hello.png");
+    let file_size = file.data.len() as i64;
+    let (status, body) = post_multipart_authed(app, &uri, &f.owner_token, &[file]).await;
 
     assert_eq!(status, StatusCode::CREATED, "{body}");
     let attachments = body.as_array().unwrap();
     assert_eq!(attachments.len(), 1);
 
     let att = &attachments[0];
-    assert_eq!(att["filename"], "hello.txt");
-    assert_eq!(att["file_size"], 13);
-    assert_eq!(att["mime_type"], "text/plain");
+    assert_eq!(att["filename"], "hello.png");
+    assert_eq!(att["file_size"], file_size);
+    assert_eq!(att["mime_type"], "image/png");
     assert!(att["url"].as_str().unwrap().starts_with("/files/"));
     assert!(att["id"].as_str().is_some());
     assert!(att["message_id"].as_str().is_some());
@@ -112,10 +132,7 @@ async fn upload_multiple_files_returns_all() {
         app,
         &uri,
         &f.owner_token,
-        &[
-            txt_file("file1.txt", b"content one"),
-            txt_file("file2.txt", b"content two"),
-        ],
+        &[png_file("file1.png"), png_file("file2.png")],
     )
     .await;
 
@@ -127,8 +144,8 @@ async fn upload_multiple_files_returns_all() {
         .iter()
         .map(|a| a["filename"].as_str().unwrap())
         .collect();
-    assert!(names.contains(&"file1.txt"), "{names:?}");
-    assert!(names.contains(&"file2.txt"), "{names:?}");
+    assert!(names.contains(&"file1.png"), "{names:?}");
+    assert!(names.contains(&"file2.png"), "{names:?}");
 }
 
 #[tokio::test]
@@ -250,12 +267,12 @@ async fn upload_exceeding_attachment_cap_returns_400() {
     for batch in 0..2 {
         let files: Vec<_> = (0..5)
             .map(|i| {
-                let name = format!("batch{batch}_file{i}.txt");
+                let name = format!("batch{batch}_file{i}.png");
                 MultipartFile {
                     field_name: "files",
                     filename: Box::leak(name.into_boxed_str()),
-                    content_type: "text/plain",
-                    data: b"content",
+                    content_type: "image/png",
+                    data: png_file("_").data,
                 }
             })
             .collect();
@@ -264,13 +281,8 @@ async fn upload_exceeding_attachment_cap_returns_400() {
     }
 
     // A message now has 10 attachments — one more should be rejected.
-    let (status, _) = post_multipart_authed(
-        app,
-        &uri,
-        &f.owner_token,
-        &[txt_file("one_too_many.txt", b"x")],
-    )
-    .await;
+    let (status, _) =
+        post_multipart_authed(app, &uri, &f.owner_token, &[png_file("one_too_many.png")]).await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
@@ -340,7 +352,7 @@ async fn list_attachments_returns_uploaded_files() {
         app.clone(),
         &uri,
         &f.owner_token,
-        &[txt_file("a.txt", b"alpha"), txt_file("b.txt", b"beta")],
+        &[png_file("a.png"), png_file("b.png")],
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -384,13 +396,8 @@ async fn list_attachments_member_can_view() {
 
     // Upload a file as the owner.
     let uri = format!("/messages/{}/attachments", f.message_id);
-    let (status, _) = post_multipart_authed(
-        app.clone(),
-        &uri,
-        &f.owner_token,
-        &[txt_file("shared.txt", b"visible to all members")],
-    )
-    .await;
+    let (status, _) =
+        post_multipart_authed(app.clone(), &uri, &f.owner_token, &[png_file("shared.png")]).await;
     assert_eq!(status, StatusCode::CREATED);
 
     // A plain member (not the author) should be able to list.
@@ -408,15 +415,10 @@ async fn serve_file_returns_file_contents() {
     let pool = test_pool().await;
     let app = create_test_app(pool);
 
-    let content = b"Hello from serve_file test!";
+    let file = png_file("serve.png");
+    let expected_bytes = file.data;
     let uri = format!("/messages/{}/attachments", f.message_id);
-    let (status, body) = post_multipart_authed(
-        app.clone(),
-        &uri,
-        &f.owner_token,
-        &[txt_file("serve.txt", content)],
-    )
-    .await;
+    let (status, body) = post_multipart_authed(app.clone(), &uri, &f.owner_token, &[file]).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
 
     // The URL is returned in the attachment JSON.
@@ -424,7 +426,7 @@ async fn serve_file_returns_file_contents() {
 
     let (status, bytes) = get_raw_authed(app, &url, &f.owner_token).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(bytes, content);
+    assert_eq!(bytes, expected_bytes);
 }
 
 /// A server member who did NOT author the message can still download files.
@@ -434,21 +436,16 @@ async fn serve_file_member_can_download() {
     let pool = test_pool().await;
     let app = create_test_app(pool);
 
-    let content = b"member download test";
+    let file = png_file("member.png");
+    let expected_bytes = file.data;
     let uri = format!("/messages/{}/attachments", f.message_id);
-    let (status, body) = post_multipart_authed(
-        app.clone(),
-        &uri,
-        &f.owner_token,
-        &[txt_file("member.txt", content)],
-    )
-    .await;
+    let (status, body) = post_multipart_authed(app.clone(), &uri, &f.owner_token, &[file]).await;
     assert_eq!(status, StatusCode::CREATED);
 
     let url = body[0]["url"].as_str().unwrap().to_owned();
     let (status, bytes) = get_raw_authed(app, &url, &f.member_token).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(bytes, content);
+    assert_eq!(bytes, expected_bytes);
 }
 
 /// An unauthenticated request to /files must be rejected.
@@ -464,7 +461,7 @@ async fn serve_file_requires_auth() {
         app.clone(),
         &uri,
         &f.owner_token,
-        &[txt_file("auth_check.txt", b"data")],
+        &[png_file("auth_check.png")],
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -482,13 +479,8 @@ async fn serve_file_requires_server_membership() {
     let app = create_test_app(pool);
 
     let uri = format!("/messages/{}/attachments", f.message_id);
-    let (status, body) = post_multipart_authed(
-        app.clone(),
-        &uri,
-        &f.owner_token,
-        &[txt_file("secret.txt", b"data")],
-    )
-    .await;
+    let (status, body) =
+        post_multipart_authed(app.clone(), &uri, &f.owner_token, &[png_file("secret.png")]).await;
     assert_eq!(status, StatusCode::CREATED);
 
     let url = body[0]["url"].as_str().unwrap().to_owned();

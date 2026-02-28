@@ -58,6 +58,7 @@ scraper = "0.19"             # HTML parsing for OG tag extraction
 url = "2"                    # URL parsing (used by reqwest internally, now explicit)
 reqwest = { version = "0.11", features = ["json"] }  # HTTP client for link preview fetching
 urlencoding = "2"            # URL percent-encoding for Giphy search query
+infer = "0.16"               # Magic-byte MIME type detection for uploaded files
 
 # Phase 3+ dependencies (add as needed):
 # tokio-tungstenite = "0.21"   # WebSocket (Phase 3)

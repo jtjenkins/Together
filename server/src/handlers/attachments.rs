@@ -28,6 +28,23 @@ const MAX_ATTACHMENTS_PER_MESSAGE: i64 = 10;
 /// Maximum file size in bytes (50 MB, matches the DB check constraint).
 const MAX_FILE_SIZE: usize = 52_428_800;
 
+/// Allowlist of MIME types accepted for uploaded files.
+/// The MIME type is detected from magic bytes, not from the client-supplied
+/// Content-Type header, so this list is authoritative.
+const ALLOWED_MIME_TYPES: &[&str] = &[
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "video/mp4",
+    "video/webm",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/webm",
+    "application/pdf",
+    "text/plain",
+];
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -92,10 +109,6 @@ pub async fn upload_attachments(
         }
 
         let filename = field.file_name().unwrap_or("unknown").to_string();
-        let mime_type = field
-            .content_type()
-            .unwrap_or("application/octet-stream")
-            .to_string();
 
         let data = field.bytes().await.map_err(|e| {
             tracing::warn!(error = ?e, "Failed to read multipart field bytes");
@@ -110,6 +123,20 @@ pub async fn upload_attachments(
             return Err(AppError::Validation(
                 "File size exceeds the 50 MB limit".into(),
             ));
+        }
+
+        // Detect MIME type from magic bytes, ignoring the client-supplied
+        // Content-Type header to prevent stored-XSS via disguised HTML uploads.
+        let mime_type = infer::get(&data)
+            .map(|t| t.mime_type())
+            .unwrap_or("application/octet-stream")
+            .to_string();
+
+        if !ALLOWED_MIME_TYPES.contains(&mime_type.as_str()) {
+            return Err(AppError::Validation(format!(
+                "File type '{}' is not allowed",
+                mime_type
+            )));
         }
 
         let stored_name = format!(
