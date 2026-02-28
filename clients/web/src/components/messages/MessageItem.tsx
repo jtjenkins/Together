@@ -569,7 +569,11 @@ export function MessageItem({
 
       {/* Mobile action sheet — shown when user taps the ··· button */}
       {isMobile && actionsOpen && (
-        <div className={styles.actionSheet} role="menu">
+        <div
+          className={styles.actionSheet}
+          role="menu"
+          aria-label="Message actions"
+        >
           <button
             role="menuitem"
             onClick={() => {

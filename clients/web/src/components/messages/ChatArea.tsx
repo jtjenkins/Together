@@ -52,7 +52,8 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
     const el = scrollRef.current;
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setShowScrollBtn(distFromBottom > 200);
+    const shouldShow = distFromBottom > 200;
+    setShowScrollBtn((prev) => (prev === shouldShow ? prev : shouldShow));
   }, []);
 
   const scrollToBottom = useCallback(() => {

@@ -9,6 +9,8 @@ export function useFocusTrap(
 ) {
   useEffect(() => {
     if (!active || !ref.current) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     const elements = Array.from(
       ref.current.querySelectorAll<HTMLElement>(FOCUSABLE),
     );
@@ -34,6 +36,9 @@ export function useFocusTrap(
     };
 
     document.addEventListener("keydown", trap);
-    return () => document.removeEventListener("keydown", trap);
-  }, [active, ref]);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      previouslyFocused?.focus();
+    };
+  }, [active]); // ref is a stable RefObject, not in deps
 }

@@ -20,14 +20,11 @@ function formatDateLabel(dateStr: string): string {
 }
 
 export function DateSeparator({ date }: DateSeparatorProps) {
+  const label = formatDateLabel(date);
   return (
-    <div
-      className={styles.separator}
-      role="separator"
-      aria-label={formatDateLabel(date)}
-    >
+    <div className={styles.separator} role="separator" aria-label={label}>
       <span className={styles.line} />
-      <span className={styles.label}>{formatDateLabel(date)}</span>
+      <span className={styles.label}>{label}</span>
       <span className={styles.line} />
     </div>
   );
