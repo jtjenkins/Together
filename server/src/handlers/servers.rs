@@ -23,6 +23,8 @@ use crate::{
 pub struct CreateServerRequest {
     #[validate(length(min = 1, max = 100, message = "Server name must be 1–100 characters"))]
     pub name: String,
+    /// Must be a valid HTTP(S) URL when provided.
+    #[validate(url)]
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
 }
@@ -31,6 +33,8 @@ pub struct CreateServerRequest {
 pub struct UpdateServerRequest {
     #[validate(length(min = 1, max = 100, message = "Server name must be 1–100 characters"))]
     pub name: Option<String>,
+    /// Must be a valid HTTP(S) URL when provided.
+    #[validate(url)]
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
 }
