@@ -7,8 +7,12 @@
   --bg-hover: #243b6a;
   --bg-active: #2d4a7a;
   --bg-message-hover: rgba(255, 255, 255, 0.03);
+  --bg-modifier-hover: rgba(79, 84, 92, 0.16);
+  --bg-modifier-selected: rgba(79, 84, 92, 0.32);
+  --bg-floating: #18191c;
 
   --text-primary: #e0e0e0;
+  --text-normal: #dcddde;
   --text-secondary: #a0a0b0;
   --text-muted: #6c6c80;
   --text-link: #7aa2f7;
@@ -18,6 +22,7 @@
   --accent-green: #3ba55d;
   --accent-yellow: #faa61a;
   --accent-red: #ed4245;
+  --brand-color: var(--accent-primary);
 
   --status-online: #3ba55d;
   --status-away: #faa61a;
