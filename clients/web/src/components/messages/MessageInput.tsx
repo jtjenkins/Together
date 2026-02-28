@@ -116,16 +116,16 @@ export function MessageInput({ channelId }: MessageInputProps) {
   };
 
   /** Detect emoji, slash, and mention triggers — called from onChange and onSelect. */
-  function detectAllTriggers() {
-    const cursor = inputRef.current?.selectionStart ?? content.length;
-    const before = content.slice(0, cursor);
+  function detectAllTriggers(currentContent = content) {
+    const cursor = inputRef.current?.selectionStart ?? currentContent.length;
+    const before = currentContent.slice(0, cursor);
 
     // Emoji trigger: :word (at least 1 char)
     const emojiMatch = before.match(/:([a-zA-Z0-9_+-]{1,})$/);
 
     // Slash trigger: only when no emoji trigger active
     const slashTrigger = !emojiMatch
-      ? detectSlashTrigger(content, cursor)
+      ? detectSlashTrigger(currentContent, cursor)
       : null;
 
     // Mention trigger: @word (zero or more chars) — only when no other trigger active.
@@ -506,7 +506,7 @@ export function MessageInput({ channelId }: MessageInputProps) {
             value={content}
             onChange={(e) => {
               setContent(e.target.value);
-              detectAllTriggers();
+              detectAllTriggers(e.target.value); // pass fresh value to avoid stale closure
             }}
             onSelect={detectAllTriggers}
             onKeyDown={handleKeyDown}
