@@ -55,5 +55,6 @@ export function useFocusTrap(
       document.removeEventListener("keydown", trap);
       previouslyFocused?.focus();
     };
-  }, [active]); // ref is a stable RefObject, not in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]); // ref is a stable RefObject — adding it would cause spurious re-runs
 }
