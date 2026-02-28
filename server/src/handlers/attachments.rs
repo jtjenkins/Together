@@ -302,7 +302,7 @@ pub async fn serve_file(
         .header(header::CONTENT_TYPE, attachment.mime_type)
         .header(
             header::CONTENT_DISPOSITION,
-            format!("inline; filename=\"{}\"", attachment.filename),
+            format!("attachment; filename=\"{}\"", attachment.filename),
         )
         .body(Body::from(data))
         .map_err(|_| AppError::Internal)?;
