@@ -518,7 +518,11 @@ export function MessageItem({
                 </button>
                 <button
                   className={`${styles.actionBtn} ${styles.dangerBtn}`}
-                  onClick={() => deleteMessage(message.id)}
+                  onClick={() => {
+                    if (window.confirm("Delete this message?")) {
+                      deleteMessage(message.id);
+                    }
+                  }}
                   title="Delete"
                   aria-label="Delete message"
                 >
