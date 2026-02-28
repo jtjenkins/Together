@@ -518,3 +518,34 @@ pub async fn post_multipart_no_auth(
         .unwrap();
     send(app, req).await
 }
+
+/// Insert 51 fake users directly into the DB and join them to `server_id`,
+/// giving that server a member_count of 52 (51 fake + 1 real owner).
+///
+/// This is used by browse tests to ensure the test server ranks above all
+/// other servers created during the parallel test run, regardless of how many
+/// public servers with 2+ members accumulate from other concurrently executing
+/// test binaries.  Fake users never authenticate; any string is valid as
+/// `password_hash` for direct DB inserts.
+pub async fn boost_server_rank(pool: &PgPool, server_id_str: &str) {
+    let server_id = uuid::Uuid::parse_str(server_id_str).unwrap();
+    for _ in 0..51 {
+        let user_id = uuid::Uuid::new_v4();
+        let username = format!("boost_{}", uuid::Uuid::new_v4().simple());
+        sqlx::query(
+            "INSERT INTO users (id, username, password_hash) VALUES ($1, $2, 'fake_hash_test')",
+        )
+        .bind(user_id)
+        .bind(&username)
+        .execute(pool)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO server_members (user_id, server_id) VALUES ($1, $2)")
+            .bind(user_id)
+            .bind(server_id)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+}
