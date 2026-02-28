@@ -8,9 +8,10 @@ import styles from "./ChatArea.module.css";
 interface ChatAreaProps {
   channelId: string;
   onOpenThread?: (messageId: string) => void;
+  onBack?: () => void;
 }
 
-export function ChatArea({ channelId, onOpenThread }: ChatAreaProps) {
+export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
   const fetchMessages = useMessageStore((s) => s.fetchMessages);
   const messages = useMessageStore((s) => s.messages);
   const hasMore = useMessageStore((s) => s.hasMore);
@@ -49,6 +50,15 @@ export function ChatArea({ channelId, onOpenThread }: ChatAreaProps) {
   return (
     <div className={styles.chatArea}>
       <div className={styles.header}>
+        {onBack && (
+          <button
+            className={styles.backBtn}
+            onClick={onBack}
+            aria-label="Back to channels"
+          >
+            ←
+          </button>
+        )}
         <span className={styles.channelIcon}>#</span>
         <h2 className={styles.channelName}>{channel?.name ?? "channel"}</h2>
         {channel?.topic && (

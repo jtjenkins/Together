@@ -13,6 +13,7 @@
 ### Task 1: Add `scraper` dependency to server
 
 **Files:**
+
 - Modify: `server/Cargo.toml`
 
 **Step 1: Add the dependency**
@@ -45,6 +46,7 @@ git commit -m "chore(server): add scraper and url crates for link preview"
 ### Task 2: Add `LinkPreviewDto` struct and cache to `AppState`
 
 **Files:**
+
 - Create: `server/src/models/link_preview.rs`
 - Modify: `server/src/models/mod.rs`
 - Modify: `server/src/state.rs`
@@ -154,6 +156,7 @@ git commit -m "feat(server): add LinkPreviewDto and in-memory preview cache to A
 ### Task 3: SSRF validator and OG parser — write failing tests first
 
 **Files:**
+
 - Create: `server/src/handlers/link_preview.rs` (tests only for now)
 
 **Step 1: Create the handler file with unit tests only**
@@ -327,6 +330,7 @@ Expected: compilation error `not yet implemented` (the `todo!()` panics) or test
 ### Task 4: Implement `is_private_ip` and `extract_og_data`
 
 **Files:**
+
 - Modify: `server/src/handlers/link_preview.rs`
 
 **Step 1: Replace the `todo!()` stubs with real implementations**
@@ -457,6 +461,7 @@ git commit -m "feat(server): SSRF validator and OG parser with unit tests"
 ### Task 5: Implement the `get_link_preview` HTTP handler and register the route
 
 **Files:**
+
 - Modify: `server/src/handlers/link_preview.rs` (add handler below the unit tests)
 - Modify: `server/src/main.rs`
 
@@ -593,6 +598,7 @@ git commit -m "feat(server): GET /link-preview endpoint with 24h cache and SSRF 
 ### Task 6: Add `LinkPreviewDto` to web types and `getLinkPreview` to API client
 
 **Files:**
+
 - Modify: `clients/web/src/types/index.ts`
 - Modify: `clients/web/src/api/client.ts`
 
@@ -649,6 +655,7 @@ git commit -m "feat(web): add LinkPreviewDto type and getLinkPreview API method"
 ### Task 7: Web `links.ts` utilities — TDD
 
 **Files:**
+
 - Create: `clients/web/src/utils/links.ts`
 - Create: `clients/web/src/__tests__/links.test.ts`
 
@@ -813,6 +820,7 @@ git commit -m "feat(web): add extractUrls and isImageUrl link utilities with tes
 ### Task 8: Web `LinkPreview` component — TDD
 
 **Files:**
+
 - Create: `clients/web/src/components/messages/LinkPreview.tsx`
 - Create: `clients/web/src/components/messages/LinkPreview.module.css`
 - Create: `clients/web/src/__tests__/link-preview.test.tsx`
@@ -978,8 +986,12 @@ Create `clients/web/src/components/messages/LinkPreview.module.css`:
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* ── Preview card ──────────────────────────────────────────────────────── */
@@ -1096,12 +1108,7 @@ export function LinkPreview({ url }: LinkPreviewProps) {
           {data.site_name}
         </div>
       )}
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className={styles.title}
-      >
+      <a href={url} target="_blank" rel="noreferrer" className={styles.title}>
         {data.title}
       </a>
       {data.description && (
@@ -1147,6 +1154,7 @@ git commit -m "feat(web): LinkPreview component with skeleton, OG card, and test
 ### Task 9: Update web `MessageItem` to render inline images and link previews
 
 **Files:**
+
 - Modify: `clients/web/src/components/messages/MessageItem.tsx`
 - Modify: `clients/web/src/components/messages/MessageItem.module.css`
 
@@ -1257,29 +1265,34 @@ function renderContent(
 In the `MessageItem` function body, find the line:
 
 ```tsx
-{message.content !== "\u200b" && (
-  <div className={styles.text}>
-    {renderMentions(message.content, members, user?.id ?? null)}
-  </div>
-)}
+{
+  message.content !== "\u200b" && (
+    <div className={styles.text}>
+      {renderMentions(message.content, members, user?.id ?? null)}
+    </div>
+  );
+}
 ```
 
 Replace it with:
 
 ```tsx
-{message.content !== "\u200b" && (() => {
-  const { nodes, firstLinkUrl } = renderContent(
-    message.content,
-    members,
-    user?.id ?? null,
-  );
-  return (
-    <>
-      <div className={styles.text}>{nodes}</div>
-      {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
-    </>
-  );
-})()}
+{
+  message.content !== "\u200b" &&
+    (() => {
+      const { nodes, firstLinkUrl } = renderContent(
+        message.content,
+        members,
+        user?.id ?? null,
+      );
+      return (
+        <>
+          <div className={styles.text}>{nodes}</div>
+          {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
+        </>
+      );
+    })();
+}
 ```
 
 **Step 4: Add inline image styles to `MessageItem.module.css`**
@@ -1353,6 +1366,7 @@ git commit -m "feat(web): render inline image URLs and link preview cards in mes
 ### Task 10: Add `LinkPreviewDto` to mobile types and `getLinkPreview` to mobile API client
 
 **Files:**
+
 - Modify: `clients/mobile/src/types/index.ts`
 - Modify: `clients/mobile/src/api/client.ts`
 
@@ -1407,6 +1421,7 @@ git commit -m "feat(mobile): add LinkPreviewDto type and getLinkPreview API meth
 ### Task 11: Mobile `links.ts` utilities — TDD
 
 **Files:**
+
 - Create: `clients/mobile/src/utils/links.ts`
 - Create: `clients/mobile/__tests__/utils/links.test.ts`
 
@@ -1555,6 +1570,7 @@ git commit -m "feat(mobile): add extractUrls and isImageUrl link utilities with 
 ### Task 12: Mobile `LinkPreview` component
 
 **Files:**
+
 - Create: `clients/mobile/src/components/LinkPreview.tsx`
 
 **Step 1: Create the component**
@@ -1713,6 +1729,7 @@ git commit -m "feat(mobile): LinkPreview component with OG card and loading stat
 ### Task 13: Update mobile `ChatScreen` to render inline images and link previews
 
 **Files:**
+
 - Modify: `clients/mobile/src/screens/ChatScreen.tsx`
 
 **Step 1: Add imports**
@@ -1828,25 +1845,33 @@ const inlineImageStyle = {
 Search for `renderMentionSpans(` in `ChatScreen.tsx` and replace each call with the new pattern. There will be one or two call sites inside the message render function. Replace:
 
 ```tsx
-{renderMentionSpans(msg.content, memberUsernames, currentUser?.username ?? null)}
+{
+  renderMentionSpans(
+    msg.content,
+    memberUsernames,
+    currentUser?.username ?? null,
+  );
+}
 ```
 
 With:
 
 ```tsx
-{(() => {
-  const { nodes, firstLinkUrl } = renderContent(
-    msg.content,
-    memberUsernames,
-    currentUser?.username ?? null,
-  );
-  return (
-    <>
-      <Text>{nodes}</Text>
-      {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
-    </>
-  );
-})()}
+{
+  (() => {
+    const { nodes, firstLinkUrl } = renderContent(
+      msg.content,
+      memberUsernames,
+      currentUser?.username ?? null,
+    );
+    return (
+      <>
+        <Text>{nodes}</Text>
+        {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
+      </>
+    );
+  })();
+}
 ```
 
 **Step 6: TypeScript check**

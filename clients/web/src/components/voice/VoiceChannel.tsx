@@ -25,9 +25,10 @@ interface AudioDevice {
 
 interface VoiceChannelProps {
   channelId: string;
+  onBack?: () => void;
 }
 
-export function VoiceChannel({ channelId }: VoiceChannelProps) {
+export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   const user = useAuthStore((s) => s.user);
   const channels = useChannelStore((s) => s.channels);
   const connectedChannelId = useVoiceStore((s) => s.connectedChannelId);
@@ -224,6 +225,15 @@ export function VoiceChannel({ channelId }: VoiceChannelProps) {
   return (
     <div className={styles.voiceChannel}>
       <div className={styles.header}>
+        {onBack && (
+          <button
+            className={styles.backBtn}
+            onClick={onBack}
+            aria-label="Back to channels"
+          >
+            ←
+          </button>
+        )}
         <Volume2 size={18} className={styles.headerIcon} />
         <h2 className={styles.channelName}>{channel?.name ?? "Voice"}</h2>
       </div>

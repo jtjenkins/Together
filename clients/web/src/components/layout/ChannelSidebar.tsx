@@ -15,9 +15,10 @@ import styles from "./ChannelSidebar.module.css";
 
 interface ChannelSidebarProps {
   serverId: string;
+  onBack?: () => void;
 }
 
-export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
+export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
   const channels = useChannelStore((s) => s.channels);
   const activeChannelId = useChannelStore((s) => s.activeChannelId);
   const setActiveChannel = useChannelStore((s) => s.setActiveChannel);
@@ -82,6 +83,15 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   return (
     <div className={styles.sidebar}>
       <div className={styles.header}>
+        {onBack && (
+          <button
+            className={styles.backBtn}
+            onClick={onBack}
+            aria-label="Back to servers"
+          >
+            ←
+          </button>
+        )}
         <h2 className={styles.serverName}>{server?.name ?? "Server"}</h2>
         {isOwner && (
           <button
