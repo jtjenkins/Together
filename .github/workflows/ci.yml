@@ -248,127 +248,6 @@ jobs:
         run: npm run build
         working-directory: clients/desktop
 
-  # ── Mobile App: TypeScript Check ───────────────────────────────────────────
-  mobile-check:
-    name: Mobile TypeScript Check
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: clients/mobile
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: clients/mobile/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: TypeScript typecheck
-        run: npm run typecheck
-
-      - name: Run tests
-        run: npm test
-
-  # ── Mobile App: Android Build ──────────────────────────────────────────────
-  mobile-android-build:
-    name: Mobile Android Build
-    runs-on: ubuntu-latest
-    needs: [mobile-check]
-    defaults:
-      run:
-        working-directory: clients/mobile
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: clients/mobile/package-lock.json
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: "17"
-          distribution: temurin
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/caches
-          key: gradle-${{ hashFiles('clients/mobile/package-lock.json') }}
-
-      - name: Expo prebuild (Android)
-        run: npx expo prebuild --platform android --no-install
-
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
-
-      - name: Build Android debug APK
-        run: ./gradlew assembleDebug
-        working-directory: clients/mobile/android
-
-  # ── Mobile App: iOS Build ──────────────────────────────────────────────────
-  mobile-ios-build:
-    name: Mobile iOS Build
-    runs-on: macos-latest
-    needs: [mobile-check]
-    defaults:
-      run:
-        working-directory: clients/mobile
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: clients/mobile/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: clients/mobile/ios/Pods
-          key: pods-${{ hashFiles('clients/mobile/package-lock.json') }}
-
-      - name: Expo prebuild (iOS)
-        run: npx expo prebuild --platform ios --no-install
-
-      - name: Install CocoaPods
-        run: pod install
-        working-directory: clients/mobile/ios
-
-      - name: Build for iOS simulator (no signing)
-        run: |
-          xcodebuild \
-            -workspace Together.xcworkspace \
-            -scheme Together \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO \
-            ONLY_ACTIVE_ARCH=YES \
-            build
-        working-directory: clients/mobile/ios
 
   # ── Desktop App: Build (Arch Linux) ────────────────────────────────────────
   desktop-build-arch:
@@ -421,3 +300,101 @@ jobs:
         # Arch packaging is handled via AUR rather than a CI bundle artifact.
         run: npm run build -- --no-bundle
         working-directory: clients/desktop
+
+  # ── Mobile App: Tauri Android Build ────────────────────────────────────────
+  mobile-tauri-android:
+    name: Mobile Android Build (Tauri)
+    runs-on: ubuntu-latest
+    needs: [web-build]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust with Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workdir: clients/desktop/src-tauri
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK 27
+        run: echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            clients/web/package-lock.json
+            clients/desktop/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix clients/web
+          npm ci --prefix clients/desktop
+
+      - name: Build web frontend
+        run: npm run build
+        working-directory: clients/web
+
+      - name: Build Android APK
+        run: ./node_modules/.bin/tauri android build -- --apk
+        working-directory: clients/desktop
+        env:
+          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
+
+  # ── Mobile App: Tauri iOS Build ─────────────────────────────────────────────
+  mobile-tauri-ios:
+    name: Mobile iOS Build (Tauri)
+    runs-on: macos-latest
+    needs: [web-build]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust with iOS targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workdir: clients/desktop/src-tauri
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            clients/web/package-lock.json
+            clients/desktop/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix clients/web
+          npm ci --prefix clients/desktop
+
+      - name: Build web frontend
+        run: npm run build
+        working-directory: clients/web
+
+      - name: Build iOS (simulator, no signing)
+        run: ./node_modules/.bin/tauri ios build -- --target aarch64-apple-ios-sim
+        working-directory: clients/desktop
+        env:
+          TAURI_IOS_SKIP_CODE_SIGNING: 1
