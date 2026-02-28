@@ -516,7 +516,7 @@ export function MessageInput({ channelId }: MessageInputProps) {
               setContent(e.target.value);
               detectAllTriggers(e.target.value); // pass fresh value to avoid stale closure
             }}
-            onSelect={detectAllTriggers}
+            onSelect={() => detectAllTriggers()}
             onKeyDown={handleKeyDown}
             placeholder={`Message #${channel?.name ?? "channel"}`}
             rows={1}

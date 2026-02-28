@@ -11,6 +11,7 @@ function makeMember(
     username,
     avatar_url: null,
     status: "online",
+    custom_status: null,
     nickname,
     joined_at: new Date().toISOString(),
   };
@@ -37,9 +38,7 @@ describe("filterMembers", () => {
 
   it("returns exactly 8 members even when more than 8 match", () => {
     // Build 9 members that all share "x" — the cap of 8 must be enforced
-    const nine = Array.from({ length: 9 }, (_, i) =>
-      makeMember(`user_x${i}`),
-    );
+    const nine = Array.from({ length: 9 }, (_, i) => makeMember(`user_x${i}`));
     expect(filterMembers(nine, "x")).toHaveLength(8);
   });
 
