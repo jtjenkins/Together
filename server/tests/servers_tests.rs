@@ -433,7 +433,7 @@ async fn owner_cannot_leave_server() {
 #[tokio::test]
 async fn browse_servers_returns_only_public() {
     let pool = common::test_pool().await;
-    let app = common::create_test_app(pool);
+    let app = common::create_test_app(pool.clone());
     let owner_token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
 
@@ -455,6 +455,10 @@ async fn browse_servers_returns_only_public() {
         json!({ "is_public": true }),
     )
     .await;
+
+    // Boost the public server's member count so it ranks at the top of browse
+    // results even when many other public servers exist from parallel tests.
+    common::boost_server_rank(&pool, public_id).await;
 
     // Browse as a different user.
     let viewer_token =
@@ -482,7 +486,7 @@ async fn browse_servers_requires_auth() {
 #[tokio::test]
 async fn make_server_public_via_update() {
     let pool = common::test_pool().await;
-    let app = common::create_test_app(pool);
+    let app = common::create_test_app(pool.clone());
     let token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
 
@@ -503,6 +507,9 @@ async fn make_server_public_via_update() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["is_public"], true);
+
+    // Boost member count so this server ranks at the top of browse results.
+    common::boost_server_rank(&pool, id).await;
 
     // Now appears in browse.
     let (_, body) = common::get_authed(app, "/servers/browse", &token).await;
@@ -572,7 +579,7 @@ async fn join_private_server_returns_404() {
 #[tokio::test]
 async fn make_server_private_removes_from_browse() {
     let pool = common::test_pool().await;
-    let app = common::create_test_app(pool);
+    let app = common::create_test_app(pool.clone());
     let token =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
 
@@ -587,6 +594,8 @@ async fn make_server_private_removes_from_browse() {
         json!({ "is_public": true }),
     )
     .await;
+    // Boost member count so this server ranks at the top of browse results.
+    common::boost_server_rank(&pool, id).await;
     let (_, body) = common::get_authed(app.clone(), "/servers/browse", &token).await;
     assert!(body.as_array().unwrap().iter().any(|s| s["id"] == id));
 
