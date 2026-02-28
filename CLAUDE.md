@@ -28,7 +28,7 @@ Together is a **private, non-federated Discord alternative** designed for small 
 - **WebRTC**: Pion library for voice (SFU architecture, not mesh or MCU)
 - **Desktop**: Tauri + React
 - **Web**: React + Vite
-- **Mobile**: React Native
+- **Mobile**: Tauri v2 (Android + iOS targets in `clients/desktop/`, same WebView as desktop)
 
 ## System Architecture
 
@@ -81,7 +81,7 @@ Uses **Discord-compatible bitflags** (u64):
 4. **Voice Backend** (Week 6-7): WebRTC SFU implementation
 5. **Desktop UI** (Week 8-10): Tauri app
 6. **Web UI** (Week 11-12): React web client
-7. **Mobile UI** (Week 13-14): React Native apps
+7. **Mobile UI** (Week 13-14): Tauri v2 Android + iOS (serve `clients/web/` dist)
 
 **Rationale**: Solid foundation prevents refactoring, complete API enables parallel UI development, each layer independently testable.
 
@@ -108,7 +108,7 @@ Together/
 │   ├── shared/             # TypeScript types, API client (shared across UIs)
 │   ├── desktop/            # Tauri + React (native desktop)
 │   ├── web/                # React + Vite (browser)
-│   └── mobile/             # React Native (iOS/Android)
+│   └── desktop/            # Tauri (macOS/Windows/Linux + Android/iOS mobile targets)
 │
 └── tools/
     └── discord-bridge/     # Optional: sync messages from Discord
@@ -147,10 +147,10 @@ npm run tauri dev                             # Dev with hot reload
 cd clients/web
 npm run dev                                   # Vite dev server
 
-# Mobile:
-cd clients/mobile
-npm run android                               # Android emulator
-npm run ios                                   # iOS simulator
+# Mobile (Android + iOS via Tauri v2 — same desktop project, different targets):
+cd clients/desktop
+npm run tauri android dev                     # Android emulator (requires Android SDK)
+npm run tauri ios dev                         # iOS simulator (requires Xcode)
 ```
 
 ### Docker Deployment
