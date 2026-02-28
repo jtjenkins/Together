@@ -8,7 +8,9 @@ use serde_json::json;
 use uuid::Uuid;
 use validator::Validate;
 
-use super::shared::{fetch_channel_by_id, fetch_message, fetch_server, require_member, validation_error};
+use super::shared::{
+    fetch_channel_by_id, fetch_message, fetch_server, require_member, validation_error,
+};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
