@@ -134,10 +134,40 @@ pub async fn list_servers(
     .fetch_all(&state.pool)
     .await?;
 
-    let mut dtos = Vec::with_capacity(servers.len());
-    for s in servers {
-        dtos.push(server_dto(&state.pool, s).await?);
+    if servers.is_empty() {
+        return Ok(Json(vec![]));
     }
+
+    // Single batch query for all member counts — avoids N+1 (one COUNT per server).
+    let server_ids: Vec<uuid::Uuid> = servers.iter().map(|s| s.id).collect();
+    let count_rows: Vec<(uuid::Uuid, i64)> = sqlx::query_as(
+        "SELECT server_id, COUNT(*)::BIGINT AS member_count
+         FROM server_members
+         WHERE server_id = ANY($1)
+         GROUP BY server_id",
+    )
+    .bind(&server_ids as &[uuid::Uuid])
+    .fetch_all(&state.pool)
+    .await?;
+
+    let count_map: std::collections::HashMap<uuid::Uuid, i64> = count_rows.into_iter().collect();
+
+    let dtos: Vec<ServerDto> = servers
+        .into_iter()
+        .map(|s| {
+            let member_count = count_map.get(&s.id).copied().unwrap_or(0);
+            ServerDto {
+                id: s.id,
+                name: s.name,
+                owner_id: s.owner_id,
+                icon_url: s.icon_url,
+                is_public: s.is_public,
+                member_count,
+                created_at: s.created_at,
+                updated_at: s.updated_at,
+            }
+        })
+        .collect();
 
     Ok(Json(dtos))
 }
