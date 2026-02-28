@@ -126,8 +126,7 @@ async fn test_list_events_in_server() {
     )
     .await;
 
-    let (status, body) =
-        common::get_authed(app, &format!("/servers/{sid}/events"), &token).await;
+    let (status, body) = common::get_authed(app, &format!("/servers/{sid}/events"), &token).await;
 
     assert_eq!(status, StatusCode::OK);
     let events = body.as_array().unwrap();
@@ -148,8 +147,7 @@ async fn test_event_forbidden_non_member() {
     let outsider =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
 
-    let (status, _) =
-        common::get_authed(app, &format!("/servers/{sid}/events"), &outsider).await;
+    let (status, _) = common::get_authed(app, &format!("/servers/{sid}/events"), &outsider).await;
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }

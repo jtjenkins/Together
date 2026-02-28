@@ -28,13 +28,8 @@ async fn test_ack_channel_success() {
     let app = common::create_test_app(pool);
     let (token, _, cid) = setup_server_and_channel(app.clone()).await;
 
-    let (status, _) = common::post_json_authed(
-        app,
-        &format!("/channels/{cid}/ack"),
-        &token,
-        json!({}),
-    )
-    .await;
+    let (status, _) =
+        common::post_json_authed(app, &format!("/channels/{cid}/ack"), &token, json!({})).await;
 
     assert_eq!(status, StatusCode::NO_CONTENT);
 }
@@ -53,13 +48,8 @@ async fn test_ack_channel_idempotent() {
         json!({}),
     )
     .await;
-    let (s2, _) = common::post_json_authed(
-        app,
-        &format!("/channels/{cid}/ack"),
-        &token,
-        json!({}),
-    )
-    .await;
+    let (s2, _) =
+        common::post_json_authed(app, &format!("/channels/{cid}/ack"), &token, json!({})).await;
 
     assert_eq!(s1, StatusCode::NO_CONTENT);
     assert_eq!(s2, StatusCode::NO_CONTENT);
@@ -75,13 +65,8 @@ async fn test_ack_channel_non_member_returns_404() {
     let outsider =
         common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
 
-    let (status, _) = common::post_json_authed(
-        app,
-        &format!("/channels/{cid}/ack"),
-        &outsider,
-        json!({}),
-    )
-    .await;
+    let (status, _) =
+        common::post_json_authed(app, &format!("/channels/{cid}/ack"), &outsider, json!({})).await;
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
@@ -92,12 +77,7 @@ async fn test_ack_channel_requires_auth() {
     let app = common::create_test_app(pool);
     let (_, _, cid) = setup_server_and_channel(app.clone()).await;
 
-    let (status, _) = common::post_json(
-        app,
-        &format!("/channels/{cid}/ack"),
-        json!({}),
-    )
-    .await;
+    let (status, _) = common::post_json(app, &format!("/channels/{cid}/ack"), json!({})).await;
 
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }

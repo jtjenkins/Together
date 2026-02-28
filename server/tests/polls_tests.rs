@@ -103,14 +103,7 @@ async fn test_cast_vote_success() {
     let app = common::create_test_app(pool);
     let (token, _, cid) = setup_server_and_channel(app.clone()).await;
 
-    let msg = create_poll(
-        app.clone(),
-        &token,
-        &cid,
-        "Best language?",
-        &["Rust", "Go"],
-    )
-    .await;
+    let msg = create_poll(app.clone(), &token, &cid, "Best language?", &["Rust", "Go"]).await;
 
     let poll_id = msg["poll"]["id"].as_str().unwrap();
     // Pick the first option id.
@@ -209,14 +202,7 @@ async fn test_get_poll_forbidden_non_member() {
     let app = common::create_test_app(pool);
     let (token, _, cid) = setup_server_and_channel(app.clone()).await;
 
-    let msg = create_poll(
-        app.clone(),
-        &token,
-        &cid,
-        "Private poll?",
-        &["Yes", "No"],
-    )
-    .await;
+    let msg = create_poll(app.clone(), &token, &cid, "Private poll?", &["Yes", "No"]).await;
     let poll_id = msg["poll"]["id"].as_str().unwrap();
 
     // Register a second user who has NOT joined the server.
@@ -235,14 +221,7 @@ async fn test_cast_vote_forbidden_non_member() {
     let app = common::create_test_app(pool);
     let (token, _, cid) = setup_server_and_channel(app.clone()).await;
 
-    let msg = create_poll(
-        app.clone(),
-        &token,
-        &cid,
-        "Members only?",
-        &["Yes", "No"],
-    )
-    .await;
+    let msg = create_poll(app.clone(), &token, &cid, "Members only?", &["Yes", "No"]).await;
     let poll_id = msg["poll"]["id"].as_str().unwrap();
     let opt_id = msg["poll"]["options"][0]["id"].as_str().unwrap();
 
