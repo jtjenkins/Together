@@ -3,6 +3,7 @@ use serde::Deserialize;
 use tracing::info;
 use validator::Validate;
 
+use super::shared::{require_http_url, validation_error};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -25,18 +26,6 @@ pub struct UpdateUserRequest {
     /// Free-form status text; capped at 128 characters.
     #[validate(length(max = 128))]
     pub custom_status: Option<String>,
-}
-
-fn validation_error(e: validator::ValidationErrors) -> AppError {
-    AppError::Validation(
-        e.field_errors()
-            .values()
-            .flat_map(|v| v.iter())
-            .filter_map(|e| e.message.as_ref())
-            .map(|m| m.to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
-    )
 }
 
 // ============================================================================
@@ -64,6 +53,10 @@ pub async fn update_current_user(
     Json(req): Json<UpdateUserRequest>,
 ) -> AppResult<Json<UserDto>> {
     req.validate().map_err(validation_error)?;
+
+    if let Some(ref url) = req.avatar_url {
+        require_http_url(url, "avatar_url")?;
+    }
 
     info!("Updating user: {}", auth_user.user_id());
 

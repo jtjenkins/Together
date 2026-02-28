@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 use validator::Validate;
 
-use super::shared::{fetch_server, require_member};
+use super::shared::{fetch_server, require_http_url, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -84,6 +84,10 @@ pub async fn create_server(
                 .join(", "),
         )
     })?;
+
+    if let Some(ref url) = req.icon_url {
+        require_http_url(url, "icon_url")?;
+    }
 
     let dto = CreateServerDto {
         name: req.name,
@@ -202,6 +206,10 @@ pub async fn update_server(
                 .join(", "),
         )
     })?;
+
+    if let Some(ref url) = req.icon_url {
+        require_http_url(url, "icon_url")?;
+    }
 
     let server = fetch_server(&state.pool, server_id).await?;
 

@@ -286,7 +286,12 @@ export function MessageItem({
 
   const handleEdit = async () => {
     if (editContent.trim() && editContent !== message.content) {
-      await editMessage(message.id, editContent.trim());
+      try {
+        await editMessage(message.id, editContent.trim());
+      } catch {
+        // editMessage already sets store.error; keep edit box open so user can retry
+        return;
+      }
     }
     setIsEditing(false);
   };

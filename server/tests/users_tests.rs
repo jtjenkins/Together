@@ -213,3 +213,64 @@ async fn update_user_partial_fields() {
         "avatar_url should remain null when not included in PATCH body"
     );
 }
+
+// ── Test 10: PATCH /users/@me — invalid avatar_url schemes rejected ──────────
+
+#[tokio::test]
+async fn update_user_invalid_avatar_url_rejected() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+
+    // javascript: and data: URLs must be rejected (XSS / data exfiltration vectors).
+    let bad_urls = [
+        "javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "not-a-url",
+    ];
+    for url in &bad_urls {
+        let (status, body) = common::patch_json_authed(
+            app.clone(),
+            "/users/@me",
+            &token,
+            json!({ "avatar_url": url }),
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "Expected 400 for avatar_url '{}', got {}: {body}",
+            url,
+            status
+        );
+    }
+}
+
+// ── Test 11: PATCH /users/@me — custom_status too long rejected ───────────────
+
+#[tokio::test]
+async fn update_user_custom_status_too_long_rejected() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+
+    // 129 characters — one above the 128-character cap.
+    let long_status = "x".repeat(129);
+    let (status, body) = common::patch_json_authed(
+        app,
+        "/users/@me",
+        &token,
+        json!({ "custom_status": long_status }),
+    )
+    .await;
+
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "129-char custom_status should be rejected: {body}"
+    );
+}

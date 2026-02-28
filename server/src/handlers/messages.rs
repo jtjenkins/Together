@@ -274,13 +274,14 @@ pub async fn create_message(
         .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast MESSAGE_CREATE to all connected server members.
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_MESSAGE_CREATE,
-        serde_json::to_value(&dto).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&dto) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_CREATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize MessageDto for broadcast");
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(dto)))
 }
@@ -446,13 +447,14 @@ pub async fn update_message(
         .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast MESSAGE_UPDATE to all connected server members.
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_MESSAGE_UPDATE,
-        serde_json::to_value(&dto).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&dto) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_UPDATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize MessageDto for broadcast");
+        }
+    }
 
     Ok(Json(dto))
 }
@@ -593,13 +595,20 @@ pub async fn create_thread_reply(
         .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast THREAD_MESSAGE_CREATE to all connected server members.
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_THREAD_MESSAGE_CREATE,
-        serde_json::to_value(&dto).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&dto) {
+        Ok(payload) => {
+            broadcast_to_server(
+                &state,
+                channel.server_id,
+                EVENT_THREAD_MESSAGE_CREATE,
+                payload,
+            )
+            .await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize MessageDto for broadcast");
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(dto)))
 }

@@ -8,13 +8,28 @@ export function useFocusTrap(
   active: boolean,
 ) {
   useEffect(() => {
-    if (!active || !ref.current) return;
+    if (!active) return;
+    if (!ref.current) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          "[useFocusTrap] ref.current is null — focus trap not established",
+        );
+      }
+      return;
+    }
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const elements = Array.from(
       ref.current.querySelectorAll<HTMLElement>(FOCUSABLE),
     );
-    if (!elements.length) return;
+    if (!elements.length) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          "[useFocusTrap] No focusable elements found inside trap container",
+        );
+      }
+      return;
+    }
 
     const first = elements[0];
     const last = elements[elements.length - 1];

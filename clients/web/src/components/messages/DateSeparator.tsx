@@ -6,6 +6,9 @@ interface DateSeparatorProps {
 
 function formatDateLabel(dateStr: string): string {
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    return "Unknown date";
+  }
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);

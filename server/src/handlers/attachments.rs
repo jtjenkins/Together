@@ -129,10 +129,23 @@ pub async fn upload_attachments(
 
         // Detect MIME type from magic bytes, ignoring the client-supplied
         // Content-Type header to prevent stored-XSS via disguised HTML uploads.
-        let mime_type = infer::get(&data)
-            .map(|t| t.mime_type())
-            .unwrap_or("application/octet-stream")
-            .to_string();
+        let mime_type = match infer::get(&data) {
+            Some(t) => t.mime_type().to_string(),
+            None => {
+                // No magic bytes detected — check if it's valid UTF-8 text
+                if std::str::from_utf8(&data).is_ok() {
+                    "text/plain".to_string()
+                } else {
+                    tracing::warn!(
+                        size = data.len(),
+                        "MIME type could not be detected from magic bytes for binary file"
+                    );
+                    return Err(AppError::Validation(
+                        "File type could not be determined. Please upload a supported file type (image, video, audio, PDF, or text).".into(),
+                    ));
+                }
+            }
+        };
 
         if !ALLOWED_MIME_TYPES.contains(&mime_type.as_str()) {
             return Err(AppError::Validation(format!(
@@ -301,13 +314,19 @@ pub async fn serve_file(
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
+    let disposition = if attachment.mime_type.starts_with("image/")
+        || attachment.mime_type.starts_with("video/")
+        || attachment.mime_type.starts_with("audio/")
+    {
+        format!("inline; filename=\"{}\"", attachment.filename)
+    } else {
+        format!("attachment; filename=\"{}\"", attachment.filename)
+    };
+
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, attachment.mime_type)
-        .header(
-            header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", attachment.filename),
-        )
+        .header(header::CONTENT_DISPOSITION, disposition)
         .body(body)
         .map_err(|_| AppError::Internal)?;
 

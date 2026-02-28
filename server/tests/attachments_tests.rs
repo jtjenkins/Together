@@ -500,3 +500,78 @@ async fn serve_file_not_in_db_returns_404() {
     let (status, _) = get_raw_authed(app, &fake_url, &f.owner_token).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ── MIME-type rejection for disallowed file types ─────────────────────────────
+
+/// An ELF binary (Linux executable) must be rejected — `infer` detects its
+/// magic bytes as `application/x-executable`, which is not in the allowlist.
+#[tokio::test]
+async fn upload_elf_binary_rejected() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    // ELF magic bytes: 0x7f 'E' 'L' 'F' followed by sufficient padding so the
+    // file is non-empty and `infer` can inspect the header.
+    let elf_bytes: Vec<u8> = {
+        let mut v = vec![0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00];
+        v.extend_from_slice(&[0u8; 56]); // pad to 64 bytes (standard ELF header)
+        v
+    };
+
+    let uri = format!("/messages/{}/attachments", f.message_id);
+    let (status, body) = post_multipart_authed(
+        app,
+        &uri,
+        &f.owner_token,
+        &[MultipartFile {
+            field_name: "files",
+            filename: "malware.bin",
+            content_type: "application/octet-stream",
+            data: &elf_bytes,
+        }],
+    )
+    .await;
+
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "ELF binary should be rejected but got: {body}"
+    );
+}
+
+/// A file with ZIP magic bytes (PK\x03\x04) must be rejected — ZIP archives are
+/// not in the allowlist and `infer` identifies them as `application/zip`.
+#[tokio::test]
+async fn upload_zip_file_rejected() {
+    let f = setup().await;
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    // ZIP local file header signature.
+    let zip_bytes: Vec<u8> = {
+        let mut v = vec![0x50, 0x4b, 0x03, 0x04];
+        v.extend_from_slice(&[0u8; 26]); // minimal local file header padding
+        v
+    };
+
+    let uri = format!("/messages/{}/attachments", f.message_id);
+    let (status, body) = post_multipart_authed(
+        app,
+        &uri,
+        &f.owner_token,
+        &[MultipartFile {
+            field_name: "files",
+            filename: "archive.zip",
+            content_type: "application/zip",
+            data: &zip_bytes,
+        }],
+    )
+    .await;
+
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "ZIP archive should be rejected but got: {body}"
+    );
+}

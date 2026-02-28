@@ -495,3 +495,80 @@ async fn refresh_token_requires_auth_field() {
     let (status, _) = common::post_json(app, "/auth/refresh", json!({ "refresh_token": "" })).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+// ============================================================================
+// register_username_with_special_chars_rejected
+// ============================================================================
+
+#[tokio::test]
+async fn register_username_with_special_chars_rejected() {
+    // Usernames containing characters outside the allowed set (alphanumeric +
+    // underscore) must be rejected with 400 BAD_REQUEST.
+    let bad_usernames = ["user name", "user<script>", "hello@world"];
+    for username in &bad_usernames {
+        let pool = common::test_pool().await;
+        let app = common::create_test_app(pool);
+        let (status, body) = common::post_json(
+            app,
+            "/auth/register",
+            json!({
+                "username": username,
+                "password": "password123"
+            }),
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "Expected 400 for username '{}', got {}: {body}",
+            username,
+            status
+        );
+    }
+}
+
+// ============================================================================
+// register_username_at_boundaries
+// ============================================================================
+
+#[tokio::test]
+async fn register_username_at_boundaries() {
+    // Exactly 2 chars (minimum) — should pass length validation.
+    // Accept CREATED or CONFLICT — both confirm the 2-char name passed
+    // the length/regex check (CONFLICT means name taken from a prior run).
+    let min_name = format!("a{}", &uuid::Uuid::new_v4().simple().to_string()[..1]);
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (status, body) = common::post_json(
+        app,
+        "/auth/register",
+        json!({
+            "username": min_name,
+            "password": "password123"
+        }),
+    )
+    .await;
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::CONFLICT,
+        "2-char username should pass validation (got {status}): {body}"
+    );
+
+    // 33 chars (one over the 32-char maximum) — should fail.
+    let long_name = "a".repeat(33);
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (status, body) = common::post_json(
+        app,
+        "/auth/register",
+        json!({
+            "username": long_name,
+            "password": "password123"
+        }),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "33-char username should be rejected: {body}"
+    );
+}
