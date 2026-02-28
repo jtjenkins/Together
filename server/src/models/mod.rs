@@ -133,6 +133,7 @@ pub struct MemberDto {
     pub username: String,
     pub avatar_url: Option<String>,
     pub status: String,
+    pub custom_status: Option<String>,
     pub nickname: Option<String>,
     pub joined_at: DateTime<Utc>,
 }

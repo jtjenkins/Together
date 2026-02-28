@@ -361,7 +361,7 @@ pub async fn list_members(
     require_member(&state.pool, server_id, auth.user_id()).await?;
 
     let members = sqlx::query_as::<_, MemberDto>(
-        "SELECT u.id AS user_id, u.username, u.avatar_url, u.status,
+        "SELECT u.id AS user_id, u.username, u.avatar_url, u.status, u.custom_status,
                 sm.nickname, sm.joined_at
          FROM server_members sm
          JOIN users u ON u.id = sm.user_id
