@@ -238,3 +238,41 @@ async fn test_cast_vote_forbidden_non_member() {
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ============================================================================
+// Auth boundary tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_get_poll_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (token, _, cid) = setup_server_and_channel(app.clone()).await;
+
+    let msg = create_poll(app.clone(), &token, &cid, "Auth check?", &["Yes", "No"]).await;
+    let poll_id = msg["poll"]["id"].as_str().unwrap();
+
+    let (status, _) = common::get_no_auth(app, &format!("/polls/{poll_id}")).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_cast_vote_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (token, _, cid) = setup_server_and_channel(app.clone()).await;
+
+    let msg = create_poll(app.clone(), &token, &cid, "Vote auth?", &["Yes", "No"]).await;
+    let poll_id = msg["poll"]["id"].as_str().unwrap();
+    let opt_id = msg["poll"]["options"][0]["id"].as_str().unwrap();
+
+    let (status, _) = common::post_json(
+        app,
+        &format!("/polls/{poll_id}/vote"),
+        json!({ "option_id": opt_id }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}

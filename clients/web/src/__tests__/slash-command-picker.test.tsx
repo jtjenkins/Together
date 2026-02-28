@@ -100,7 +100,12 @@ describe("SlashCommandPicker", () => {
       });
 
       expect(onSelect).toHaveBeenCalledOnce();
-      expect(onSelect.mock.calls[0][0].name).toBe("giphy");
+      expect(onSelect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "giphy",
+          description: expect.any(String),
+        }),
+      );
     });
 
     it("does not call onSelect for a non-matching query (no options rendered)", () => {

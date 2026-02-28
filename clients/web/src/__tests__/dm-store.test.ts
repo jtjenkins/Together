@@ -269,6 +269,32 @@ describe("dmStore", () => {
     });
   });
 
+  describe("sendMessage", () => {
+    it("should append message to the channel after sending", async () => {
+      const message = mockMessage({ id: "msg-sent", channel_id: "dm-1" });
+      vi.mocked(api.sendDmMessage).mockResolvedValueOnce(message);
+      useDmStore.setState({ messagesByChannel: { "dm-1": [] } });
+
+      await useDmStore.getState().sendMessage("dm-1", "hello");
+
+      const stored = useDmStore.getState().messagesByChannel["dm-1"];
+      expect(stored).toHaveLength(1);
+      expect(stored[0].id).toBe("msg-sent");
+    });
+
+    it("should set error and rethrow on failure", async () => {
+      vi.mocked(api.sendDmMessage).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      await expect(
+        useDmStore.getState().sendMessage("dm-1", "hello"),
+      ).rejects.toThrow();
+
+      expect(useDmStore.getState().error).toBeTruthy();
+    });
+  });
+
   describe("clearError", () => {
     it("should clear the error field", () => {
       useDmStore.setState({ error: "Something went wrong" });

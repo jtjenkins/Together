@@ -176,3 +176,37 @@ async fn test_create_event_non_member_rejected() {
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ============================================================================
+// Auth boundary tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_create_event_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (_, _, cid) = setup_server_and_channel(app.clone()).await;
+
+    let (status, _) = common::post_json(
+        app,
+        &format!("/channels/{cid}/events"),
+        json!({
+            "name": "Auth Check Event",
+            "starts_at": "2099-11-01T12:00:00Z"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_list_events_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (_, sid, _) = setup_server_and_channel(app.clone()).await;
+
+    let (status, _) = common::get_no_auth(app, &format!("/servers/{sid}/events")).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}

@@ -140,3 +140,25 @@ async fn test_ack_dm_channel_non_member_returns_404() {
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn test_ack_dm_channel_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    // Register two users; user A opens a DM with user B.
+    let body_a = common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let token_a = body_a["access_token"].as_str().unwrap().to_owned();
+
+    let body_b = common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let id_b = body_b["user"]["id"].as_str().unwrap().to_owned();
+
+    let dm = common::open_dm_channel(app.clone(), &token_a, &id_b).await;
+    let channel_id = dm["id"].as_str().unwrap().to_owned();
+
+    // Make the ack request with no Authorization header.
+    let (status, _) =
+        common::post_json(app, &format!("/dm-channels/{channel_id}/ack"), json!({})).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
