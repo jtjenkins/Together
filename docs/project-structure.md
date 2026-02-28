@@ -20,9 +20,7 @@ Together/
 ├── docs/                       # Documentation
 │   ├── README.md               # Docs index
 │   ├── architecture.md         # System design
-│   ├── architecture-20-users.md # Right-sized architecture
 │   ├── roadmap.md              # Implementation phases
-│   ├── discord-analysis.md     # Feature analysis
 │   ├── api/                    # API documentation
 │   │   ├── rest.md             # REST API spec
 │   │   └── websocket.md        # WebSocket protocol
