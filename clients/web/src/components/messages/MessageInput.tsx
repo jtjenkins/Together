@@ -10,6 +10,7 @@ import {
 import { Paperclip, ImageIcon, FileText, ArrowUp } from "lucide-react";
 import { useMessageStore } from "../../stores/messageStore";
 import { useChannelStore } from "../../stores/channelStore";
+import { useServerStore } from "../../stores/serverStore";
 import { extractUrls, isImageUrl } from "../../utils/links";
 import { searchEmoji } from "../../utils/emoji";
 import {
@@ -18,6 +19,7 @@ import {
   type SlashCommand,
 } from "../../utils/slashCommands";
 import { EmojiAutocomplete } from "./EmojiAutocomplete";
+import { MentionAutocomplete, filterMembers } from "./MentionAutocomplete";
 import { LinkPreview } from "./LinkPreview";
 import { SlashCommandPicker } from "./SlashCommandPicker";
 import { GifPicker } from "./GifPicker";
@@ -38,6 +40,8 @@ export function MessageInput({ channelId }: MessageInputProps) {
   const [emojiActiveIdx, setEmojiActiveIdx] = useState(0);
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [slashActiveIdx, setSlashActiveIdx] = useState(0);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionActiveIdx, setMentionActiveIdx] = useState(0);
   type ActiveCommand =
     | { type: "giphy"; query: string }
     | { type: "poll"; prefill: string }
@@ -49,6 +53,7 @@ export function MessageInput({ channelId }: MessageInputProps) {
   const replyingTo = useMessageStore((s) => s.replyingTo);
   const setReplyingTo = useMessageStore((s) => s.setReplyingTo);
   const channels = useChannelStore((s) => s.channels);
+  const members = useServerStore((s) => s.members);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,6 +106,8 @@ export function MessageInput({ channelId }: MessageInputProps) {
       setEmojiActiveIdx(0);
       setSlashQuery(null);
       setSlashActiveIdx(0);
+      setMentionQuery(null);
+      setMentionActiveIdx(0);
       setActiveCommand(null);
       inputRef.current?.focus();
     } catch {
@@ -108,24 +115,35 @@ export function MessageInput({ channelId }: MessageInputProps) {
     }
   };
 
-  /** Detect emoji and slash triggers — called from onChange and onSelect on the textarea. */
+  /** Detect emoji, slash, and mention triggers — called from onChange and onSelect. */
   function detectAllTriggers() {
     const cursor = inputRef.current?.selectionStart ?? content.length;
     const before = content.slice(0, cursor);
 
-    // Emoji trigger
+    // Emoji trigger: :word (at least 1 char)
     const emojiMatch = before.match(/:([a-zA-Z0-9_+-]{1,})$/);
+
+    // Slash trigger: only when no emoji trigger active
+    const slashTrigger = !emojiMatch
+      ? detectSlashTrigger(content, cursor)
+      : null;
+
+    // Mention trigger: @word (zero or more chars) — only when no other trigger active.
+    // The pattern requires whitespace (or start-of-string) before @ to avoid
+    // treating email addresses embedded in text as mention triggers.
+    const mentionMatch =
+      !emojiMatch && slashTrigger === null
+        ? before.match(/(?:^|\s)@([a-zA-Z0-9_]*)$/)
+        : null;
+
     setEmojiQuery(emojiMatch ? emojiMatch[1] : null);
     if (!emojiMatch) setEmojiActiveIdx(0);
 
-    // Slash trigger (only when no emoji trigger active)
-    if (!emojiMatch) {
-      const sq = detectSlashTrigger(content, cursor);
-      setSlashQuery(sq);
-      if (sq === null) setSlashActiveIdx(0);
-    } else {
-      setSlashQuery(null);
-    }
+    setSlashQuery(slashTrigger);
+    if (slashTrigger === null) setSlashActiveIdx(0);
+
+    setMentionQuery(mentionMatch ? mentionMatch[1] : null);
+    if (!mentionMatch) setMentionActiveIdx(0);
   }
 
   /** Apply a selected emoji, replacing the :query text. */
@@ -141,6 +159,29 @@ export function MessageInput({ channelId }: MessageInputProps) {
     // Restore focus and move cursor after the inserted emoji
     requestAnimationFrame(() => {
       const pos = colonIdx + [...emoji].length; // handle multi-codepoint emoji
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(pos, pos);
+    });
+  }
+
+  /**
+   * Apply a selected mention, replacing @query with @username followed by a
+   * space. Focus and cursor position are restored asynchronously via
+   * requestAnimationFrame so the textarea does not stay blurred after a
+   * mouse-click selection.
+   */
+  function applyMention(username: string) {
+    const cursor = inputRef.current?.selectionStart ?? content.length;
+    const before = content.slice(0, cursor);
+    const atIdx = before.lastIndexOf("@");
+    const after = content.slice(cursor);
+    const inserted = `@${username} `;
+    const next = before.slice(0, atIdx) + inserted + after;
+    setContent(next);
+    setMentionQuery(null);
+    setMentionActiveIdx(0);
+    requestAnimationFrame(() => {
+      const pos = atIdx + inserted.length;
       inputRef.current?.focus();
       inputRef.current?.setSelectionRange(pos, pos);
     });
@@ -188,7 +229,7 @@ export function MessageInput({ channelId }: MessageInputProps) {
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Slash command navigation — checked before emoji so both don't fire at once
+    // Slash command navigation — checked first
     if (slashQuery !== null) {
       const results = searchCommands(slashQuery);
       if (results.length > 0) {
@@ -215,6 +256,7 @@ export function MessageInput({ channelId }: MessageInputProps) {
       }
     }
 
+    // Emoji navigation
     if (emojiQuery !== null) {
       const results = searchEmoji(emojiQuery, 8);
       if (results.length > 0) {
@@ -236,6 +278,35 @@ export function MessageInput({ channelId }: MessageInputProps) {
       }
       if (e.key === "Escape") {
         setEmojiQuery(null);
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Mention navigation
+    if (mentionQuery !== null) {
+      const results = filterMembers(members, mentionQuery);
+      if (results.length > 0) {
+        if (e.key === "ArrowDown") {
+          setMentionActiveIdx((i) => Math.min(i + 1, results.length - 1));
+          e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          setMentionActiveIdx((i) => Math.max(i - 1, 0));
+          e.preventDefault();
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          // Clamp index in case results shrunk while the user was navigating
+          const idx = Math.min(mentionActiveIdx, results.length - 1);
+          applyMention(results[idx].username);
+          e.preventDefault();
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        setMentionQuery(null);
         e.preventDefault();
         return;
       }
@@ -396,6 +467,15 @@ export function MessageInput({ channelId }: MessageInputProps) {
             activeIndex={emojiActiveIdx}
             onSelect={applyEmoji}
             onClose={() => setEmojiQuery(null)}
+          />
+        )}
+        {mentionQuery !== null && (
+          <MentionAutocomplete
+            query={mentionQuery}
+            members={members}
+            activeIndex={mentionActiveIdx}
+            onSelect={applyMention}
+            onClose={() => setMentionQuery(null)}
           />
         )}
 
