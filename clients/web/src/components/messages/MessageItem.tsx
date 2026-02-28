@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
+import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { formatMessageTime } from "../../utils/formatTime";
 import { formatBytes } from "../../utils/formatBytes";
 import { parseEmoji } from "../../utils/emoji";
@@ -262,6 +263,16 @@ export function MessageItem({
   const [reactions, setReactions] = useState<ReactionCount[]>([]);
 
   const isOwnMessage = message.author_id === user?.id;
+  const isMobile = useMobileLayout();
+  const [actionsOpen, setActionsOpen] = useState(false);
+
+  // Close action sheet when tapping outside
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const close = () => setActionsOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [actionsOpen]);
 
   // Load reactions from server on mount.
   useEffect(() => {
@@ -474,6 +485,20 @@ export function MessageItem({
           )}
         </div>
 
+        {/* Mobile "···" button — visible only on narrow viewports */}
+        {!isEditing && isMobile && (
+          <button
+            className={styles.moreBtn}
+            aria-label="Message actions"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionsOpen((v) => !v);
+            }}
+          >
+            ···
+          </button>
+        )}
+
         {/* Action toolbar — always in DOM, shown via CSS :hover, no layout impact */}
         {!isEditing && (
           <div className={styles.actions}>
@@ -541,6 +566,61 @@ export function MessageItem({
           </div>
         )}
       </div>
+
+      {/* Mobile action sheet — shown when user taps the ··· button */}
+      {isMobile && actionsOpen && (
+        <div className={styles.actionSheet} role="menu">
+          <button
+            role="menuitem"
+            onClick={() => {
+              setReplyingTo(message);
+              setActionsOpen(false);
+            }}
+          >
+            Reply
+          </button>
+          {!message.thread_id && onOpenThread && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                onOpenThread(message.id);
+                setActionsOpen(false);
+              }}
+            >
+              Reply in Thread
+            </button>
+          )}
+          {isOwnMessage && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                setIsEditing(true);
+                setEditContent(message.content);
+                setActionsOpen(false);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {isOwnMessage && (
+            <button
+              role="menuitem"
+              className={styles.dangerAction}
+              onClick={() => {
+                if (window.confirm("Delete this message?")) {
+                  deleteMessage(message.id);
+                }
+                setActionsOpen(false);
+              }}
+            >
+              Delete
+            </button>
+          )}
+          <button role="menuitem" onClick={() => setActionsOpen(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Reaction bar — only rendered when reactions exist; never causes layout shift on hover */}
       {reactions.length > 0 && (
