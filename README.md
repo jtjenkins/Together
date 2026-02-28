@@ -1,5 +1,9 @@
 # Together
 
+<p align="center">
+  <img src="assets/logo.png" alt="Together" width="480" />
+</p>
+
 **A self-hosted Discord alternative for small gaming communities.**
 
 Own your platform. No data sold, no surprise bans, no feature bloat — just a fast, private chat
