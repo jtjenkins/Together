@@ -1,21 +1,46 @@
 use axum::{
-    extract::DefaultBodyLimit,
-    http::{header, HeaderValue, Method},
+    extract::ConnectInfo,
+    http::{header, HeaderValue, Method, Request, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{delete, get, patch, post},
     Router,
 };
 use axum_prometheus::PrometheusMetricLayer;
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::net::SocketAddr;
+use std::sync::Arc;
+
+use tokio::sync::RwLock;
+
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 
 use together_server::config::Config;
 use together_server::state::AppState;
 use together_server::websocket::ConnectionManager;
 use together_server::{db, handlers, websocket};
+
+/// Middleware that restricts access to the metrics endpoint to loopback connections only.
+///
+/// When `ConnectInfo` is not available (e.g. in direct oneshot tests), access is
+/// denied — the metrics route is not registered in the test app anyway, so this
+/// branch is unreachable in practice.
+async fn require_loopback(
+    connect_info: Option<ConnectInfo<SocketAddr>>,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    match connect_info {
+        Some(ConnectInfo(addr)) if addr.ip().is_loopback() => next.run(req).await,
+        Some(_) => StatusCode::NOT_FOUND.into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -108,13 +133,41 @@ async fn main() {
         jwt_secret: config.jwt_secret,
         connections: ConnectionManager::new(),
         upload_dir: config.upload_dir.clone(),
-        link_preview_cache: Arc::new(Mutex::new(HashMap::new())),
+        link_preview_cache: Arc::new(RwLock::new(HashMap::new())),
         http_client,
         giphy_api_key,
     };
 
     // Prometheus metrics layer
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+
+    // ── Rate limiting ─────────────────────────────────────────────────────────
+    // Global limit: 10 requests/second per IP, burst of 20.
+    let governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(10)
+            .burst_size(20)
+            .finish()
+            .expect("Invalid global governor configuration"),
+    );
+
+    // Stricter limit for authentication endpoints: 2 requests/second per IP, burst of 5.
+    // Nested into a sub-router so that `.route_layer()` applies only to these three routes.
+    let auth_governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(2)
+            .burst_size(5)
+            .finish()
+            .expect("Invalid auth governor configuration"),
+    );
+
+    let auth_router = Router::new()
+        .route("/auth/register", post(handlers::auth::register))
+        .route("/auth/login", post(handlers::auth::login))
+        .route("/auth/refresh", post(handlers::auth::refresh_token))
+        .route_layer(GovernorLayer {
+            config: auth_governor_conf,
+        });
 
     // Build router
     let app = Router::new()
@@ -127,12 +180,11 @@ async fn main() {
         .route("/giphy/search", get(handlers::giphy::search_giphy))
         .route(
             "/metrics",
-            get(move || async move { metric_handle.render() }),
+            get(move || async move { metric_handle.render() })
+                .route_layer(middleware::from_fn(require_loopback)),
         )
-        // Auth routes
-        .route("/auth/register", post(handlers::auth::register))
-        .route("/auth/login", post(handlers::auth::login))
-        .route("/auth/refresh", post(handlers::auth::refresh_token))
+        // Auth routes (stricter per-IP rate limit, nested via sub-router)
+        .merge(auth_router)
         // User routes (protected)
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
@@ -235,7 +287,7 @@ async fn main() {
         .route(
             "/messages/:message_id/attachments",
             post(handlers::attachments::upload_attachments)
-                .layer(DefaultBodyLimit::max(52_428_800 + 65_536)), // 50 MB + multipart overhead
+                .layer(axum::extract::DefaultBodyLimit::max(52_428_800 + 65_536)), // 50 MB + multipart overhead
         )
         .route(
             "/messages/:message_id/attachments",
@@ -278,7 +330,24 @@ async fn main() {
         )
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
-        // Middleware
+        // ── Global rate limit (10 req/s per IP, burst 20) ──────────────────
+        .layer(GovernorLayer {
+            config: governor_conf,
+        })
+        // ── Security response headers ──────────────────────────────────────
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("x-content-type-options"),
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("x-frame-options"),
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("referrer-policy"),
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
+        // ── Prometheus + CORS ──────────────────────────────────────────────
         .layer(prometheus_layer)
         .layer(cors)
         .with_state(app_state);
@@ -290,7 +359,14 @@ async fn main() {
         .await
         .expect("Failed to bind to address");
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server failed to start");
+    // `into_make_service_with_connect_info` populates `ConnectInfo<SocketAddr>` in
+    // request extensions, needed by:
+    //  - GovernorLayer's PeerIpKeyExtractor (per-IP rate limiting)
+    //  - require_loopback middleware on /metrics
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("Server failed to start");
 }

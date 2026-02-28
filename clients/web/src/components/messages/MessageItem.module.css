@@ -469,3 +469,66 @@
   margin: 2px 0;
   color: var(--text-secondary);
 }
+
+/* ── Mobile action button & sheet ────────────────────────────────────────── */
+
+.moreBtn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.moreBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.actionSheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-primary, var(--border-color));
+  padding: 8px 0 env(safe-area-inset-bottom, 0px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.actionSheet button {
+  padding: 14px 20px;
+  text-align: left;
+  font-size: 16px;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.actionSheet button:hover {
+  background: var(--bg-hover);
+}
+
+.dangerAction {
+  color: var(--accent-red, var(--error, #f04747)) !important;
+}
+
+@media (max-width: 767px) {
+  .moreBtn {
+    display: flex;
+    align-items: center;
+  }
+
+  .actions {
+    display: none;
+  }
+}

@@ -13,6 +13,7 @@ import { useDmStore } from "../../stores/dmStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
+import { ErrorBoundary } from "../ErrorBoundary";
 import styles from "./AppLayout.module.css";
 
 export function AppLayout() {
@@ -87,49 +88,53 @@ export function AppLayout() {
       <div
         className={`${styles.contentPanel} ${isMobile && mobilePanel !== "chat" ? styles.mobileHidden : ""}`}
       >
-        {showDmView ? (
-          activeDmChannelId ? (
-            <DMConversation channelId={activeDmChannelId} />
+        <ErrorBoundary>
+          {showDmView ? (
+            activeDmChannelId ? (
+              <DMConversation channelId={activeDmChannelId} />
+            ) : (
+              <div className={styles.placeholder}>
+                <div className={styles.placeholderContent}>
+                  <div className={styles.welcomeIcon}>T</div>
+                  <h2>Welcome to Together</h2>
+                  <p>
+                    Select a server from the sidebar or open a Direct Message
+                  </p>
+                </div>
+              </div>
+            )
+          ) : activeChannelId ? (
+            activeChannel?.type === "voice" ? (
+              <VoiceChannel
+                channelId={activeChannelId}
+                onBack={isMobile ? () => setMobilePanel("channels") : undefined}
+              />
+            ) : (
+              <ChatArea
+                channelId={activeChannelId}
+                onOpenThread={openThread}
+                onBack={isMobile ? () => setMobilePanel("channels") : undefined}
+              />
+            )
           ) : (
             <div className={styles.placeholder}>
               <div className={styles.placeholderContent}>
-                <div className={styles.welcomeIcon}>T</div>
-                <h2>Welcome to Together</h2>
-                <p>Select a server from the sidebar or open a Direct Message</p>
+                <h2>Select a channel</h2>
+                <p>Pick a text channel from the sidebar to start chatting</p>
               </div>
             </div>
-          )
-        ) : activeChannelId ? (
-          activeChannel?.type === "voice" ? (
-            <VoiceChannel
-              channelId={activeChannelId}
-              onBack={isMobile ? () => setMobilePanel("channels") : undefined}
-            />
-          ) : (
-            <ChatArea
-              channelId={activeChannelId}
-              onOpenThread={openThread}
-              onBack={isMobile ? () => setMobilePanel("channels") : undefined}
-            />
-          )
-        ) : (
-          <div className={styles.placeholder}>
-            <div className={styles.placeholderContent}>
-              <h2>Select a channel</h2>
-              <p>Pick a text channel from the sidebar to start chatting</p>
-            </div>
-          </div>
-        )}
-        {!isMobile &&
-          (activeChannelId && activeThreadId ? (
-            <ThreadPanel
-              channelId={activeChannelId}
-              rootMessageId={activeThreadId}
-              onClose={closeThread}
-            />
-          ) : (
-            <MemberSidebar />
-          ))}
+          )}
+          {!isMobile &&
+            (activeChannelId && activeThreadId ? (
+              <ThreadPanel
+                channelId={activeChannelId}
+                rootMessageId={activeThreadId}
+                onClose={closeThread}
+              />
+            ) : (
+              <MemberSidebar />
+            ))}
+        </ErrorBoundary>
       </div>
     </div>
   );

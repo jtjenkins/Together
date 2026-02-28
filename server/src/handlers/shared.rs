@@ -5,6 +5,42 @@ use crate::{
     models::{Channel, Message, Server, ServerMember},
 };
 
+/// Convert [`validator::ValidationErrors`] into an [`AppError::Validation`] with
+/// a human-readable message. Shared across all handler modules to avoid
+/// copy-pasting the same boilerplate.
+pub fn validation_error(e: validator::ValidationErrors) -> AppError {
+    AppError::Validation(
+        e.field_errors()
+            .values()
+            .flat_map(|v| v.iter())
+            .filter_map(|e| e.message.as_ref())
+            .map(|m| m.to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+    )
+}
+
+/// Validate that a URL uses an allowed scheme (http or https).
+///
+/// The `validator` crate's `#[validate(url)]` accepts any syntactically valid
+/// URI including `javascript:` and `data:` scheme URLs, which are XSS vectors
+/// when rendered as `src` or `href` attributes. This helper enforces that only
+/// `http://` and `https://` are permitted.
+///
+/// Call this *after* the struct-level `validate()` check so that the
+/// struct-level errors surface first (e.g. "not a URL at all" before
+/// "wrong scheme").
+pub fn require_http_url(url: &str, field: &str) -> Result<(), AppError> {
+    let lower = url.to_ascii_lowercase();
+    if lower.starts_with("http://") || lower.starts_with("https://") {
+        Ok(())
+    } else {
+        Err(AppError::Validation(format!(
+            "{field} must use http:// or https://"
+        )))
+    }
+}
+
 /// Fetch a non-deleted message by ID, returning 404 if not found or deleted.
 pub async fn fetch_message(pool: &sqlx::PgPool, message_id: Uuid) -> AppResult<Message> {
     sqlx::query_as::<_, Message>(

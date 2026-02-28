@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 use validator::Validate;
 
-use super::shared::{fetch_server, require_member};
+use super::shared::{fetch_server, require_http_url, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -23,6 +23,8 @@ use crate::{
 pub struct CreateServerRequest {
     #[validate(length(min = 1, max = 100, message = "Server name must be 1–100 characters"))]
     pub name: String,
+    /// Must be a valid HTTP(S) URL when provided.
+    #[validate(url)]
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
 }
@@ -31,6 +33,8 @@ pub struct CreateServerRequest {
 pub struct UpdateServerRequest {
     #[validate(length(min = 1, max = 100, message = "Server name must be 1–100 characters"))]
     pub name: Option<String>,
+    /// Must be a valid HTTP(S) URL when provided.
+    #[validate(url)]
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
 }
@@ -81,6 +85,10 @@ pub async fn create_server(
         )
     })?;
 
+    if let Some(ref url) = req.icon_url {
+        require_http_url(url, "icon_url")?;
+    }
+
     let dto = CreateServerDto {
         name: req.name,
         icon_url: req.icon_url,
@@ -130,10 +138,40 @@ pub async fn list_servers(
     .fetch_all(&state.pool)
     .await?;
 
-    let mut dtos = Vec::with_capacity(servers.len());
-    for s in servers {
-        dtos.push(server_dto(&state.pool, s).await?);
+    if servers.is_empty() {
+        return Ok(Json(vec![]));
     }
+
+    // Single batch query for all member counts — avoids N+1 (one COUNT per server).
+    let server_ids: Vec<uuid::Uuid> = servers.iter().map(|s| s.id).collect();
+    let count_rows: Vec<(uuid::Uuid, i64)> = sqlx::query_as(
+        "SELECT server_id, COUNT(*)::BIGINT AS member_count
+         FROM server_members
+         WHERE server_id = ANY($1)
+         GROUP BY server_id",
+    )
+    .bind(&server_ids as &[uuid::Uuid])
+    .fetch_all(&state.pool)
+    .await?;
+
+    let count_map: std::collections::HashMap<uuid::Uuid, i64> = count_rows.into_iter().collect();
+
+    let dtos: Vec<ServerDto> = servers
+        .into_iter()
+        .map(|s| {
+            let member_count = count_map.get(&s.id).copied().unwrap_or(0);
+            ServerDto {
+                id: s.id,
+                name: s.name,
+                owner_id: s.owner_id,
+                icon_url: s.icon_url,
+                is_public: s.is_public,
+                member_count,
+                created_at: s.created_at,
+                updated_at: s.updated_at,
+            }
+        })
+        .collect();
 
     Ok(Json(dtos))
 }
@@ -168,6 +206,10 @@ pub async fn update_server(
                 .join(", "),
         )
     })?;
+
+    if let Some(ref url) = req.icon_url {
+        require_http_url(url, "icon_url")?;
+    }
 
     let server = fetch_server(&state.pool, server_id).await?;
 
@@ -327,7 +369,7 @@ pub async fn list_members(
     require_member(&state.pool, server_id, auth.user_id()).await?;
 
     let members = sqlx::query_as::<_, MemberDto>(
-        "SELECT u.id AS user_id, u.username, u.avatar_url, u.status,
+        "SELECT u.id AS user_id, u.username, u.avatar_url, u.status, u.custom_status,
                 sm.nickname, sm.joined_at
          FROM server_members sm
          JOIN users u ON u.id = sm.user_id

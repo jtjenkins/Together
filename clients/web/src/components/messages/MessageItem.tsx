@@ -11,7 +11,9 @@ import {
 import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
+import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { formatMessageTime } from "../../utils/formatTime";
+import { formatBytes } from "../../utils/formatBytes";
 import { parseEmoji } from "../../utils/emoji";
 import { extractUrls, isImageUrl } from "../../utils/links";
 import { parseMarkdown, type MarkdownSegment } from "../../utils/markdown";
@@ -40,7 +42,12 @@ function SpoilerText({ children }: { children: React.ReactNode }) {
       role="button"
       tabIndex={0}
       aria-label={revealed ? "Hide spoiler" : "Show spoiler"}
-      onKeyDown={(e) => e.key === "Enter" && setRevealed((v) => !v)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setRevealed((v) => !v);
+        }
+      }}
     >
       {revealed ? children : null}
     </span>
@@ -256,6 +263,16 @@ export function MessageItem({
   const [reactions, setReactions] = useState<ReactionCount[]>([]);
 
   const isOwnMessage = message.author_id === user?.id;
+  const isMobile = useMobileLayout();
+  const [actionsOpen, setActionsOpen] = useState(false);
+
+  // Close action sheet when tapping outside
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const close = () => setActionsOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [actionsOpen]);
 
   // Load reactions from server on mount.
   useEffect(() => {
@@ -267,15 +284,14 @@ export function MessageItem({
       });
   }, [channelId, message.id]);
 
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   const handleEdit = async () => {
     if (editContent.trim() && editContent !== message.content) {
-      await editMessage(message.id, editContent.trim());
+      try {
+        await editMessage(message.id, editContent.trim());
+      } catch {
+        // editMessage already sets store.error; keep edit box open so user can retry
+        return;
+      }
     }
     setIsEditing(false);
   };
@@ -474,6 +490,20 @@ export function MessageItem({
           )}
         </div>
 
+        {/* Mobile "···" button — visible only on narrow viewports */}
+        {!isEditing && isMobile && (
+          <button
+            className={styles.moreBtn}
+            aria-label="Message actions"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionsOpen((v) => !v);
+            }}
+          >
+            ···
+          </button>
+        )}
+
         {/* Action toolbar — always in DOM, shown via CSS :hover, no layout impact */}
         {!isEditing && (
           <div className={styles.actions}>
@@ -481,6 +511,7 @@ export function MessageItem({
               className={styles.actionBtn}
               onClick={() => setShowPicker((v) => !v)}
               title="Add Reaction"
+              aria-label="Add reaction"
             >
               <SmilePlus size={14} />
             </button>
@@ -488,6 +519,7 @@ export function MessageItem({
               className={styles.actionBtn}
               onClick={() => setReplyingTo(message)}
               title="Reply"
+              aria-label="Reply to message"
             >
               <Reply size={14} />
             </button>
@@ -496,6 +528,7 @@ export function MessageItem({
                 className={styles.actionBtn}
                 onClick={() => onOpenThread(message.id)}
                 title="Start Thread"
+                aria-label="Start thread"
               >
                 <MessageSquare size={14} />
               </button>
@@ -509,13 +542,19 @@ export function MessageItem({
                     setEditContent(message.content);
                   }}
                   title="Edit"
+                  aria-label="Edit message"
                 >
                   <Pencil size={14} />
                 </button>
                 <button
                   className={`${styles.actionBtn} ${styles.dangerBtn}`}
-                  onClick={() => deleteMessage(message.id)}
+                  onClick={() => {
+                    if (window.confirm("Delete this message?")) {
+                      deleteMessage(message.id);
+                    }
+                  }}
                   title="Delete"
+                  aria-label="Delete message"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -532,6 +571,65 @@ export function MessageItem({
           </div>
         )}
       </div>
+
+      {/* Mobile action sheet — shown when user taps the ··· button */}
+      {isMobile && actionsOpen && (
+        <div
+          className={styles.actionSheet}
+          role="menu"
+          aria-label="Message actions"
+        >
+          <button
+            role="menuitem"
+            onClick={() => {
+              setReplyingTo(message);
+              setActionsOpen(false);
+            }}
+          >
+            Reply
+          </button>
+          {!message.thread_id && onOpenThread && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                onOpenThread(message.id);
+                setActionsOpen(false);
+              }}
+            >
+              Reply in Thread
+            </button>
+          )}
+          {isOwnMessage && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                setIsEditing(true);
+                setEditContent(message.content);
+                setActionsOpen(false);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {isOwnMessage && (
+            <button
+              role="menuitem"
+              className={styles.dangerAction}
+              onClick={() => {
+                if (window.confirm("Delete this message?")) {
+                  deleteMessage(message.id);
+                }
+                setActionsOpen(false);
+              }}
+            >
+              Delete
+            </button>
+          )}
+          <button role="menuitem" onClick={() => setActionsOpen(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Reaction bar — only rendered when reactions exist; never causes layout shift on hover */}
       {reactions.length > 0 && (

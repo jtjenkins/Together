@@ -23,6 +23,7 @@ function makeMember(username: string): MemberDto {
     username,
     avatar_url: null,
     status: "online",
+    custom_status: null,
     nickname: null,
     joined_at: new Date().toISOString(),
   };
@@ -42,7 +43,16 @@ function setupMocks() {
   );
 
   const channelState = {
-    channels: [{ id: "ch-1", name: "general", kind: "text", server_id: "s-1", position: 0, created_at: "" }],
+    channels: [
+      {
+        id: "ch-1",
+        name: "general",
+        kind: "text",
+        server_id: "s-1",
+        position: 0,
+        created_at: "",
+      },
+    ],
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   vi.mocked(useChannelStore).mockImplementation((selector?: any) =>
@@ -75,7 +85,9 @@ describe("MessageInput — mention keyboard integration", () => {
     render(<MessageInput channelId="ch-1" />);
     await user.click(getTextarea());
     await user.type(getTextarea(), "@al");
-    expect(screen.getByRole("listbox", { name: /member suggestions/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("listbox", { name: /member suggestions/i }),
+    ).toBeInTheDocument();
   });
 
   it("pressing Enter while dropdown is open inserts the mention and closes the dropdown", async () => {

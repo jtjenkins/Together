@@ -55,7 +55,12 @@ export function EventForm({
     <form className={styles.container} onSubmit={handleSubmit}>
       <div className={styles.header}>
         <span className={styles.title}>📅 Schedule Event</span>
-        <button type="button" className={styles.closeBtn} onClick={onClose}>
+        <button
+          type="button"
+          className={styles.closeBtn}
+          onClick={onClose}
+          aria-label="Close event form"
+        >
           ×
         </button>
       </div>

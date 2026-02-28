@@ -8,6 +8,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 use validator::Validate;
 
+use super::shared::validation_error;
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -45,18 +46,6 @@ pub struct ListDmMessagesQuery {
 // ============================================================================
 // Private helpers
 // ============================================================================
-
-fn validation_error(e: validator::ValidationErrors) -> AppError {
-    AppError::Validation(
-        e.field_errors()
-            .values()
-            .flat_map(|v| v.iter())
-            .filter_map(|e| e.message.as_ref())
-            .map(|m| m.to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
-    )
-}
 
 /// Require that `user_id` is a member of the given DM channel.
 async fn require_dm_member(pool: &sqlx::PgPool, channel_id: Uuid, user_id: Uuid) -> AppResult<()> {

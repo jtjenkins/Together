@@ -12,6 +12,7 @@ function makeMember(
     username,
     avatar_url: null,
     status: "online",
+    custom_status: null,
     nickname,
     joined_at: new Date().toISOString(),
   };

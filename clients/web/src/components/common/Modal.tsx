@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import styles from "./Modal.module.css";
 
 interface ModalProps {
@@ -10,6 +11,9 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(modalRef, open);
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +37,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
       aria-modal="true"
       aria-label={title}
     >
-      <div className={styles.modal}>
+      <div className={styles.modal} ref={modalRef}>
         <div className={styles.header}>
           <h2 className={styles.title}>{title}</h2>
           <button className={styles.close} onClick={onClose} aria-label="Close">

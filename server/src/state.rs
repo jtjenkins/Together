@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use reqwest::Client;
 use sqlx::PgPool;
+use tokio::sync::RwLock;
 
 use crate::handlers::link_preview::LinkPreviewCacheEntry;
 use crate::websocket::ConnectionManager;
@@ -23,7 +24,10 @@ pub struct AppState {
     ///
     /// Keyed by canonical URL string. Entries older than 24 hours are re-fetched.
     /// Capped at 10,000 entries to bound memory usage.
-    pub link_preview_cache: Arc<Mutex<HashMap<String, LinkPreviewCacheEntry>>>,
+    ///
+    /// Uses `tokio::sync::RwLock` so async handlers can acquire the lock without
+    /// blocking a Tokio worker thread.
+    pub link_preview_cache: Arc<RwLock<HashMap<String, LinkPreviewCacheEntry>>>,
     /// Shared HTTP client for outbound requests (Giphy, etc.).
     /// Note: link_preview uses its own per-request client (DNS rebinding protection).
     pub http_client: Client,

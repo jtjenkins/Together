@@ -13,7 +13,8 @@ use serde_json::Value;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tower::ServiceExt;
 
 use together_server::{
@@ -57,7 +58,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
         jwt_secret: Arc::from(TEST_JWT_SECRET),
         connections: ConnectionManager::new(),
         upload_dir: test_upload_dir(),
-        link_preview_cache: Arc::new(Mutex::new(HashMap::new())),
+        link_preview_cache: Arc::new(RwLock::new(HashMap::new())),
         http_client,
         giphy_api_key: None,
     };
@@ -154,6 +155,19 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/channels/:channel_id/messages/:message_id/reactions/:emoji",
             delete(handlers::reactions::remove_reaction),
         )
+        // Poll routes
+        .route(
+            "/channels/:channel_id/polls",
+            post(handlers::polls::create_poll),
+        )
+        .route("/polls/:poll_id", get(handlers::polls::get_poll))
+        .route("/polls/:poll_id/vote", post(handlers::polls::cast_vote))
+        // Event routes
+        .route(
+            "/channels/:channel_id/events",
+            post(handlers::events::create_event),
+        )
+        .route("/servers/:id/events", get(handlers::events::list_events))
         // Read-state / ack routes
         .route(
             "/channels/:channel_id/ack",

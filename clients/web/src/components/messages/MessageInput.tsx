@@ -13,6 +13,7 @@ import { useChannelStore } from "../../stores/channelStore";
 import { useServerStore } from "../../stores/serverStore";
 import { extractUrls, isImageUrl } from "../../utils/links";
 import { searchEmoji } from "../../utils/emoji";
+import { formatBytes } from "../../utils/formatBytes";
 import {
   detectSlashTrigger,
   searchCommands,
@@ -58,6 +59,17 @@ export function MessageInput({ channelId }: MessageInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const channel = channels.find((c) => c.id === channelId);
+
+  const autoGrow = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, []);
+
+  useEffect(() => {
+    autoGrow();
+  }, [content, autoGrow]);
 
   // Debounced URL detection for compose-time link/image preview
   useEffect(() => {
@@ -116,16 +128,16 @@ export function MessageInput({ channelId }: MessageInputProps) {
   };
 
   /** Detect emoji, slash, and mention triggers — called from onChange and onSelect. */
-  function detectAllTriggers() {
-    const cursor = inputRef.current?.selectionStart ?? content.length;
-    const before = content.slice(0, cursor);
+  function detectAllTriggers(currentContent = content) {
+    const cursor = inputRef.current?.selectionStart ?? currentContent.length;
+    const before = currentContent.slice(0, cursor);
 
     // Emoji trigger: :word (at least 1 char)
     const emojiMatch = before.match(/:([a-zA-Z0-9_+-]{1,})$/);
 
     // Slash trigger: only when no emoji trigger active
     const slashTrigger = !emojiMatch
-      ? detectSlashTrigger(content, cursor)
+      ? detectSlashTrigger(currentContent, cursor)
       : null;
 
     // Mention trigger: @word (zero or more chars) — only when no other trigger active.
@@ -336,12 +348,6 @@ export function MessageInput({ channelId }: MessageInputProps) {
     }
   };
 
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   return (
     <div
       className={`${styles.container} ${isDragging ? styles.dragging : ""}`}
@@ -353,7 +359,15 @@ export function MessageInput({ channelId }: MessageInputProps) {
         <div className={styles.replyBar}>
           <span className={styles.replyText}>
             Replying to{" "}
-            <strong>{replyingTo.author_id ? "message" : "someone"}</strong>
+            <strong>
+              {(() => {
+                if (!replyingTo.author_id) return "someone";
+                const member = members.find(
+                  (m) => m.user_id === replyingTo.author_id,
+                );
+                return member?.nickname || member?.username || "Unknown User";
+              })()}
+            </strong>
           </span>
           <button
             className={styles.replyClose}
@@ -506,9 +520,10 @@ export function MessageInput({ channelId }: MessageInputProps) {
             value={content}
             onChange={(e) => {
               setContent(e.target.value);
-              detectAllTriggers();
+              detectAllTriggers(e.target.value); // pass fresh value to avoid stale closure
+              autoGrow();
             }}
-            onSelect={detectAllTriggers}
+            onSelect={() => detectAllTriggers()}
             onKeyDown={handleKeyDown}
             placeholder={`Message #${channel?.name ?? "channel"}`}
             rows={1}

@@ -69,6 +69,7 @@ export interface MemberDto {
   username: string;
   avatar_url: string | null;
   status: UserStatus;
+  custom_status: string | null;
   nickname: string | null;
   joined_at: string;
 }

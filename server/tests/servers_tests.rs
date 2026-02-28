@@ -82,6 +82,37 @@ async fn create_server_rejects_name_too_long() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
+#[tokio::test]
+async fn create_server_rejects_invalid_icon_url() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+
+    // javascript: and data: scheme URLs must be rejected (XSS vectors).
+    let bad_urls = [
+        "javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "not-a-url",
+    ];
+    for url in &bad_urls {
+        let (status, body) = common::post_json_authed(
+            app.clone(),
+            "/servers",
+            &token,
+            json!({ "name": "Test Server", "icon_url": url }),
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "Expected 400 for icon_url '{}', got {}: {body}",
+            url,
+            status
+        );
+    }
+}
+
 // ============================================================================
 // GET /servers — list servers
 // ============================================================================

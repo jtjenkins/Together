@@ -190,6 +190,17 @@ pub async fn get_poll(
     auth: AuthUser,
     Path(poll_id): Path<Uuid>,
 ) -> AppResult<Json<PollDto>> {
+    let poll = sqlx::query_as::<_, PollRow>(
+        "SELECT id, question, options, channel_id, server_id
+         FROM polls WHERE id = $1",
+    )
+    .bind(poll_id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Poll not found".into()))?;
+
+    require_member(&state.pool, poll.server_id, auth.user_id()).await?;
+
     let dto = fetch_poll_dto(&state.pool, poll_id, auth.user_id()).await?;
     Ok(Json(dto))
 }
@@ -223,6 +234,8 @@ pub async fn cast_vote(
     if !valid {
         return Err(AppError::Validation("Invalid option_id".into()));
     }
+
+    require_member(&state.pool, poll.server_id, auth.user_id()).await?;
 
     // Upsert vote (single-choice: PK on poll_id+user_id)
     sqlx::query(

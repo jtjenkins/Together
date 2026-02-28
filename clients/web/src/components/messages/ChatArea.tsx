@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { useMessageStore } from "../../stores/messageStore";
@@ -19,6 +19,7 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
   const channels = useChannelStore((s) => s.channels);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevMessageCount = useRef(0);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const channel = channels.find((c) => c.id === channelId);
 
@@ -47,6 +48,21 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
     }
   }, [isLoading, hasMore, messages, channelId, fetchMessages]);
 
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const shouldShow = distFromBottom > 200;
+    setShowScrollBtn((prev) => (prev === shouldShow ? prev : shouldShow));
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, []);
+
   return (
     <div className={styles.chatArea}>
       <div className={styles.header}>
@@ -69,23 +85,38 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
         )}
       </div>
 
-      <div className={styles.messages} ref={scrollRef}>
-        {hasMore && (
-          <div className={styles.loadMore}>
-            <button
-              onClick={handleLoadMore}
-              disabled={isLoading}
-              className={styles.loadMoreBtn}
-            >
-              {isLoading ? "Loading..." : "Load older messages"}
-            </button>
-          </div>
+      <div className={styles.messagesWrapper}>
+        <div
+          className={styles.messages}
+          ref={scrollRef}
+          onScroll={handleScroll}
+        >
+          {hasMore && (
+            <div className={styles.loadMore}>
+              <button
+                onClick={handleLoadMore}
+                disabled={isLoading}
+                className={styles.loadMoreBtn}
+              >
+                {isLoading ? "Loading..." : "Load older messages"}
+              </button>
+            </div>
+          )}
+          <MessageList
+            messages={messages}
+            channelId={channelId}
+            onOpenThread={onOpenThread}
+          />
+        </div>
+        {showScrollBtn && (
+          <button
+            className={styles.scrollBtn}
+            onClick={scrollToBottom}
+            aria-label="Scroll to bottom"
+          >
+            ↓
+          </button>
         )}
-        <MessageList
-          messages={messages}
-          channelId={channelId}
-          onOpenThread={onOpenThread}
-        />
       </div>
 
       <MessageInput channelId={channelId} />

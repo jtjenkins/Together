@@ -1,0 +1,60 @@
+import { useEffect, RefObject } from "react";
+
+const FOCUSABLE =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+export function useFocusTrap(
+  ref: RefObject<HTMLElement | null>,
+  active: boolean,
+) {
+  useEffect(() => {
+    if (!active) return;
+    if (!ref.current) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          "[useFocusTrap] ref.current is null — focus trap not established",
+        );
+      }
+      return;
+    }
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const elements = Array.from(
+      ref.current.querySelectorAll<HTMLElement>(FOCUSABLE),
+    );
+    if (!elements.length) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          "[useFocusTrap] No focusable elements found inside trap container",
+        );
+      }
+      return;
+    }
+
+    const first = elements[0];
+    const last = elements[elements.length - 1];
+    first.focus();
+
+    const trap = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      previouslyFocused?.focus();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]); // ref is a stable RefObject — adding it would cause spurious re-runs
+}

@@ -8,7 +8,9 @@ use serde_json::json;
 use uuid::Uuid;
 use validator::Validate;
 
-use super::shared::{fetch_channel_by_id, fetch_message, fetch_server, require_member};
+use super::shared::{
+    fetch_channel_by_id, fetch_message, fetch_server, require_member, validation_error,
+};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -82,18 +84,6 @@ pub struct ListMessagesQuery {
 // ============================================================================
 // Private helpers
 // ============================================================================
-
-fn validation_error(e: validator::ValidationErrors) -> AppError {
-    AppError::Validation(
-        e.field_errors()
-            .values()
-            .flat_map(|v| v.iter())
-            .filter_map(|e| e.message.as_ref())
-            .map(|m| m.to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
-    )
-}
 
 /// Row types for enrich_messages sub-queries
 #[derive(sqlx::FromRow)]
@@ -278,16 +268,20 @@ pub async fn create_message(
     .await?;
 
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
-    let dto = enriched.into_iter().next().unwrap();
+    let dto = enriched
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast MESSAGE_CREATE to all connected server members.
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_MESSAGE_CREATE,
-        serde_json::to_value(&dto).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&dto) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_CREATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize MessageDto for broadcast");
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(dto)))
 }
@@ -447,16 +441,20 @@ pub async fn update_message(
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![updated]).await?;
-    let dto = enriched.into_iter().next().unwrap();
+    let dto = enriched
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast MESSAGE_UPDATE to all connected server members.
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_MESSAGE_UPDATE,
-        serde_json::to_value(&dto).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&dto) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_UPDATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize MessageDto for broadcast");
+        }
+    }
 
     Ok(Json(dto))
 }
@@ -591,16 +589,26 @@ pub async fn create_thread_reply(
     .await?;
 
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
-    let dto = enriched.into_iter().next().unwrap();
+    let dto = enriched
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast THREAD_MESSAGE_CREATE to all connected server members.
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_THREAD_MESSAGE_CREATE,
-        serde_json::to_value(&dto).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&dto) {
+        Ok(payload) => {
+            broadcast_to_server(
+                &state,
+                channel.server_id,
+                EVENT_THREAD_MESSAGE_CREATE,
+                payload,
+            )
+            .await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize MessageDto for broadcast");
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(dto)))
 }

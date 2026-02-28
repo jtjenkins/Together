@@ -1,4 +1,6 @@
+import { Fragment } from "react";
 import { MessageItem } from "./MessageItem";
+import { DateSeparator } from "./DateSeparator";
 import { useServerStore } from "../../stores/serverStore";
 import type { Message } from "../../types";
 import styles from "./MessageList.module.css";
@@ -7,6 +9,10 @@ interface MessageListProps {
   messages: Message[];
   channelId: string;
   onOpenThread?: (messageId: string) => void;
+}
+
+function isSameDay(a: string, b: string) {
+  return new Date(a).toDateString() === new Date(b).toDateString();
 }
 
 export function MessageList({
@@ -58,29 +64,35 @@ export function MessageList({
 
   return (
     <div className={styles.list} role="log" aria-label="Message history">
-      {groupedMessages.map(({ message, showHeader }) => (
-        <MessageItem
-          key={message.id}
-          message={message}
-          showHeader={showHeader}
-          authorName={getAuthorName(message.author_id)}
-          avatarUrl={getAvatarUrl(message.author_id)}
-          channelId={channelId}
-          replyAuthorName={
-            message.reply_to
-              ? getAuthorName(
-                  messages.find((m) => m.id === message.reply_to)?.author_id ??
-                    null,
-                )
-              : undefined
-          }
-          replyContent={
-            message.reply_to
-              ? messages.find((m) => m.id === message.reply_to)?.content
-              : undefined
-          }
-          onOpenThread={onOpenThread}
-        />
+      {groupedMessages.map(({ message, showHeader }, i) => (
+        <Fragment key={message.id}>
+          {(i === 0 ||
+            !isSameDay(
+              groupedMessages[i - 1].message.created_at,
+              message.created_at,
+            )) && <DateSeparator date={message.created_at} />}
+          <MessageItem
+            message={message}
+            showHeader={showHeader}
+            authorName={getAuthorName(message.author_id)}
+            avatarUrl={getAvatarUrl(message.author_id)}
+            channelId={channelId}
+            replyAuthorName={
+              message.reply_to
+                ? getAuthorName(
+                    messages.find((m) => m.id === message.reply_to)
+                      ?.author_id ?? null,
+                  )
+                : undefined
+            }
+            replyContent={
+              message.reply_to
+                ? messages.find((m) => m.id === message.reply_to)?.content
+                : undefined
+            }
+            onOpenThread={onOpenThread}
+          />
+        </Fragment>
       ))}
     </div>
   );

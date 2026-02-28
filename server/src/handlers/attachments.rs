@@ -8,6 +8,8 @@ use axum::{
 use bytes::Bytes;
 use serde::Deserialize;
 use std::path::PathBuf;
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
 use super::shared::{fetch_channel_by_id, fetch_message, require_member};
@@ -27,6 +29,23 @@ const MAX_ATTACHMENTS_PER_MESSAGE: i64 = 10;
 
 /// Maximum file size in bytes (50 MB, matches the DB check constraint).
 const MAX_FILE_SIZE: usize = 52_428_800;
+
+/// Allowlist of MIME types accepted for uploaded files.
+/// The MIME type is detected from magic bytes, not from the client-supplied
+/// Content-Type header, so this list is authoritative.
+const ALLOWED_MIME_TYPES: &[&str] = &[
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "video/mp4",
+    "video/webm",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/webm",
+    "application/pdf",
+    "text/plain",
+];
 
 // ============================================================================
 // Handlers
@@ -92,10 +111,6 @@ pub async fn upload_attachments(
         }
 
         let filename = field.file_name().unwrap_or("unknown").to_string();
-        let mime_type = field
-            .content_type()
-            .unwrap_or("application/octet-stream")
-            .to_string();
 
         let data = field.bytes().await.map_err(|e| {
             tracing::warn!(error = ?e, "Failed to read multipart field bytes");
@@ -110,6 +125,33 @@ pub async fn upload_attachments(
             return Err(AppError::Validation(
                 "File size exceeds the 50 MB limit".into(),
             ));
+        }
+
+        // Detect MIME type from magic bytes, ignoring the client-supplied
+        // Content-Type header to prevent stored-XSS via disguised HTML uploads.
+        let mime_type = match infer::get(&data) {
+            Some(t) => t.mime_type().to_string(),
+            None => {
+                // No magic bytes detected — check if it's valid UTF-8 text
+                if std::str::from_utf8(&data).is_ok() {
+                    "text/plain".to_string()
+                } else {
+                    tracing::warn!(
+                        size = data.len(),
+                        "MIME type could not be detected from magic bytes for binary file"
+                    );
+                    return Err(AppError::Validation(
+                        "File type could not be determined. Please upload a supported file type (image, video, audio, PDF, or text).".into(),
+                    ));
+                }
+            }
+        };
+
+        if !ALLOWED_MIME_TYPES.contains(&mime_type.as_str()) {
+            return Err(AppError::Validation(format!(
+                "File type '{}' is not allowed",
+                mime_type
+            )));
         }
 
         let stored_name = format!(
@@ -265,19 +307,27 @@ pub async fn serve_file(
         .join(message_id.to_string())
         .join(&filepath);
 
-    let data = tokio::fs::read(&file_path).await.map_err(|e| {
-        tracing::error!(error = ?e, path = ?file_path, "Failed to read attachment file");
+    let file = File::open(&file_path).await.map_err(|e| {
+        tracing::error!(error = ?e, path = ?file_path, "Failed to open attachment file");
         AppError::Internal
     })?;
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    let disposition = if attachment.mime_type.starts_with("image/")
+        || attachment.mime_type.starts_with("video/")
+        || attachment.mime_type.starts_with("audio/")
+    {
+        format!("inline; filename=\"{}\"", attachment.filename)
+    } else {
+        format!("attachment; filename=\"{}\"", attachment.filename)
+    };
 
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, attachment.mime_type)
-        .header(
-            header::CONTENT_DISPOSITION,
-            format!("inline; filename=\"{}\"", attachment.filename),
-        )
-        .body(Body::from(data))
+        .header(header::CONTENT_DISPOSITION, disposition)
+        .body(body)
         .map_err(|_| AppError::Internal)?;
 
     Ok(response)

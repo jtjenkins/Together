@@ -59,7 +59,12 @@ export function PollForm({
     <form className={styles.container} onSubmit={handleSubmit}>
       <div className={styles.header}>
         <span className={styles.title}>📊 Create Poll</span>
-        <button type="button" className={styles.closeBtn} onClick={onClose}>
+        <button
+          type="button"
+          className={styles.closeBtn}
+          onClick={onClose}
+          aria-label="Close poll form"
+        >
           ×
         </button>
       </div>
@@ -86,6 +91,7 @@ export function PollForm({
                 type="button"
                 className={styles.removeBtn}
                 onClick={() => removeOption(i)}
+                aria-label={`Remove option ${i + 1}`}
               >
                 ×
               </button>
