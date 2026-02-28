@@ -59,6 +59,7 @@ export function ServerSidebar({
             setActiveServer(null);
           }}
           title="Home"
+          aria-label="Home"
         >
           T
         </button>
@@ -72,6 +73,7 @@ export function ServerSidebar({
             onClick={() => handleSelectServer(server.id)}
             onContextMenu={(e) => handleContextMenu(e, server)}
             title={server.name}
+            aria-label={server.name}
           >
             {server.icon_url ? (
               <img
@@ -89,6 +91,7 @@ export function ServerSidebar({
           className={`${styles.serverIcon} ${styles.browseIcon}`}
           onClick={() => onShowBrowse(true)}
           title="Browse Servers"
+          aria-label="Browse servers"
         >
           <Compass size={20} />
         </button>
@@ -97,6 +100,7 @@ export function ServerSidebar({
           className={`${styles.serverIcon} ${styles.addIcon}`}
           onClick={() => setShowCreate(true)}
           title="Create Server"
+          aria-label="Create server"
         >
           <Plus size={20} />
         </button>

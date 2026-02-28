@@ -476,6 +476,7 @@ export function MessageItem({
               className={styles.actionBtn}
               onClick={() => setShowPicker((v) => !v)}
               title="Add Reaction"
+              aria-label="Add reaction"
             >
               <SmilePlus size={14} />
             </button>
@@ -483,6 +484,7 @@ export function MessageItem({
               className={styles.actionBtn}
               onClick={() => setReplyingTo(message)}
               title="Reply"
+              aria-label="Reply to message"
             >
               <Reply size={14} />
             </button>
@@ -491,6 +493,7 @@ export function MessageItem({
                 className={styles.actionBtn}
                 onClick={() => onOpenThread(message.id)}
                 title="Start Thread"
+                aria-label="Start thread"
               >
                 <MessageSquare size={14} />
               </button>
@@ -504,6 +507,7 @@ export function MessageItem({
                     setEditContent(message.content);
                   }}
                   title="Edit"
+                  aria-label="Edit message"
                 >
                   <Pencil size={14} />
                 </button>
@@ -511,6 +515,7 @@ export function MessageItem({
                   className={`${styles.actionBtn} ${styles.dangerBtn}`}
                   onClick={() => deleteMessage(message.id)}
                   title="Delete"
+                  aria-label="Delete message"
                 >
                   <Trash2 size={14} />
                 </button>

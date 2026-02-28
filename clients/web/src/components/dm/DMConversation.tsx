@@ -195,6 +195,7 @@ export function DMConversation({ channelId }: DMConversationProps) {
           className={styles.sendBtn}
           onClick={handleSend}
           disabled={!inputValue.trim()}
+          aria-label="Send message"
         >
           <Send size={16} />
         </button>

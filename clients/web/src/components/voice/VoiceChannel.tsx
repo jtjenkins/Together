@@ -247,6 +247,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
               clearVoiceError();
               setRtcError(null);
             }}
+            aria-label="Dismiss error"
           >
             <X size={14} />
           </button>
@@ -320,6 +321,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                   className={`${styles.controlBtn} ${isMuted ? styles.controlActive : ""}`}
                   onClick={handleToggleMute}
                   title={isMuted ? "Unmute" : "Mute"}
+                  aria-label={isMuted ? "Unmute" : "Mute"}
                 >
                   {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
                 </button>
@@ -327,6 +329,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                   className={`${styles.controlBtn} ${isDeafened ? styles.controlActive : ""}`}
                   onClick={handleToggleDeafen}
                   title={isDeafened ? "Undeafen" : "Deafen"}
+                  aria-label={isDeafened ? "Undeafen" : "Deafen"}
                 >
                   {isDeafened ? (
                     <HeadphoneOff size={20} />
@@ -341,6 +344,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                     if (!showSettings) enumerateDevices();
                   }}
                   title="Audio Settings"
+                  aria-label="Audio settings"
                 >
                   <Settings size={20} />
                 </button>
@@ -348,6 +352,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                   className={`${styles.controlBtn} ${styles.leaveBtn}`}
                   onClick={handleLeave}
                   title="Disconnect from voice"
+                  aria-label="Disconnect from voice"
                 >
                   <PhoneOff size={20} />
                 </button>

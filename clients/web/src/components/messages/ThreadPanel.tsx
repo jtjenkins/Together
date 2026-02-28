@@ -85,6 +85,7 @@ export function ThreadPanel({
           className={styles.closeBtn}
           onClick={onClose}
           title="Close thread"
+          aria-label="Close thread"
         >
           <X size={16} />
         </button>

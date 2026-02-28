@@ -85,6 +85,7 @@ export function ReactionBar({
           className={styles.addBtn}
           onClick={() => setShowPicker((v) => !v)}
           title="Add reaction"
+          aria-label="Add reaction"
         >
           <SmilePlus size={16} />
         </button>

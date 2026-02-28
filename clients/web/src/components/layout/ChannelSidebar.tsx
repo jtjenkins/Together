@@ -98,6 +98,7 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
             className={styles.settingsBtn}
             onClick={() => setShowSettings(true)}
             title="Server Settings"
+            aria-label="Server settings"
           >
             <Settings size={16} />
           </button>
@@ -114,6 +115,7 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
                   className={styles.addBtn}
                   onClick={() => setShowCreate(true)}
                   title="Create Channel"
+                  aria-label="Create channel"
                 >
                   <Plus size={14} />
                 </button>

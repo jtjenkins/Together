@@ -45,6 +45,7 @@ function MemberItem({ member }: { member: MemberDto }) {
           className={styles.dmBtn}
           onClick={handleMessage}
           title={`Message ${member.nickname || member.username}`}
+          aria-label={`Message ${member.nickname || member.username}`}
         >
           <Mail size={14} />
         </button>
