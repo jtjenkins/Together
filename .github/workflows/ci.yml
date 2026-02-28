@@ -357,7 +357,7 @@ jobs:
         run: ln -sf ../node_modules/@tauri-apps/cli/tauri.js clients/desktop/src-tauri/tauri
 
       - name: Build Android APK
-        run: ./node_modules/.bin/tauri android build -- --apk
+        run: ./node_modules/.bin/tauri android build --apk
         working-directory: clients/desktop
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
