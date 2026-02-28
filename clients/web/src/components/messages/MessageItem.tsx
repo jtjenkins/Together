@@ -41,7 +41,12 @@ function SpoilerText({ children }: { children: React.ReactNode }) {
       role="button"
       tabIndex={0}
       aria-label={revealed ? "Hide spoiler" : "Show spoiler"}
-      onKeyDown={(e) => e.key === "Enter" && setRevealed((v) => !v)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setRevealed((v) => !v);
+        }
+      }}
     >
       {revealed ? children : null}
     </span>
