@@ -12,6 +12,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
 import { formatMessageTime } from "../../utils/formatTime";
+import { formatBytes } from "../../utils/formatBytes";
 import { parseEmoji } from "../../utils/emoji";
 import { extractUrls, isImageUrl } from "../../utils/links";
 import { parseMarkdown, type MarkdownSegment } from "../../utils/markdown";
@@ -266,12 +267,6 @@ export function MessageItem({
         // Non-fatal: reactions will be empty; user can still add new ones.
       });
   }, [channelId, message.id]);
-
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
 
   const handleEdit = async () => {
     if (editContent.trim() && editContent !== message.content) {

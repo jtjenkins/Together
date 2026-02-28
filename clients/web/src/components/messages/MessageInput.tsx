@@ -13,6 +13,7 @@ import { useChannelStore } from "../../stores/channelStore";
 import { useServerStore } from "../../stores/serverStore";
 import { extractUrls, isImageUrl } from "../../utils/links";
 import { searchEmoji } from "../../utils/emoji";
+import { formatBytes } from "../../utils/formatBytes";
 import {
   detectSlashTrigger,
   searchCommands,
@@ -334,12 +335,6 @@ export function MessageInput({ channelId }: MessageInputProps) {
     if (e.dataTransfer.files.length > 0) {
       addFiles(e.dataTransfer.files);
     }
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   return (
