@@ -278,7 +278,10 @@ pub async fn create_message(
     .await?;
 
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
-    let dto = enriched.into_iter().next().unwrap();
+    let dto = enriched
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast MESSAGE_CREATE to all connected server members.
     broadcast_to_server(
@@ -447,7 +450,10 @@ pub async fn update_message(
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![updated]).await?;
-    let dto = enriched.into_iter().next().unwrap();
+    let dto = enriched
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast MESSAGE_UPDATE to all connected server members.
     broadcast_to_server(
@@ -591,7 +597,10 @@ pub async fn create_thread_reply(
     .await?;
 
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
-    let dto = enriched.into_iter().next().unwrap();
+    let dto = enriched
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Internal)?;
 
     // Broadcast THREAD_MESSAGE_CREATE to all connected server members.
     broadcast_to_server(
