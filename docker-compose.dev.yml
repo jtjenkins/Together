@@ -32,7 +32,7 @@ services:
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
       RUST_LOG: together_server=debug,tower_http=debug,sqlx=warn
-      GIPHY_API_KEY: dc6zaTOxFJmzC
+      GIPHY_API_KEY: ${GIPHY_API_KEY:-dc6zaTOxFJmzC}
     ports:
       - "8080:8080"
     volumes:
