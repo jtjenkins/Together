@@ -353,7 +353,15 @@ export function MessageInput({ channelId }: MessageInputProps) {
         <div className={styles.replyBar}>
           <span className={styles.replyText}>
             Replying to{" "}
-            <strong>{replyingTo.author_id ? "message" : "someone"}</strong>
+            <strong>
+              {(() => {
+                if (!replyingTo.author_id) return "someone";
+                const member = members.find(
+                  (m) => m.user_id === replyingTo.author_id,
+                );
+                return member?.nickname || member?.username || "Unknown User";
+              })()}
+            </strong>
           </span>
           <button
             className={styles.replyClose}
