@@ -8,6 +8,8 @@ use axum::{
 use bytes::Bytes;
 use serde::Deserialize;
 use std::path::PathBuf;
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
 use super::shared::{fetch_channel_by_id, fetch_message, require_member};
@@ -292,10 +294,12 @@ pub async fn serve_file(
         .join(message_id.to_string())
         .join(&filepath);
 
-    let data = tokio::fs::read(&file_path).await.map_err(|e| {
-        tracing::error!(error = ?e, path = ?file_path, "Failed to read attachment file");
+    let file = File::open(&file_path).await.map_err(|e| {
+        tracing::error!(error = ?e, path = ?file_path, "Failed to open attachment file");
         AppError::Internal
     })?;
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
 
     let response = Response::builder()
         .status(StatusCode::OK)
@@ -304,7 +308,7 @@ pub async fn serve_file(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", attachment.filename),
         )
-        .body(Body::from(data))
+        .body(body)
         .map_err(|_| AppError::Internal)?;
 
     Ok(response)
