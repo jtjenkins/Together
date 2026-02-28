@@ -34,7 +34,19 @@ import type { Message, Attachment, ReactionCount } from "../types";
 import type { MobileFile } from "../api/client";
 import { EMOJI_CATEGORIES, parseEmoji } from "../utils/emoji";
 import { extractUrls, isImageUrl } from "../utils/links";
+import { parseMarkdown, type MarkdownSegment } from "../utils/markdown";
 import { LinkPreview } from "../components/LinkPreview";
+import {
+  SlashCommandPicker,
+  detectSlashTrigger,
+  type SlashCommand,
+} from "../components/SlashCommandPicker";
+import { GifPickerModal } from "../components/GifPickerModal";
+import { PollFormModal } from "../components/PollFormModal";
+import { EventFormModal } from "../components/EventFormModal";
+import { PollCard } from "../components/PollCard";
+import { EventCard } from "../components/EventCard";
+import type { GifResult } from "../types";
 
 type Props = NativeStackScreenProps<ServersStackParamList, "Chat">;
 
@@ -55,95 +67,242 @@ function formatDate(iso: string): string {
 }
 
 interface RenderedContent {
-  /** Text-compatible nodes (strings, mention spans, link spans) — for inside <Text>. */
-  textNodes: React.ReactNode[];
-  /** Inline image blocks extracted from the message — rendered outside <Text>. */
-  imageNodes: React.ReactNode[];
+  /** All content nodes (text, images, code blocks, etc.) */
+  contentNodes: React.ReactNode[];
   /** The first non-image URL in the message, for the preview card. */
   firstLinkUrl: string | null;
 }
 
-/** Renders message content: emoji codes, mention highlighting, inline images, and link highlighting.
- *  Returns text nodes (for <Text>), image nodes (for <View>), and the first link URL for a preview card. */
+/** Spoiler component — tap to reveal. */
+function SpoilerText({ children }: { children: React.ReactNode }) {
+  const [revealed, setRevealed] = React.useState(false);
+  return (
+    <Text
+      onPress={() => setRevealed((v) => !v)}
+      style={
+        revealed
+          ? { backgroundColor: "#333", color: "#fff", borderRadius: 3 }
+          : { backgroundColor: "#111", color: "transparent", borderRadius: 3 }
+      }
+    >
+      {children}
+    </Text>
+  );
+}
+
+/** Recursively render a markdown segment tree into React Native nodes. */
+function renderSegment(
+  seg: MarkdownSegment,
+  memberUsernames: Set<string>,
+  currentUsername: string | null,
+  textColor: string,
+  key: string,
+): React.ReactNode {
+  const renderChildren = (segs: MarkdownSegment[], prefix: string) =>
+    segs.map((s, i) =>
+      renderSegment(
+        s,
+        memberUsernames,
+        currentUsername,
+        textColor,
+        `${prefix}-${i}`,
+      ),
+    );
+
+  switch (seg.type) {
+    case "text": {
+      const processed = parseEmoji(seg.content);
+      const urlPattern = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+      const parts = processed.split(urlPattern);
+      const urlMatches = [...processed.matchAll(urlPattern)].map((m) => m[0]);
+      const nodes: React.ReactNode[] = [];
+      parts.forEach((textPart, i) => {
+        if (textPart) {
+          textPart.split(/(@\w+)/g).forEach((chunk, j) => {
+            const stripped = chunk.startsWith("@") ? chunk.slice(1) : null;
+            if (stripped !== null) {
+              if (stripped === "everyone" || memberUsernames.has(stripped)) {
+                const isSelf =
+                  stripped !== "everyone" && stripped === currentUsername;
+                nodes.push(
+                  <Text
+                    key={`${key}-t${i}-${j}`}
+                    style={isSelf ? mentionSelfStyle : mentionStyle}
+                  >
+                    {chunk}
+                  </Text>,
+                );
+                return;
+              }
+            }
+            nodes.push(
+              <Text key={`${key}-t${i}-${j}`} style={{ color: textColor }}>
+                {chunk}
+              </Text>,
+            );
+          });
+        }
+        const url = urlMatches[i];
+        if (url) {
+          if (isImageUrl(url)) {
+            nodes.push(
+              <Image
+                key={`${key}-u${i}`}
+                source={{ uri: url }}
+                style={inlineImageStyle}
+                resizeMode="contain"
+              />,
+            );
+          } else {
+            nodes.push(
+              <Text
+                key={`${key}-u${i}`}
+                style={linkStyle}
+                onPress={() =>
+                  Linking.openURL(url).catch(() =>
+                    Alert.alert(
+                      "Could not open link",
+                      "This link cannot be opened on your device.",
+                    ),
+                  )
+                }
+              >
+                {url}
+              </Text>,
+            );
+          }
+        }
+      });
+      return nodes.length === 1 ? nodes[0] : <Text key={key}>{nodes}</Text>;
+    }
+    case "bold":
+      return (
+        <Text key={key} style={{ fontWeight: "bold", color: textColor }}>
+          {renderChildren(seg.content, key)}
+        </Text>
+      );
+    case "italic":
+      return (
+        <Text key={key} style={{ fontStyle: "italic", color: textColor }}>
+          {renderChildren(seg.content, key)}
+        </Text>
+      );
+    case "bold_italic":
+      return (
+        <Text
+          key={key}
+          style={{ fontWeight: "bold", fontStyle: "italic", color: textColor }}
+        >
+          {renderChildren(seg.content, key)}
+        </Text>
+      );
+    case "strikethrough":
+      return (
+        <Text
+          key={key}
+          style={{ textDecorationLine: "line-through", color: textColor }}
+        >
+          {renderChildren(seg.content, key)}
+        </Text>
+      );
+    case "code_inline":
+      return (
+        <Text
+          key={key}
+          style={{
+            fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+            backgroundColor: "#1e1e1e",
+            borderRadius: 3,
+            fontSize: 13,
+            color: "#e8e8e8",
+          }}
+        >
+          {seg.content}
+        </Text>
+      );
+    case "code_block":
+      return (
+        <View
+          key={key}
+          style={{
+            backgroundColor: "#1e1e1e",
+            borderRadius: 6,
+            padding: 10,
+            marginVertical: 4,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+              fontSize: 12,
+              color: "#e8e8e8",
+            }}
+          >
+            {seg.content}
+          </Text>
+        </View>
+      );
+    case "blockquote":
+      return (
+        <View
+          key={key}
+          style={{
+            borderLeftWidth: 3,
+            borderLeftColor: "#555",
+            paddingLeft: 8,
+            marginVertical: 2,
+          }}
+        >
+          <Text style={{ color: textColor }}>
+            {renderChildren(seg.content, key)}
+          </Text>
+        </View>
+      );
+    case "spoiler":
+      return (
+        <SpoilerText key={key}>{renderChildren(seg.content, key)}</SpoilerText>
+      );
+    default:
+      return null;
+  }
+}
+
+/** Renders message content using Discord markdown. */
 function renderContent(
   content: string,
   memberUsernames: Set<string>,
   currentUsername: string | null,
+  textColor = "#dcddde",
 ): RenderedContent {
-  const processed = parseEmoji(content);
+  const segments = parseMarkdown(content);
 
-  const allUrls = extractUrls(processed);
-  const firstLinkUrl = allUrls.find((u) => !isImageUrl(u)) ?? null;
-
-  const urlPattern = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
-  const parts = processed.split(urlPattern);
-  const urlMatches = [...processed.matchAll(urlPattern)].map((m) => m[0]);
-
-  const textNodes: React.ReactNode[] = [];
-  const imageNodes: React.ReactNode[] = [];
-
-  parts.forEach((textPart, i) => {
-    if (textPart) {
-      textPart.split(/(@\w+)/g).forEach((chunk, j) => {
-        const stripped = chunk.startsWith("@") ? chunk.slice(1) : null;
-        if (stripped !== null) {
-          if (stripped === "everyone" || memberUsernames.has(stripped)) {
-            const isSelf =
-              stripped !== "everyone" && stripped === currentUsername;
-            textNodes.push(
-              <Text
-                key={`t${i}-${j}`}
-                style={isSelf ? mentionSelfStyle : mentionStyle}
-              >
-                {chunk}
-              </Text>,
-            );
-            return;
-          }
-        }
-        textNodes.push(<Text key={`t${i}-${j}`}>{chunk}</Text>);
-      });
-    }
-
-    const url = urlMatches[i];
-    if (url) {
-      if (isImageUrl(url)) {
-        // Image goes into imageNodes (outside <Text>)
-        imageNodes.push(
-          <Image
-            key={`u${i}`}
-            source={{ uri: url }}
-            style={inlineImageStyle}
-            resizeMode="contain"
-          />,
-        );
-      } else {
-        // Non-image link stays in textNodes (inside <Text>)
-        textNodes.push(
-          <Text
-            key={`u${i}`}
-            style={linkStyle}
-            onPress={() => {
-              Linking.openURL(url).catch((err: unknown) => {
-                console.warn("[ChatScreen] Linking.openURL failed", {
-                  url,
-                  err,
-                });
-                Alert.alert(
-                  "Could not open link",
-                  "This link cannot be opened on your device.",
-                );
-              });
-            }}
-          >
-            {url}
-          </Text>,
-        );
+  // Extract first non-image link for preview
+  function findFirstLink(segs: MarkdownSegment[]): string | null {
+    for (const seg of segs) {
+      if (seg.type === "text") {
+        const urls = extractUrls(seg.content);
+        const link = urls.find((u) => !isImageUrl(u));
+        if (link) return link;
+      } else if ("content" in seg && Array.isArray(seg.content)) {
+        const found = findFirstLink(seg.content);
+        if (found) return found;
       }
     }
-  });
+    return null;
+  }
 
-  return { textNodes, imageNodes, firstLinkUrl };
+  const firstLinkUrl = findFirstLink(segments);
+  const contentNodes = segments.map((seg, i) =>
+    renderSegment(
+      seg,
+      memberUsernames,
+      currentUsername,
+      textColor,
+      `root-${i}`,
+    ),
+  );
+
+  return { contentNodes, firstLinkUrl };
 }
 
 const mentionStyle = {
@@ -411,11 +570,21 @@ export function ChatScreen({ route, navigation }: Props) {
     deleteMessage,
     setReplyingTo,
     clearMessages,
+    updateMessagePoll,
   } = useMessageStore();
 
   const [content, setContent] = useState("");
   const [pendingFiles, setPendingFiles] = useState<MobileFile[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // ── Slash commands state ──────────────────────────────────
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  type ActiveCommand =
+    | { type: "giphy"; query: string }
+    | { type: "poll"; prefill: string }
+    | { type: "event"; prefill: string }
+    | null;
+  const [activeCommand, setActiveCommand] = useState<ActiveCommand>(null);
   const [editContent, setEditContent] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
@@ -537,6 +706,42 @@ export function ChatScreen({ route, navigation }: Props) {
       // Error handled by store
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // ── Slash command handlers ────────────────────────────────
+
+  const handleSlashSelect = (command: SlashCommand) => {
+    setSlashQuery(null);
+
+    if (command.name === "spoiler") {
+      if (content.trim()) {
+        setContent(`||${content.trim()}||`);
+      } else {
+        setContent("||||");
+      }
+      return;
+    }
+
+    const slashIdx = content.lastIndexOf("/");
+    const argText = content.slice(slashIdx + command.name.length + 1).trim();
+    setContent("");
+
+    if (command.name === "giphy") {
+      setActiveCommand({ type: "giphy", query: argText });
+    } else if (command.name === "poll") {
+      setActiveCommand({ type: "poll", prefill: argText });
+    } else if (command.name === "event") {
+      setActiveCommand({ type: "event", prefill: argText });
+    }
+  };
+
+  const handleGifSelect = async (gif: GifResult) => {
+    setActiveCommand(null);
+    try {
+      await sendMessage(channelId, { content: gif.url });
+    } catch {
+      // Error handled by store
     }
   };
 
@@ -900,29 +1105,30 @@ export function ChatScreen({ route, navigation }: Props) {
               <>
                 {item.content !== "\u200b" &&
                   (() => {
-                    const { textNodes, imageNodes, firstLinkUrl } =
-                      renderContent(
-                        item.content,
-                        memberUsernameSet,
-                        user?.username ?? null,
-                      );
+                    const textColor = isOwn ? "#fff" : "#dcddde";
+                    const { contentNodes, firstLinkUrl } = renderContent(
+                      item.content,
+                      memberUsernameSet,
+                      user?.username ?? null,
+                      textColor,
+                    );
                     return (
                       <>
-                        <Text
-                          style={isOwn ? styles.contentOwn : styles.content}
-                        >
-                          {textNodes}
-                        </Text>
-                        {imageNodes.length > 0 && (
-                          <View style={styles.inlineImagesRow}>
-                            {imageNodes}
-                          </View>
-                        )}
+                        <View style={styles.contentView}>{contentNodes}</View>
                         {firstLinkUrl && <LinkPreview url={firstLinkUrl} />}
                       </>
                     );
                   })()}
                 {renderAttachments(item.id)}
+                {item.poll && (
+                  <PollCard
+                    poll={item.poll}
+                    onUpdate={(updated) =>
+                      updateMessagePoll(updated.id, updated)
+                    }
+                  />
+                )}
+                {item.event && <EventCard event={item.event} />}
               </>
             )}
             <Text style={styles.timestamp}>{formatTime(item.created_at)}</Text>
@@ -1036,6 +1242,11 @@ export function ChatScreen({ route, navigation }: Props) {
         </View>
       )}
 
+      {/* Slash command picker — shown above input bar when / is typed */}
+      {slashQuery !== null && (
+        <SlashCommandPicker query={slashQuery} onSelect={handleSlashSelect} />
+      )}
+
       {/* Input bar */}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={handlePickFile} style={styles.attachBtn}>
@@ -1044,7 +1255,11 @@ export function ChatScreen({ route, navigation }: Props) {
         <TextInput
           style={styles.textInput}
           value={content}
-          onChangeText={setContent}
+          onChangeText={(text) => {
+            setContent(text);
+            const trigger = detectSlashTrigger(text, text.length);
+            setSlashQuery(trigger);
+          }}
           placeholder="Message…"
           placeholderTextColor="#72767d"
           multiline
@@ -1164,6 +1379,30 @@ export function ChatScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* GIF / Poll / Event command modals */}
+      <GifPickerModal
+        visible={activeCommand?.type === "giphy"}
+        initialQuery={
+          activeCommand?.type === "giphy" ? activeCommand.query : ""
+        }
+        onSelect={handleGifSelect}
+        onClose={() => setActiveCommand(null)}
+      />
+      <PollFormModal
+        visible={activeCommand?.type === "poll"}
+        channelId={channelId}
+        prefill={activeCommand?.type === "poll" ? activeCommand.prefill : ""}
+        onSubmit={() => setActiveCommand(null)}
+        onClose={() => setActiveCommand(null)}
+      />
+      <EventFormModal
+        visible={activeCommand?.type === "event"}
+        channelId={channelId}
+        prefill={activeCommand?.type === "event" ? activeCommand.prefill : ""}
+        onSubmit={() => setActiveCommand(null)}
+        onClose={() => setActiveCommand(null)}
+      />
     </View>
   );
 }
@@ -1266,6 +1505,9 @@ const styles = StyleSheet.create({
   contentOwn: {
     color: "#fff",
     fontSize: 15,
+  },
+  contentView: {
+    flexDirection: "column",
   },
   deletedText: {
     color: "#72767d",

@@ -14,6 +14,7 @@ import type {
   DirectMessageChannel,
   DirectMessage,
   ReactionEvent,
+  PollVoteEvent,
 } from "../types";
 
 export function useWebSocket() {
@@ -27,6 +28,7 @@ export function useWebSocket() {
   const updateMessage = useMessageStore((s) => s.updateMessage);
   const removeMessage = useMessageStore((s) => s.removeMessage);
   const addThreadMessage = useMessageStore((s) => s.addThreadMessage);
+  const updateMessagePoll = useMessageStore((s) => s.updateMessagePoll);
 
   const setDmChannels = useDmStore((s) => s.setChannels);
   const addDmChannel = useDmStore((s) => s.addChannel);
@@ -96,6 +98,10 @@ export function useWebSocket() {
         addThreadMessage(msg);
       }),
 
+      gateway.on("POLL_VOTE", (event: PollVoteEvent) => {
+        updateMessagePoll(event.poll_id, event.updated_poll);
+      }),
+
       // Reaction events are handled by the ReactionBar component via its own
       // store subscription — no action needed here at the app level.
       gateway.on("REACTION_ADD", (_event: ReactionEvent) => {}),
@@ -130,5 +136,6 @@ export function useWebSocket() {
     incrementUnread,
     setMentionCounts,
     incrementMention,
+    updateMessagePoll,
   ]);
 }

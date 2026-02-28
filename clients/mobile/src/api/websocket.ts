@@ -11,6 +11,7 @@ import type {
   DmMessageCreateEvent,
   ReactionAddEvent,
   ReactionRemoveEvent,
+  PollVoteEvent,
 } from "../types";
 import { storage } from "../utils/storage";
 import { SERVER_URL_KEY } from "../utils/platform";
@@ -30,6 +31,7 @@ interface EventHandlers {
   REACTION_ADD: EventHandler<ReactionAddEvent>;
   REACTION_REMOVE: EventHandler<ReactionRemoveEvent>;
   THREAD_MESSAGE_CREATE: EventHandler<Message>;
+  POLL_VOTE: EventHandler<PollVoteEvent>;
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
   permanently_disconnected: EventHandler<void>;

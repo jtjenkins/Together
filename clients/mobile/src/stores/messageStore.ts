@@ -4,6 +4,7 @@ import type {
   CreateMessageRequest,
   MessageDeleteEvent,
   Attachment,
+  PollDto,
 } from "../types";
 import { api, ApiRequestError, type MobileFile } from "../api/client";
 
@@ -53,6 +54,8 @@ interface MessageState {
   ) => Promise<void>;
   /** Called when a THREAD_MESSAGE_CREATE WebSocket event arrives. */
   addThreadMessage: (msg: Message) => void;
+  /** Called when a POLL_VOTE WebSocket event arrives — updates poll data in messages. */
+  updateMessagePoll: (pollId: string, poll: PollDto) => void;
 }
 
 export const useMessageStore = create<MessageState>((set) => ({
@@ -268,6 +271,13 @@ export const useMessageStore = create<MessageState>((set) => ({
       throw err;
     }
   },
+
+  updateMessagePoll: (pollId, poll) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.poll?.id === pollId ? { ...m, poll } : m,
+      ),
+    })),
 
   addThreadMessage: (msg) => {
     if (!msg.thread_id) {

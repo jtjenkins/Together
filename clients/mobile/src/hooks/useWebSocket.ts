@@ -15,6 +15,7 @@ import type {
   DmMessageCreateEvent,
   ReactionAddEvent,
   ReactionRemoveEvent,
+  PollVoteEvent,
 } from "../types";
 
 export function useWebSocket() {
@@ -98,6 +99,12 @@ export function useWebSocket() {
 
       gateway.on("REACTION_REMOVE", (_data: ReactionRemoveEvent) => {
         // Same as REACTION_ADD — local screen state handles re-fetch.
+      }),
+
+      gateway.on("POLL_VOTE", (event: PollVoteEvent) => {
+        useMessageStore
+          .getState()
+          .updateMessagePoll(event.poll_id, event.updated_poll);
       }),
 
       gateway.on("connected", () => {

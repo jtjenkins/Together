@@ -14,11 +14,14 @@ import { useServerStore } from "../../stores/serverStore";
 import { formatMessageTime } from "../../utils/formatTime";
 import { parseEmoji } from "../../utils/emoji";
 import { extractUrls, isImageUrl } from "../../utils/links";
+import { parseMarkdown, type MarkdownSegment } from "../../utils/markdown";
 import { api } from "../../api/client";
 import { ReactionBar } from "./ReactionBar";
 import { EmojiPicker } from "./EmojiPicker";
 import { LinkPreview } from "./LinkPreview";
-import type { MemberDto, Message, ReactionCount } from "../../types";
+import { PollCard } from "./PollCard";
+import { EventCard } from "./EventCard";
+import type { MemberDto, Message, PollDto, ReactionCount } from "../../types";
 import styles from "./MessageItem.module.css";
 
 interface RenderedContent {
@@ -28,21 +31,33 @@ interface RenderedContent {
   firstLinkUrl: string | null;
 }
 
-function renderContent(
-  content: string,
+function SpoilerText({ children }: { children: React.ReactNode }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <span
+      className={`${styles.spoiler} ${revealed ? styles.spoilerRevealed : ""}`}
+      onClick={() => setRevealed((v) => !v)}
+      role="button"
+      tabIndex={0}
+      aria-label={revealed ? "Hide spoiler" : "Show spoiler"}
+      onKeyDown={(e) => e.key === "Enter" && setRevealed((v) => !v)}
+    >
+      {revealed ? children : null}
+    </span>
+  );
+}
+
+function renderTextLeaf(
+  text: string,
   members: MemberDto[],
   currentUserId: string | null,
-): RenderedContent {
-  const processed = parseEmoji(content);
-
-  const allUrls = extractUrls(processed);
-  const firstLinkUrl = allUrls.find((u) => !isImageUrl(u)) ?? null;
-
+  keyPrefix: string,
+): React.ReactNode[] {
+  const processed = parseEmoji(text);
   const urlPattern = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
   const parts = processed.split(urlPattern);
   const urlMatches = [...processed.matchAll(urlPattern)].map((m) => m[0]);
-
-  const nodes: React.ReactNode[] = [];
+  const result: React.ReactNode[] = [];
 
   parts.forEach((textPart, i) => {
     if (textPart) {
@@ -50,8 +65,8 @@ function renderContent(
         const stripped = chunk.startsWith("@") ? chunk.slice(1) : null;
         if (stripped !== null) {
           if (stripped === "everyone") {
-            nodes.push(
-              <span key={`t${i}-${j}`} className={styles.mention}>
+            result.push(
+              <span key={`${keyPrefix}-t${i}-${j}`} className={styles.mention}>
                 {chunk}
               </span>,
             );
@@ -60,9 +75,9 @@ function renderContent(
           const matched = members.find((m) => m.username === stripped);
           if (matched) {
             const isSelf = matched.user_id === currentUserId;
-            nodes.push(
+            result.push(
               <span
-                key={`t${i}-${j}`}
+                key={`${keyPrefix}-t${i}-${j}`}
                 className={`${styles.mention} ${isSelf ? styles.mentionSelf : ""}`}
               >
                 {chunk}
@@ -71,16 +86,15 @@ function renderContent(
             return;
           }
         }
-        nodes.push(chunk);
+        result.push(chunk);
       });
     }
-
     const url = urlMatches[i];
     if (url) {
       if (isImageUrl(url)) {
-        nodes.push(
+        result.push(
           <a
-            key={`u${i}`}
+            key={`${keyPrefix}-u${i}`}
             href={url}
             target="_blank"
             rel="noreferrer"
@@ -90,9 +104,9 @@ function renderContent(
           </a>,
         );
       } else {
-        nodes.push(
+        result.push(
           <a
-            key={`u${i}`}
+            key={`${keyPrefix}-u${i}`}
             href={url}
             target="_blank"
             rel="noreferrer"
@@ -105,6 +119,102 @@ function renderContent(
     }
   });
 
+  return result;
+}
+
+function renderSegments(
+  segments: MarkdownSegment[],
+  members: MemberDto[],
+  currentUserId: string | null,
+  keyPrefix: string,
+): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+
+  segments.forEach((seg, i) => {
+    const key = `${keyPrefix}-${i}`;
+
+    if (seg.type === "text") {
+      nodes.push(...renderTextLeaf(seg.content, members, currentUserId, key));
+      return;
+    }
+
+    const inner =
+      "content" in seg && Array.isArray(seg.content)
+        ? renderSegments(seg.content, members, currentUserId, key)
+        : null;
+
+    switch (seg.type) {
+      case "bold":
+        nodes.push(<strong key={key}>{inner}</strong>);
+        break;
+      case "italic":
+        nodes.push(<em key={key}>{inner}</em>);
+        break;
+      case "bold_italic":
+        nodes.push(
+          <strong key={key}>
+            <em>{inner}</em>
+          </strong>,
+        );
+        break;
+      case "strikethrough":
+        nodes.push(<s key={key}>{inner}</s>);
+        break;
+      case "spoiler":
+        nodes.push(<SpoilerText key={key}>{inner}</SpoilerText>);
+        break;
+      case "code_inline":
+        nodes.push(
+          <code key={key} className={styles.codeInline}>
+            {seg.content}
+          </code>,
+        );
+        break;
+      case "code_block":
+        nodes.push(
+          <pre key={key} className={styles.codeBlock}>
+            {seg.lang && <span className={styles.codeLang}>{seg.lang}</span>}
+            <code>{seg.content}</code>
+          </pre>,
+        );
+        break;
+      case "blockquote":
+        nodes.push(
+          <blockquote key={key} className={styles.blockquote}>
+            {inner}
+          </blockquote>,
+        );
+        break;
+    }
+  });
+
+  return nodes;
+}
+
+function renderContent(
+  content: string,
+  members: MemberDto[],
+  currentUserId: string | null,
+): RenderedContent {
+  const segments = parseMarkdown(content);
+
+  // Extract first non-image URL from text leaf nodes for link preview
+  function findFirstLinkUrl(segs: MarkdownSegment[]): string | null {
+    for (const seg of segs) {
+      if (seg.type === "text") {
+        const urls = extractUrls(seg.content);
+        const link = urls.find((u) => !isImageUrl(u));
+        if (link) return link;
+      } else if ("content" in seg && Array.isArray(seg.content)) {
+        const found = findFirstLinkUrl(seg.content);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  const firstLinkUrl = findFirstLinkUrl(segments);
+  const nodes = renderSegments(segments, members, currentUserId, "root");
   return { nodes, firstLinkUrl };
 }
 
@@ -138,6 +248,7 @@ export function MessageItem({
   const attachments = useMessageStore(
     (s) => s.attachmentCache[message.id] ?? [],
   );
+  const updateMessagePoll = useMessageStore((s) => s.updateMessagePoll);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
@@ -350,6 +461,15 @@ export function MessageItem({
                   )}
                 </div>
               )}
+              {message.poll && (
+                <PollCard
+                  poll={message.poll}
+                  onUpdate={(updated: PollDto) =>
+                    updateMessagePoll(updated.id, updated)
+                  }
+                />
+              )}
+              {message.event && <EventCard event={message.event} />}
             </>
           )}
         </div>

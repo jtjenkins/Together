@@ -10,6 +10,7 @@ import type {
   DirectMessageChannel,
   DirectMessage,
   ReactionEvent,
+  PollVoteEvent,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -28,6 +29,7 @@ interface EventHandlers {
   REACTION_ADD: EventHandler<ReactionEvent>;
   REACTION_REMOVE: EventHandler<ReactionEvent>;
   THREAD_MESSAGE_CREATE: EventHandler<Message>;
+  POLL_VOTE: EventHandler<PollVoteEvent>;
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
 }

@@ -12,8 +12,18 @@ import { useMessageStore } from "../../stores/messageStore";
 import { useChannelStore } from "../../stores/channelStore";
 import { extractUrls, isImageUrl } from "../../utils/links";
 import { searchEmoji } from "../../utils/emoji";
+import {
+  detectSlashTrigger,
+  searchCommands,
+  type SlashCommand,
+} from "../../utils/slashCommands";
 import { EmojiAutocomplete } from "./EmojiAutocomplete";
 import { LinkPreview } from "./LinkPreview";
+import { SlashCommandPicker } from "./SlashCommandPicker";
+import { GifPicker } from "./GifPicker";
+import { PollForm } from "./PollForm";
+import { EventForm } from "./EventForm";
+import type { GifResult } from "../../types";
 import styles from "./MessageInput.module.css";
 
 interface MessageInputProps {
@@ -26,6 +36,14 @@ export function MessageInput({ channelId }: MessageInputProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [emojiQuery, setEmojiQuery] = useState<string | null>(null);
   const [emojiActiveIdx, setEmojiActiveIdx] = useState(0);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [slashActiveIdx, setSlashActiveIdx] = useState(0);
+  type ActiveCommand =
+    | { type: "giphy"; query: string }
+    | { type: "poll"; prefill: string }
+    | { type: "event"; prefill: string }
+    | null;
+  const [activeCommand, setActiveCommand] = useState<ActiveCommand>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const sendMessage = useMessageStore((s) => s.sendMessage);
   const replyingTo = useMessageStore((s) => s.replyingTo);
@@ -62,6 +80,8 @@ export function MessageInput({ channelId }: MessageInputProps) {
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
+    // Don't submit while a command form (poll/event/gif) is open
+    if (activeCommand !== null) return;
     const trimmed = content.trim();
     if (!trimmed && pendingFiles.length === 0) return;
 
@@ -79,19 +99,33 @@ export function MessageInput({ channelId }: MessageInputProps) {
       setPendingFiles([]);
       setEmojiQuery(null);
       setEmojiActiveIdx(0);
+      setSlashQuery(null);
+      setSlashActiveIdx(0);
+      setActiveCommand(null);
       inputRef.current?.focus();
     } catch {
       // Error shown via store
     }
   };
 
-  /** Detect emoji trigger inline — called from onChange and onSelect on the textarea. */
-  function detectEmojiTrigger() {
+  /** Detect emoji and slash triggers — called from onChange and onSelect on the textarea. */
+  function detectAllTriggers() {
     const cursor = inputRef.current?.selectionStart ?? content.length;
     const before = content.slice(0, cursor);
-    const match = before.match(/:([a-zA-Z0-9_+-]{1,})$/);
-    setEmojiQuery(match ? match[1] : null);
-    if (!match) setEmojiActiveIdx(0);
+
+    // Emoji trigger
+    const emojiMatch = before.match(/:([a-zA-Z0-9_+-]{1,})$/);
+    setEmojiQuery(emojiMatch ? emojiMatch[1] : null);
+    if (!emojiMatch) setEmojiActiveIdx(0);
+
+    // Slash trigger (only when no emoji trigger active)
+    if (!emojiMatch) {
+      const sq = detectSlashTrigger(content, cursor);
+      setSlashQuery(sq);
+      if (sq === null) setSlashActiveIdx(0);
+    } else {
+      setSlashQuery(null);
+    }
   }
 
   /** Apply a selected emoji, replacing the :query text. */
@@ -112,7 +146,75 @@ export function MessageInput({ channelId }: MessageInputProps) {
     });
   }
 
+  /** Apply a selected slash command — clear input and open the appropriate UI. */
+  function handleSlashSelect(command: SlashCommand) {
+    const cursor = inputRef.current?.selectionStart ?? content.length;
+    const slashIdx = content.slice(0, cursor).lastIndexOf("/");
+    const argText = content.slice(slashIdx + command.name.length + 1).trim();
+
+    setSlashQuery(null);
+    setSlashActiveIdx(0);
+
+    if (command.name === "spoiler") {
+      const el = inputRef.current;
+      if (!el) return;
+      const start = el.selectionStart ?? cursor;
+      const end = el.selectionEnd ?? cursor;
+      const selected = content.slice(start, end);
+      if (selected.length > 0) {
+        setContent(
+          content.slice(0, start) + `||${selected}||` + content.slice(end),
+        );
+      } else {
+        const next =
+          content.slice(0, slashIdx) + "||||" + content.slice(cursor);
+        setContent(next);
+        requestAnimationFrame(() => {
+          el.focus();
+          el.setSelectionRange(slashIdx + 2, slashIdx + 2);
+        });
+      }
+      return;
+    }
+
+    setContent("");
+    if (command.name === "giphy") {
+      setActiveCommand({ type: "giphy", query: argText });
+    } else if (command.name === "poll") {
+      setActiveCommand({ type: "poll", prefill: argText });
+    } else if (command.name === "event") {
+      setActiveCommand({ type: "event", prefill: argText });
+    }
+  }
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Slash command navigation — checked before emoji so both don't fire at once
+    if (slashQuery !== null) {
+      const results = searchCommands(slashQuery);
+      if (results.length > 0) {
+        if (e.key === "ArrowDown") {
+          setSlashActiveIdx((i) => Math.min(i + 1, results.length - 1));
+          e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          setSlashActiveIdx((i) => Math.max(i - 1, 0));
+          e.preventDefault();
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          handleSlashSelect(results[slashActiveIdx]);
+          e.preventDefault();
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        setSlashQuery(null);
+        e.preventDefault();
+        return;
+      }
+    }
+
     if (emojiQuery !== null) {
       const results = searchEmoji(emojiQuery, 8);
       if (results.length > 0) {
@@ -219,7 +321,50 @@ export function MessageInput({ channelId }: MessageInputProps) {
         </div>
       )}
 
-      {previewUrl && (
+      {activeCommand?.type === "giphy" && (
+        <GifPicker
+          initialQuery={activeCommand.query}
+          onSelect={(gif: GifResult) => {
+            sendMessage(channelId, { content: gif.url });
+            setActiveCommand(null);
+            inputRef.current?.focus();
+          }}
+          onClose={() => {
+            setActiveCommand(null);
+            inputRef.current?.focus();
+          }}
+        />
+      )}
+      {activeCommand?.type === "poll" && (
+        <PollForm
+          channelId={channelId}
+          prefill={activeCommand.prefill}
+          onSubmit={() => {
+            setActiveCommand(null);
+            inputRef.current?.focus();
+          }}
+          onClose={() => {
+            setActiveCommand(null);
+            inputRef.current?.focus();
+          }}
+        />
+      )}
+      {activeCommand?.type === "event" && (
+        <EventForm
+          channelId={channelId}
+          prefill={activeCommand.prefill}
+          onSubmit={() => {
+            setActiveCommand(null);
+            inputRef.current?.focus();
+          }}
+          onClose={() => {
+            setActiveCommand(null);
+            inputRef.current?.focus();
+          }}
+        />
+      )}
+
+      {previewUrl && activeCommand === null && (
         <div className={styles.composePreview}>
           {isImageUrl(previewUrl) ? (
             <img
@@ -237,6 +382,14 @@ export function MessageInput({ channelId }: MessageInputProps) {
       )}
 
       <div className={styles.inputWrapper}>
+        {slashQuery !== null && (
+          <SlashCommandPicker
+            query={slashQuery}
+            activeIndex={slashActiveIdx}
+            onSelect={handleSlashSelect}
+            onClose={() => setSlashQuery(null)}
+          />
+        )}
         {emojiQuery !== null && (
           <EmojiAutocomplete
             query={emojiQuery}
@@ -273,9 +426,9 @@ export function MessageInput({ channelId }: MessageInputProps) {
             value={content}
             onChange={(e) => {
               setContent(e.target.value);
-              detectEmojiTrigger();
+              detectAllTriggers();
             }}
-            onSelect={detectEmojiTrigger}
+            onSelect={detectAllTriggers}
             onKeyDown={handleKeyDown}
             placeholder={`Message #${channel?.name ?? "channel"}`}
             rows={1}

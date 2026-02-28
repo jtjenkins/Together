@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use reqwest::Client;
 use sqlx::PgPool;
 
 use crate::handlers::link_preview::LinkPreviewCacheEntry;
@@ -23,4 +24,9 @@ pub struct AppState {
     /// Keyed by canonical URL string. Entries older than 24 hours are re-fetched.
     /// Capped at 10,000 entries to bound memory usage.
     pub link_preview_cache: Arc<Mutex<HashMap<String, LinkPreviewCacheEntry>>>,
+    /// Shared HTTP client for outbound requests (Giphy, etc.).
+    /// Note: link_preview uses its own per-request client (DNS rebinding protection).
+    pub http_client: Client,
+    /// Optional Giphy API key. If None, /giphy/search returns 503.
+    pub giphy_api_key: Option<Arc<str>>,
 }

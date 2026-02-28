@@ -23,6 +23,8 @@ import type {
   DirectMessage,
   ReactionCount,
   LinkPreviewDto,
+  GifResult,
+  PollDto,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -439,6 +441,39 @@ class ApiClient {
     return this.request<LinkPreviewDto>(
       `/link-preview?url=${encodeURIComponent(url)}`,
     );
+  }
+
+  searchGifs(q: string, limit = 15): Promise<GifResult[]> {
+    return this.request<GifResult[]>(
+      `/giphy/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    );
+  }
+
+  createPoll(
+    channelId: string,
+    data: { question: string; options: string[] },
+  ): Promise<Message> {
+    return this.request<Message>(`/channels/${channelId}/polls`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  castVote(pollId: string, optionId: string): Promise<PollDto> {
+    return this.request<PollDto>(`/polls/${pollId}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ option_id: optionId }),
+    });
+  }
+
+  createEvent(
+    channelId: string,
+    data: { name: string; description?: string; starts_at: string },
+  ): Promise<Message> {
+    return this.request<Message>(`/channels/${channelId}/events`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 }
 

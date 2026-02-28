@@ -12,7 +12,7 @@ use super::shared::{fetch_channel_by_id, fetch_message, fetch_server, require_me
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
-    models::{CreateMessageDto, Message, UpdateMessageDto},
+    models::{CreateMessageDto, Message, MessageDto, PollDto, ServerEventDto, UpdateMessageDto},
     state::AppState,
     websocket::{
         broadcast_to_server,
@@ -22,6 +22,8 @@ use crate::{
         },
     },
 };
+
+use super::polls::fetch_poll_dto;
 
 // ============================================================================
 // Input validation
@@ -93,6 +95,98 @@ fn validation_error(e: validator::ValidationErrors) -> AppError {
     )
 }
 
+/// Row types for enrich_messages sub-queries
+#[derive(sqlx::FromRow)]
+struct PollMapRow {
+    id: uuid::Uuid,
+    message_id: uuid::Uuid,
+}
+
+#[derive(sqlx::FromRow)]
+struct EventMapRow {
+    id: uuid::Uuid,
+    message_id: uuid::Uuid,
+    name: String,
+    description: Option<String>,
+    starts_at: chrono::DateTime<chrono::Utc>,
+    created_by: Option<uuid::Uuid>,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Batch-enrich a list of messages with poll and event data.
+/// Runs 2 queries regardless of message count (no N+1 for event/poll mapping),
+/// plus one query per poll found on this page (typically 0–2 per page).
+async fn enrich_messages(
+    pool: &sqlx::PgPool,
+    caller_id: uuid::Uuid,
+    messages: Vec<Message>,
+) -> AppResult<Vec<MessageDto>> {
+    if messages.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let ids: Vec<uuid::Uuid> = messages.iter().map(|m| m.id).collect();
+
+    // Map message_id → (poll_id, channel_id)
+    let poll_rows = sqlx::query_as::<_, PollMapRow>(
+        "SELECT id, message_id FROM polls WHERE message_id = ANY($1)",
+    )
+    .bind(&ids as &[uuid::Uuid])
+    .fetch_all(pool)
+    .await?;
+
+    // Map message_id → ServerEventDto
+    let event_rows = sqlx::query_as::<_, EventMapRow>(
+        "SELECT id, message_id, name, description, starts_at, created_by, created_at
+         FROM server_events WHERE message_id = ANY($1)",
+    )
+    .bind(&ids as &[uuid::Uuid])
+    .fetch_all(pool)
+    .await?;
+
+    // Build poll_id map: message_id → poll_id
+    let poll_id_map: std::collections::HashMap<uuid::Uuid, uuid::Uuid> =
+        poll_rows.iter().map(|r| (r.message_id, r.id)).collect();
+
+    // Build event map: message_id → ServerEventDto
+    let mut event_map: std::collections::HashMap<uuid::Uuid, ServerEventDto> = event_rows
+        .into_iter()
+        .map(|r| {
+            (
+                r.message_id,
+                ServerEventDto {
+                    id: r.id,
+                    name: r.name,
+                    description: r.description,
+                    starts_at: r.starts_at,
+                    created_by: r.created_by,
+                    created_at: r.created_at,
+                },
+            )
+        })
+        .collect();
+
+    // Fetch PollDtos (one call per poll; typically 0–2 per page)
+    let mut poll_dto_map: std::collections::HashMap<uuid::Uuid, PollDto> =
+        std::collections::HashMap::new();
+    for (msg_id, poll_id) in &poll_id_map {
+        if let Ok(dto) = fetch_poll_dto(pool, *poll_id, caller_id).await {
+            poll_dto_map.insert(*msg_id, dto);
+        }
+    }
+
+    Ok(messages
+        .into_iter()
+        .map(|m| {
+            let id = m.id;
+            let mut dto = MessageDto::from_message(m);
+            dto.poll = poll_dto_map.remove(&id);
+            dto.event = event_map.remove(&id);
+            dto
+        })
+        .collect())
+}
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -103,7 +197,7 @@ pub async fn create_message(
     auth: AuthUser,
     Path(channel_id): Path<Uuid>,
     Json(req): Json<CreateMessageRequest>,
-) -> AppResult<(StatusCode, Json<Message>)> {
+) -> AppResult<(StatusCode, Json<MessageDto>)> {
     req.validate().map_err(validation_error)?;
 
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
@@ -183,17 +277,19 @@ pub async fn create_message(
     .fetch_one(&state.pool)
     .await?;
 
-    // Broadcast MESSAGE_CREATE to all connected server members.
-    match serde_json::to_value(&message) {
-        Ok(payload) => {
-            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_CREATE, payload).await;
-        }
-        Err(e) => {
-            tracing::error!(message_id = %message.id, error = ?e, "Failed to serialize message for broadcast");
-        }
-    }
+    let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
+    let dto = enriched.into_iter().next().unwrap();
 
-    Ok((StatusCode::CREATED, Json(message)))
+    // Broadcast MESSAGE_CREATE to all connected server members.
+    broadcast_to_server(
+        &state,
+        channel.server_id,
+        EVENT_MESSAGE_CREATE,
+        serde_json::to_value(&dto).unwrap_or_default(),
+    )
+    .await;
+
+    Ok((StatusCode::CREATED, Json(dto)))
 }
 
 /// GET /channels/:channel_id/messages — list messages with cursor pagination (members only).
@@ -208,7 +304,7 @@ pub async fn list_messages(
     auth: AuthUser,
     Path(channel_id): Path<Uuid>,
     Query(query): Query<ListMessagesQuery>,
-) -> AppResult<Json<Vec<Message>>> {
+) -> AppResult<Json<Vec<MessageDto>>> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
@@ -264,7 +360,8 @@ pub async fn list_messages(
         .await?
     };
 
-    Ok(Json(messages))
+    let enriched = enrich_messages(&state.pool, auth.user_id(), messages).await?;
+    Ok(Json(enriched))
 }
 
 /// PATCH /messages/:message_id — edit a message's content (author only).
@@ -273,7 +370,7 @@ pub async fn update_message(
     auth: AuthUser,
     Path(message_id): Path<Uuid>,
     Json(req): Json<UpdateMessageRequest>,
-) -> AppResult<Json<Message>> {
+) -> AppResult<Json<MessageDto>> {
     req.validate().map_err(validation_error)?;
 
     let message = fetch_message(&state.pool, message_id).await?;
@@ -349,17 +446,19 @@ pub async fn update_message(
     .await?
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
-    // Broadcast MESSAGE_UPDATE to all connected server members.
-    match serde_json::to_value(&updated) {
-        Ok(payload) => {
-            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_UPDATE, payload).await;
-        }
-        Err(e) => {
-            tracing::error!(message_id = %updated.id, error = ?e, "Failed to serialize message for broadcast");
-        }
-    }
+    let enriched = enrich_messages(&state.pool, auth.user_id(), vec![updated]).await?;
+    let dto = enriched.into_iter().next().unwrap();
 
-    Ok(Json(updated))
+    // Broadcast MESSAGE_UPDATE to all connected server members.
+    broadcast_to_server(
+        &state,
+        channel.server_id,
+        EVENT_MESSAGE_UPDATE,
+        serde_json::to_value(&dto).unwrap_or_default(),
+    )
+    .await;
+
+    Ok(Json(dto))
 }
 
 /// DELETE /messages/:message_id — soft-delete a message (author or server owner).
@@ -421,7 +520,7 @@ pub async fn create_thread_reply(
     auth: AuthUser,
     Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<CreateThreadReplyRequest>,
-) -> AppResult<(StatusCode, Json<Message>)> {
+) -> AppResult<(StatusCode, Json<MessageDto>)> {
     req.validate().map_err(validation_error)?;
 
     // Auth check first — fetch the channel and verify membership before
@@ -491,27 +590,19 @@ pub async fn create_thread_reply(
     .fetch_one(&state.pool)
     .await?;
 
-    // Broadcast THREAD_MESSAGE_CREATE to all connected server members.
-    match serde_json::to_value(&message) {
-        Ok(payload) => {
-            broadcast_to_server(
-                &state,
-                channel.server_id,
-                EVENT_THREAD_MESSAGE_CREATE,
-                payload,
-            )
-            .await;
-        }
-        Err(e) => {
-            tracing::error!(
-                message_id = %message.id,
-                error = ?e,
-                "Failed to serialize thread reply for broadcast"
-            );
-        }
-    }
+    let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
+    let dto = enriched.into_iter().next().unwrap();
 
-    Ok((StatusCode::CREATED, Json(message)))
+    // Broadcast THREAD_MESSAGE_CREATE to all connected server members.
+    broadcast_to_server(
+        &state,
+        channel.server_id,
+        EVENT_THREAD_MESSAGE_CREATE,
+        serde_json::to_value(&dto).unwrap_or_default(),
+    )
+    .await;
+
+    Ok((StatusCode::CREATED, Json(dto)))
 }
 
 /// GET /channels/:channel_id/messages/:message_id/thread — list thread replies.
@@ -528,7 +619,7 @@ pub async fn list_thread_replies(
     auth: AuthUser,
     Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
     Query(query): Query<ListMessagesQuery>,
-) -> AppResult<Json<Vec<Message>>> {
+) -> AppResult<Json<Vec<MessageDto>>> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
@@ -580,5 +671,6 @@ pub async fn list_thread_replies(
         .await?
     };
 
-    Ok(Json(replies))
+    let enriched = enrich_messages(&state.pool, auth.user_id(), replies).await?;
+    Ok(Json(enriched))
 }

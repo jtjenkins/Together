@@ -94,12 +94,23 @@ async fn main() {
         .expect("Failed to create upload directory");
     info!("📂 Upload directory: {}", config.upload_dir.display());
 
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("Failed to build HTTP client");
+
+    let giphy_api_key = std::env::var("GIPHY_API_KEY")
+        .ok()
+        .map(|k| Arc::from(k.as_str()));
+
     let app_state = AppState {
         pool,
         jwt_secret: config.jwt_secret,
         connections: ConnectionManager::new(),
         upload_dir: config.upload_dir.clone(),
         link_preview_cache: Arc::new(Mutex::new(HashMap::new())),
+        http_client,
+        giphy_api_key,
     };
 
     // Prometheus metrics layer
@@ -113,6 +124,7 @@ async fn main() {
             "/link-preview",
             get(handlers::link_preview::get_link_preview),
         )
+        .route("/giphy/search", get(handlers::giphy::search_giphy))
         .route(
             "/metrics",
             get(move || async move { metric_handle.render() }),
@@ -234,6 +246,19 @@ async fn main() {
             "/files/:message_id/*filepath",
             get(handlers::attachments::serve_file),
         )
+        // Poll routes (protected, nested under channel)
+        .route(
+            "/channels/:channel_id/polls",
+            post(handlers::polls::create_poll),
+        )
+        .route("/polls/:poll_id", get(handlers::polls::get_poll))
+        .route("/polls/:poll_id/vote", post(handlers::polls::cast_vote))
+        // Event routes (protected, nested under channel or server)
+        .route(
+            "/channels/:channel_id/events",
+            post(handlers::events::create_event),
+        )
+        .route("/servers/:id/events", get(handlers::events::list_events))
         // Voice routes (protected, nested under channel)
         .route(
             "/channels/:channel_id/voice",

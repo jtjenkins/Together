@@ -23,6 +23,7 @@ sqlx = { version = "0.7", features = [
     "runtime-tokio-native-tls",
     "uuid",
     "chrono",
+    "json",
     "migrate",
 ] }
 
@@ -54,6 +55,7 @@ axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers f
 scraper = "0.19"             # HTML parsing for OG tag extraction
 url = "2"                    # URL parsing (used by reqwest internally, now explicit)
 reqwest = { version = "0.11", features = ["json"] }  # HTTP client for link preview fetching
+urlencoding = "2"            # URL percent-encoding for Giphy search query
 
 # Phase 3+ dependencies (add as needed):
 # tokio-tungstenite = "0.21"   # WebSocket (Phase 3)
