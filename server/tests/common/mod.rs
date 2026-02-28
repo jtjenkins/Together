@@ -155,6 +155,19 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/channels/:channel_id/messages/:message_id/reactions/:emoji",
             delete(handlers::reactions::remove_reaction),
         )
+        // Poll routes
+        .route(
+            "/channels/:channel_id/polls",
+            post(handlers::polls::create_poll),
+        )
+        .route("/polls/:poll_id", get(handlers::polls::get_poll))
+        .route("/polls/:poll_id/vote", post(handlers::polls::cast_vote))
+        // Event routes
+        .route(
+            "/channels/:channel_id/events",
+            post(handlers::events::create_event),
+        )
+        .route("/servers/:id/events", get(handlers::events::list_events))
         // Read-state / ack routes
         .route(
             "/channels/:channel_id/ack",
