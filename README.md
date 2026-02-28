@@ -63,11 +63,11 @@ docker compose up -d
 Verify it's running:
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost/api/health
 # {"status":"ok","service":"together-server","version":"0.1.0","database":"ok"}
 ```
 
-Open your browser to **http://localhost:8080** (or wherever you host it) and create an account.
+Open **http://localhost** in a browser and create your first account.
 The first account you register becomes the server administrator.
 
 For a complete guide covering TLS, backups, upgrades, and firewall configuration, see
@@ -107,8 +107,8 @@ The monolithic design keeps hosting costs low (~$20/month on a small VPS), deplo
 ```bash
 cd clients/web
 npm install
-VITE_API_URL=http://localhost:8080 npm run dev
-# Opens at http://localhost:5173
+npm run dev
+# Opens at http://localhost:5173 (proxies /api → http://localhost:8080 via vite.config.ts)
 ```
 
 ### Desktop (Tauri)

@@ -15,7 +15,9 @@ services:
     restart: unless-stopped
 
   server:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
@@ -23,14 +25,34 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       APP_ENV: production
+      # ALLOWED_ORIGINS is not needed when the web UI is served through the
+      # Nginx reverse proxy (same origin). Only set this if you also expose
+      # the backend directly (BIND_BACKEND_PORT) and connect clients from
+      # a different origin.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
       RUST_LOG: ${RUST_LOG:-together_server=info,tower_http=info,sqlx=warn}
-    ports:
-      - "${BIND_PORT:-8080}:8080"
+      GIPHY_API_KEY: ${GIPHY_API_KEY:-}
+      UPLOAD_DIR: /app/uploads
+    # By default the backend is NOT exposed on the host — all traffic flows
+    # through the Nginx web service. Uncomment the lines below only if you
+    # want to reach the API directly (e.g. for testing or desktop/mobile apps
+    # that connect without the web UI).
+    # ports:
+    #   - "${BIND_BACKEND_PORT:-8080}:8080"
     volumes:
       - uploads_data:/app/uploads
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    depends_on:
+      - server
+    ports:
+      - "${BIND_PORT:-80}:80"
     restart: unless-stopped
 
 volumes:
