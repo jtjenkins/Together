@@ -5,7 +5,11 @@ import { formatMessageTime } from "../../utils/formatTime";
 import type { DirectMessageChannel } from "../../types";
 import styles from "./DMSidebar.module.css";
 
-export function DMSidebar() {
+interface DMSidebarProps {
+  onBack?: () => void;
+}
+
+export function DMSidebar({ onBack }: DMSidebarProps = {}) {
   const channels = useDmStore((s) => s.channels);
   const activeDmChannelId = useDmStore((s) => s.activeDmChannelId);
   const setActiveDmChannel = useDmStore((s) => s.setActiveDmChannel);
@@ -25,6 +29,15 @@ export function DMSidebar() {
   return (
     <div className={styles.sidebar}>
       <div className={styles.header}>
+        {onBack && (
+          <button
+            className={styles.backBtn}
+            onClick={onBack}
+            aria-label="Back to servers"
+          >
+            ←
+          </button>
+        )}
         <h2 className={styles.title}>Direct Messages</h2>
       </div>
 

@@ -15,6 +15,20 @@
   min-height: 49px;
 }
 
+.backBtn {
+  color: var(--text-secondary);
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.backBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
 .headerIcon {
   opacity: 0.7;
   flex-shrink: 0;

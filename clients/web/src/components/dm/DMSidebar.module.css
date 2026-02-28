@@ -15,6 +15,21 @@
   align-items: center;
 }
 
+.backBtn {
+  color: var(--text-secondary);
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  line-height: 1;
+  margin-right: 4px;
+}
+
+.backBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
 .title {
   font-size: 15px;
   font-weight: 600;

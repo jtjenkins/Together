@@ -16,6 +16,21 @@
   flex-shrink: 0;
 }
 
+.backBtn {
+  color: var(--text-secondary);
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  line-height: 1;
+  margin-right: 2px;
+}
+
+.backBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
 .channelIcon {
   color: var(--text-muted);
   flex-shrink: 0;
