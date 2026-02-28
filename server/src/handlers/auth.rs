@@ -1,4 +1,6 @@
 use axum::{extract::State, http::StatusCode, Json};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use uuid::Uuid;
@@ -14,13 +16,16 @@ use crate::{
     state::AppState,
 };
 
+/// Usernames must be alphanumeric or underscore, 2–32 characters.
+static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z0-9_]+$").unwrap());
+
 // ============================================================================
 // Request/Response Types
 // ============================================================================
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct RegisterRequest {
-    #[validate(length(min = 3, max = 32))]
+    #[validate(length(min = 2, max = 32), regex = "USERNAME_REGEX")]
     pub username: String,
     #[validate(email)]
     pub email: Option<String>,

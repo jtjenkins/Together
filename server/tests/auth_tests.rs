@@ -91,11 +91,11 @@ async fn register_validates_short_username() {
     let pool = common::test_pool().await;
     let app = common::create_test_app(pool);
 
-    // Username is exactly 2 characters — one below the 3-character minimum.
+    // Username is exactly 1 character — one below the 2-character minimum.
     let (status, body) = common::post_json(
         app,
         "/auth/register",
-        json!({ "username": "ab", "password": "securepassword123" }),
+        json!({ "username": "a", "password": "securepassword123" }),
     )
     .await;
 

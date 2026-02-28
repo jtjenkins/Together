@@ -2978,6 +2978,8 @@ dependencies = [
  "futures",
  "http-body-util",
  "jsonwebtoken",
+ "once_cell",
+ "regex",
  "reqwest",
  "scraper",
  "serde",
