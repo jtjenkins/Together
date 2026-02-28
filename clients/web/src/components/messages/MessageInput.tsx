@@ -60,6 +60,17 @@ export function MessageInput({ channelId }: MessageInputProps) {
 
   const channel = channels.find((c) => c.id === channelId);
 
+  const autoGrow = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, []);
+
+  useEffect(() => {
+    autoGrow();
+  }, [content, autoGrow]);
+
   // Debounced URL detection for compose-time link/image preview
   useEffect(() => {
     const id = setTimeout(() => {
@@ -510,6 +521,7 @@ export function MessageInput({ channelId }: MessageInputProps) {
             onChange={(e) => {
               setContent(e.target.value);
               detectAllTriggers(e.target.value); // pass fresh value to avoid stale closure
+              autoGrow();
             }}
             onSelect={() => detectAllTriggers()}
             onKeyDown={handleKeyDown}
