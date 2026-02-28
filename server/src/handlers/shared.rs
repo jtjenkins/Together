@@ -5,6 +5,21 @@ use crate::{
     models::{Channel, Message, Server, ServerMember},
 };
 
+/// Convert [`validator::ValidationErrors`] into an [`AppError::Validation`] with
+/// a human-readable message. Shared across all handler modules to avoid
+/// copy-pasting the same boilerplate.
+pub fn validation_error(e: validator::ValidationErrors) -> AppError {
+    AppError::Validation(
+        e.field_errors()
+            .values()
+            .flat_map(|v| v.iter())
+            .filter_map(|e| e.message.as_ref())
+            .map(|m| m.to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+    )
+}
+
 /// Fetch a non-deleted message by ID, returning 404 if not found or deleted.
 pub async fn fetch_message(pool: &sqlx::PgPool, message_id: Uuid) -> AppResult<Message> {
     sqlx::query_as::<_, Message>(

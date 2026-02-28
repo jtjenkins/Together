@@ -8,7 +8,7 @@ use serde_json::json;
 use uuid::Uuid;
 use validator::Validate;
 
-use super::shared::{fetch_channel_by_id, fetch_message, fetch_server, require_member};
+use super::shared::{fetch_channel_by_id, fetch_message, fetch_server, require_member, validation_error};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -82,18 +82,6 @@ pub struct ListMessagesQuery {
 // ============================================================================
 // Private helpers
 // ============================================================================
-
-fn validation_error(e: validator::ValidationErrors) -> AppError {
-    AppError::Validation(
-        e.field_errors()
-            .values()
-            .flat_map(|v| v.iter())
-            .filter_map(|e| e.message.as_ref())
-            .map(|m| m.to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
-    )
-}
 
 /// Row types for enrich_messages sub-queries
 #[derive(sqlx::FromRow)]
