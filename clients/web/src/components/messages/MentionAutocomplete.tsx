@@ -9,7 +9,14 @@ interface MentionAutocompleteProps {
   onClose: () => void;
 }
 
-/** Filter members by query against username and nickname, returns up to 8. */
+/**
+ * Filter members by query, returning up to 8 results.
+ *
+ * Matching rules:
+ * - Empty query: returns the first 8 members unfiltered.
+ * - Non-empty query: case-insensitive **substring** match against username or
+ *   nickname (not prefix-only — "ice" matches "alice").
+ */
 export function filterMembers(
   members: MemberDto[],
   query: string,

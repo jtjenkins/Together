@@ -128,10 +128,12 @@ export function MessageInput({ channelId }: MessageInputProps) {
       ? detectSlashTrigger(content, cursor)
       : null;
 
-    // Mention trigger: @word (zero or more chars) — only when no other trigger active
+    // Mention trigger: @word (zero or more chars) — only when no other trigger active.
+    // The pattern requires whitespace (or start-of-string) before @ to avoid
+    // treating email addresses embedded in text as mention triggers.
     const mentionMatch =
       !emojiMatch && slashTrigger === null
-        ? before.match(/@([a-zA-Z0-9_]*)$/)
+        ? before.match(/(?:^|\s)@([a-zA-Z0-9_]*)$/)
         : null;
 
     setEmojiQuery(emojiMatch ? emojiMatch[1] : null);
@@ -162,7 +164,12 @@ export function MessageInput({ channelId }: MessageInputProps) {
     });
   }
 
-  /** Apply a selected mention, replacing @query with @username followed by a space. */
+  /**
+   * Apply a selected mention, replacing @query with @username followed by a
+   * space. Focus and cursor position are restored asynchronously via
+   * requestAnimationFrame so the textarea does not stay blurred after a
+   * mouse-click selection.
+   */
   function applyMention(username: string) {
     const cursor = inputRef.current?.selectionStart ?? content.length;
     const before = content.slice(0, cursor);
@@ -291,7 +298,9 @@ export function MessageInput({ channelId }: MessageInputProps) {
           return;
         }
         if (e.key === "Enter" || e.key === "Tab") {
-          applyMention(results[mentionActiveIdx].username);
+          // Clamp index in case results shrunk while the user was navigating
+          const idx = Math.min(mentionActiveIdx, results.length - 1);
+          applyMention(results[idx].username);
           e.preventDefault();
           return;
         }

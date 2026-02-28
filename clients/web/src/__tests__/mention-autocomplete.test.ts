@@ -35,15 +35,26 @@ describe("filterMembers", () => {
     expect(result).toHaveLength(8);
   });
 
-  it("returns up to 8 members even if query matches more", () => {
-    // all 10 members match "a" (alice1, alice2, alice3, carol, dave, frank, grace, heidi)
-    // but cap is 8
-    const result = filterMembers(MEMBERS, "a");
-    expect(result.length).toBeLessThanOrEqual(8);
+  it("returns exactly 8 members even when more than 8 match", () => {
+    // Build 9 members that all share "x" — the cap of 8 must be enforced
+    const nine = Array.from({ length: 9 }, (_, i) =>
+      makeMember(`user_x${i}`),
+    );
+    expect(filterMembers(nine, "x")).toHaveLength(8);
   });
 
-  it("filters by username prefix case-insensitively", () => {
+  it("filters by username substring case-insensitively", () => {
     const result = filterMembers(MEMBERS, "ali");
+    const usernames = result.map((m) => m.username);
+    expect(usernames).toContain("alice1");
+    expect(usernames).toContain("alice2");
+    expect(usernames).toContain("alice3");
+    expect(usernames).not.toContain("bob");
+  });
+
+  it("matches mid-username substring (not prefix-only)", () => {
+    // "ice" is not a prefix of "alice1" but should still match
+    const result = filterMembers(MEMBERS, "ice");
     const usernames = result.map((m) => m.username);
     expect(usernames).toContain("alice1");
     expect(usernames).toContain("alice2");
