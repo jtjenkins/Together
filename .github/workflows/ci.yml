@@ -261,7 +261,6 @@ jobs:
         run: npm run build
         working-directory: clients/desktop
 
-
   # ── Desktop App: Build (Arch Linux) ────────────────────────────────────────
   desktop-build-arch:
     name: Desktop Build (Arch Linux)
