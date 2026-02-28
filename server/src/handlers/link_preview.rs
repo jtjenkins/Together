@@ -189,10 +189,7 @@ pub async fn get_link_preview(
 
     // ── Check cache ───────────────────────────────────────────────────────
     {
-        let cache = state.link_preview_cache.lock().unwrap_or_else(|poisoned| {
-            tracing::error!("link_preview_cache mutex is poisoned; recovering");
-            poisoned.into_inner()
-        });
+        let cache = state.link_preview_cache.read().await;
         if let Some(entry) = cache.get(&url_str) {
             if entry.is_fresh() {
                 return Ok(Json(entry.dto.clone()));
@@ -237,10 +234,7 @@ pub async fn get_link_preview(
 
     // ── Store in cache (skip if cache is full) ────────────────────────────
     {
-        let mut cache = state.link_preview_cache.lock().unwrap_or_else(|poisoned| {
-            tracing::error!("link_preview_cache mutex is poisoned; recovering");
-            poisoned.into_inner()
-        });
+        let mut cache = state.link_preview_cache.write().await;
         if cache.len() < MAX_CACHE_ENTRIES {
             cache.insert(url_str, LinkPreviewCacheEntry::new(dto.clone()));
         }
