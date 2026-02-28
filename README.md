@@ -1,39 +1,62 @@
 # Together
 
-**Self-hosted Discord alternative for small gaming communities.**
+**A self-hosted Discord alternative for small gaming communities.**
 
 Own your platform. No data sold, no surprise bans, no feature bloat — just a fast, private chat
 server you control.
 
----
-
-## Status
-
-All 7 development phases are complete.
-
-| Feature                          | Status |
-| -------------------------------- | ------ |
-| Authentication (JWT + bcrypt)    | ✅     |
-| Servers & Channels               | ✅     |
-| Text Chat (with pagination)      | ✅     |
-| Voice (WebRTC SFU)               | ✅     |
-| File Uploads (up to 50 MB)       | ✅     |
-| Desktop App (Tauri + React)      | ✅     |
-| Web App (React + Vite)           | ✅     |
-| Mobile App (React Native / Expo) | ✅     |
+> **Pre-production software.** Together is at version 0.0.1 and has not been independently
+> security-audited. Self-hosting is at your own risk. See [SECURITY.md](SECURITY.md) for the
+> full disclaimer.
 
 ---
 
-## Quick Start
+## Who Is This For?
+
+Together is designed for small, **private** communities of **20–500 people** — gaming groups,
+friend circles, small clubs — who want to own their communication platform instead of depending
+on a commercial service.
+
+It is **not** a federation protocol (like Matrix/Element) and is **not** designed to scale to
+thousands of users out of the box. If that's what you need, consider Mastodon, Matrix, or
+Rocket.Chat instead.
+
+---
+
+## Features
+
+| Feature | Status |
+|---|---|
+| Servers, channels, roles & permissions | ✅ |
+| Real-time text chat with threads | ✅ |
+| Direct messages | ✅ |
+| Voice channels (WebRTC SFU) | ✅ |
+| File & image uploads (up to 50 MB) | ✅ |
+| Emoji reactions, polls, server events | ✅ |
+| GIF picker (Giphy integration) | ✅ |
+| Slash commands & Discord-style markdown | ✅ |
+| Desktop app (Tauri — macOS, Windows, Linux) | ✅ |
+| Web app (any browser) | ✅ |
+| Mobile app (Tauri — Android & iOS) | ✅ |
+| Link previews | ✅ |
+| Rate limiting & basic security hardening | ✅ |
+
+---
+
+## Quick Start (Docker)
 
 ```bash
-git clone https://github.com/yourusername/together.git
-cd together
+git clone https://github.com/jtjenkins/Together.git
+cd Together
 
+# Generate a strong secret for signing JWTs
+openssl rand -hex 32
+
+# Configure your environment
 cp .env.example .env
-# Edit .env: set POSTGRES_PASSWORD and generate a JWT_SECRET with:
-#   openssl rand -hex 32
+# Edit .env — set POSTGRES_PASSWORD and paste your JWT_SECRET
 
+# Start everything
 docker compose up -d
 ```
 
@@ -44,45 +67,40 @@ curl http://localhost:8080/health
 # {"status":"ok","service":"together-server","version":"0.1.0","database":"ok"}
 ```
 
-See **[docs/self-hosting.md](docs/self-hosting.md)** for the full deployment guide, including
-backup, restore, TLS, and upgrade instructions.
+Open your browser to **http://localhost:8080** (or wherever you host it) and create an account.
+The first account you register becomes the server administrator.
+
+For a complete guide covering TLS, backups, upgrades, and firewall configuration, see
+**[docs/self-hosting.md](docs/self-hosting.md)**.
 
 ---
 
 ## Architecture
 
-Together is a **single Rust binary** backed by PostgreSQL — no microservices, no message queues,
-no Redis.
+Together is a **single Rust binary** backed by PostgreSQL — no microservices, no message
+queues, no Redis required.
 
 ```
 Clients (Desktop · Web · Mobile)
           │  HTTPS / WebSocket
           ▼
   Together Server (Rust/Axum)
-  ├── REST API (auth, servers, channels, messages, files, voice)
-  ├── WebSocket gateway (real-time events)
-  └── WebRTC signaling relay (voice)
+  ├── REST API  (auth, servers, channels, messages, files, polls, events)
+  ├── WebSocket gateway  (real-time MESSAGE_CREATE, PRESENCE_UPDATE, etc.)
+  └── WebRTC signaling relay  (voice channel coordination)
           │
           ▼
      PostgreSQL 16
 ```
 
-Target scale: **20–500 users**, <50 ms message delivery, <200 MB RAM. The architecture has a clear
-migration path to horizontal scaling if your community grows beyond that.
+**Target scale:** 20–500 users, <50 ms message delivery, <200 MB RAM.
+
+The monolithic design keeps hosting costs low (~$20/month on a small VPS), deployment simple
+(one `docker compose up`), and the codebase approachable for contributors.
 
 ---
 
-## Clients
-
-### Desktop (Tauri + React)
-
-```bash
-cd clients/desktop
-npm install
-npm run tauri dev
-```
-
-On first launch, enter your server URL (e.g. `http://localhost:8080`).
+## Client Setup (Development)
 
 ### Web (React + Vite)
 
@@ -90,88 +108,105 @@ On first launch, enter your server URL (e.g. `http://localhost:8080`).
 cd clients/web
 npm install
 VITE_API_URL=http://localhost:8080 npm run dev
+# Opens at http://localhost:5173
 ```
 
-### Mobile (Expo / React Native)
+### Desktop (Tauri)
 
 ```bash
-cd clients/mobile
+cd clients/desktop
 npm install
-npm run ios      # iOS simulator
-npm run android  # Android emulator
+npm run tauri dev
+# Enter your server URL on first launch
 ```
 
-The app prompts for a server URL on first launch.
+### Mobile (Tauri v2 — Android & iOS)
+
+The mobile clients share the same React frontend as the web app, served via Tauri's WebView.
+
+```bash
+# Android emulator
+cd clients/desktop
+npm run tauri android dev
+
+# iOS simulator (macOS + Xcode required)
+npm run tauri ios dev
+```
+
+> **iOS voice note:** WKWebView on iOS requires a TURN server (coturn) for voice channels to
+> work. See [docs/ios-voice.md](docs/ios-voice.md) for setup instructions.
 
 ---
 
 ## Development
 
-### Server (Rust)
+### Backend (Rust)
 
 ```bash
+# Start the dev database (PostgreSQL, port bound to 127.0.0.1)
+docker compose -f docker-compose.dev.yml up -d
+
 cd server
+cp .env.example .env    # set POSTGRES_PASSWORD and JWT_SECRET
 
-# Start the dev database
-docker compose -f ../docker-compose.dev.yml up -d
-
-# Copy and edit server-specific env
-cp .env.example .env
-
-# Run the server (auto-reloads with cargo-watch)
-~/.cargo/bin/cargo run
-
-# Run tests
-~/.cargo/bin/cargo test
-
-# Lint
-SQLX_OFFLINE=true ~/.cargo/bin/cargo clippy -- -D warnings
+~/.cargo/bin/cargo run  # starts on http://localhost:8080
+~/.cargo/bin/cargo test # runs all integration tests
 ```
 
 ### Web client
 
 ```bash
 cd clients/web
-npm test
+npm test          # interactive
+npm test -- --run # single pass
 npm run lint
+npx tsc --noEmit
 ```
 
-### Mobile client
-
-```bash
-cd clients/mobile
-npm test
-```
+For the full contribution guide (code style, PR process, project structure), see
+**[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ---
 
-## Deployment
+## Documentation
 
-Full self-hosting guide: **[docs/self-hosting.md](docs/self-hosting.md)**
-
-Covers: prerequisites, environment configuration, TLS, backup/restore, upgrades, and log
-management.
-
----
-
-## API Reference
-
-OpenAPI 3.1 spec: **[docs/openapi.yaml](docs/openapi.yaml)**
-
-All endpoints, request/response schemas, authentication requirements, and error shapes are
-documented there. Import into Swagger UI, Insomnia, or Postman.
+| Document | Description |
+|---|---|
+| [docs/self-hosting.md](docs/self-hosting.md) | Full deployment guide (TLS, backup, upgrade) |
+| [docs/openapi.yaml](docs/openapi.yaml) | OpenAPI 3.1 spec for all REST endpoints |
+| [docs/websocket-protocol.md](docs/websocket-protocol.md) | WebSocket gateway event reference |
+| [docs/architecture.md](docs/architecture.md) | Component design and database schema |
+| [docs/ios-voice.md](docs/ios-voice.md) | TURN server setup for iOS voice |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to set up a dev environment and submit PRs |
+| [SECURITY.md](SECURITY.md) | Security policy and pre-production disclaimer |
 
 ---
 
-## WebSocket Protocol
+## How This Project Was Built
 
-Gateway protocol reference: **[docs/websocket-protocol.md](docs/websocket-protocol.md)**
+Together was built using **[Claude Code](https://claude.ai/code)**, an AI coding assistant. The
+author has a disability that limits the amount of typing they can do, and Claude Code makes it
+possible to write and maintain a project of this scope. Every design decision, architectural
+choice, and code review was guided by a software engineer.
 
-Covers: connection lifecycle, message envelope format, all event types, voice signaling flow, and
-reconnection guidance.
+If you're curious about this development approach, or you use assistive tools yourself, you're
+very welcome here. See [CONTRIBUTING.md](CONTRIBUTING.md) for more.
 
 ---
 
 ## License
 
-[AGPL-3.0](LICENSE) — self-hostable forever.
+**[PolyForm Noncommercial License 1.0.0](LICENSE)**
+
+You may self-host Together for free for any non-commercial purpose. You may not sell Together
+or use it to generate revenue for a third party. The author retains all commercial rights.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). All skill levels welcome.
+
+## Code of Conduct
+
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Be kind.
