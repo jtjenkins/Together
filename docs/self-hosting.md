@@ -30,12 +30,20 @@ docker compose version   # must show v2.x
 
 ---
 
-## 1. Clone the repository
+## 1. Get the Compose file
+
+Pre-built images are published to Docker Hub on every release — **no need to clone the
+repository or compile anything.** Download just the two files you need:
 
 ```bash
-git clone https://github.com/jtjenkins/Together.git
-cd Together
+mkdir together && cd together
+curl -fsSL https://raw.githubusercontent.com/jtjenkins/Together/main/docker-compose.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/jtjenkins/Together/main/.env.example -o .env.example
 ```
+
+> **Building from source?** Clone the repo instead (`git clone https://github.com/jtjenkins/Together.git`)
+> and run `docker compose build` before `docker compose up -d`. This is only needed if you want
+> to modify the server or frontend code.
 
 ---
 
@@ -71,11 +79,14 @@ docker compose up -d
 
 This command:
 
-1. Builds the Rust backend image (first run takes ~2–3 minutes)
-2. Builds the React web UI and bundles it into an Nginx image
-3. Starts PostgreSQL and waits for it to be healthy
-4. Starts the backend (migrations run automatically on startup)
-5. Starts Nginx serving the web UI at `http://your-server:80`
+1. Pulls `jtjenkins/together-server:latest` and `jtjenkins/together-web:latest` from Docker Hub
+2. Starts PostgreSQL and waits for it to be healthy
+3. Starts the backend (migrations run automatically on startup)
+4. Starts Nginx serving the web UI at `http://your-server:80`
+
+> **Pinning a version:** Set `TOGETHER_VERSION=0.0.2` in your `.env` to lock to a specific
+> release instead of always pulling `latest`. Versioned images (e.g. `:0.0.2`) are published
+> for every tagged release.
 
 ---
 
@@ -120,12 +131,20 @@ If `database` is `"unavailable"`, PostgreSQL is still starting. Wait a few secon
 ## 6. Upgrading
 
 ```bash
-git pull
-docker compose build
+docker compose pull
 docker compose up -d
 ```
 
-Database migrations run automatically on server startup — no manual step needed.
+`docker compose pull` fetches the latest images from Docker Hub. Migrations run automatically
+on server startup — no manual step needed.
+
+To upgrade to a specific release, set `TOGETHER_VERSION` in `.env` first:
+
+```bash
+# Pin to v0.0.2 in .env, then:
+docker compose pull
+docker compose up -d
+```
 
 ---
 
@@ -229,6 +248,7 @@ server {
 
 | Variable            | Required | Default                        | Description                                       |
 |---------------------|----------|--------------------------------|---------------------------------------------------|
+| `TOGETHER_VERSION`  | No       | `latest`                       | Docker Hub image tag — pin to a release (e.g. `0.0.2`) |
 | `POSTGRES_USER`     | Yes      | —                              | PostgreSQL username                               |
 | `POSTGRES_PASSWORD` | Yes      | —                              | PostgreSQL password                               |
 | `POSTGRES_DB`       | Yes      | —                              | PostgreSQL database name                          |
