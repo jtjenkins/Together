@@ -84,10 +84,6 @@ This command:
 3. Starts the backend (migrations run automatically on startup)
 4. Starts Nginx serving the web UI at `http://your-server:80`
 
-> **Pinning a version:** Set `TOGETHER_VERSION=0.0.2` in your `.env` to lock to a specific
-> release instead of always pulling `latest`. Versioned images (e.g. `:0.0.2`) are published
-> for every tagged release.
-
 ---
 
 ## 4. Verify the deployment
@@ -137,14 +133,6 @@ docker compose up -d
 
 `docker compose pull` fetches the latest images from Docker Hub. Migrations run automatically
 on server startup — no manual step needed.
-
-To upgrade to a specific release, set `TOGETHER_VERSION` in `.env` first:
-
-```bash
-# Pin to v0.0.2 in .env, then:
-docker compose pull
-docker compose up -d
-```
 
 ---
 
@@ -248,7 +236,6 @@ server {
 
 | Variable            | Required | Default                        | Description                                       |
 |---------------------|----------|--------------------------------|---------------------------------------------------|
-| `TOGETHER_VERSION`  | No       | `latest`                       | Docker Hub image tag — pin to a release (e.g. `0.0.2`) |
 | `POSTGRES_USER`     | Yes      | —                              | PostgreSQL username                               |
 | `POSTGRES_PASSWORD` | Yes      | —                              | PostgreSQL password                               |
 | `POSTGRES_DB`       | Yes      | —                              | PostgreSQL database name                          |
