@@ -15,6 +15,7 @@ services:
     restart: unless-stopped
 
   server:
+    image: ${TOGETHER_IMAGE:-jtjenkins/together-server}:${TOGETHER_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -46,6 +47,7 @@ services:
     restart: unless-stopped
 
   web:
+    image: ${TOGETHER_IMAGE_WEB:-jtjenkins/together-web}:${TOGETHER_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile.web

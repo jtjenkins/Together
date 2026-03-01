@@ -50,17 +50,17 @@ Rocket.Chat instead.
 ## Quick Start (Docker)
 
 ```bash
-git clone https://github.com/jtjenkins/Together.git
-cd Together
+mkdir together && cd together
 
-# Generate a strong secret for signing JWTs
-openssl rand -hex 32
+# Download the Compose file and example config (no clone needed)
+curl -fsSL https://raw.githubusercontent.com/jtjenkins/Together/main/docker-compose.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/jtjenkins/Together/main/.env.example -o .env.example
 
 # Configure your environment
 cp .env.example .env
-# Edit .env — set POSTGRES_PASSWORD and paste your JWT_SECRET
+# Edit .env — set POSTGRES_PASSWORD and paste a JWT_SECRET (openssl rand -hex 32)
 
-# Start everything
+# Pull images and start everything
 docker compose up -d
 ```
 

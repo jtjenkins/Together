@@ -17,46 +17,46 @@ The architecture is optimized for small to medium communities (20-500 users) wit
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                         CLIENT LAYER                            │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐        │
-│  │   Desktop   │  │    Web      │  │   Mobile        │        │
-│  │  (Tauri)    │  │  (React)    │  │(React Native)   │        │
-│  │  Rust Core  │  │  Browser    │  │  iOS/Android    │        │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────────┘        │
+│                         CLIENT LAYER                           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐         │
+│  │   Desktop   │  │    Web      │  │   Mobile        │         │
+│  │  (Tauri)    │  │  (React)    │  │  (Tauri)        │         │
+│  │  Rust Core  │  │  Browser    │  │  iOS/Android    │         │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────────┘         │
 │         │                │                │                    │
 │         └────────────────┴────────────────┘                    │
-│                          │                                      │
-│                   WebSocket / HTTPS                             │
+│                          │                                     │
+│                   WebSocket / HTTPS                            │
 └──────────────────────────┼─────────────────────────────────────┘
                            │
 ┌──────────────────────────┼─────────────────────────────────────┐
-│                TOGETHER SERVER (Rust)                           │
+│                TOGETHER SERVER (Rust)                          │
 │  ┌────────────────────────────────────────────────────────┐    │
-│  │              Axum Web Framework                         │    │
-│  │  • HTTP Routes (REST API)                               │    │
-│  │  • WebSocket Upgrade Handler                            │    │
-│  │  • JWT Authentication Middleware                        │    │
-│  │  • Rate Limiting                                        │    │
+│  │              Axum Web Framework                        │    │
+│  │  • HTTP Routes (REST API)                              │    │
+│  │  • WebSocket Upgrade Handler                           │    │
+│  │  • JWT Authentication Middleware                       │    │
+│  │  • Rate Limiting                                       │    │
 │  └────────────────────┬───────────────────────────────────┘    │
-│                       │                                         │
+│                       │                                        │
 │  ┌────────────────────┼───────────────────────────────────┐    │
-│  │         WebSocket Connection Manager                     │    │
-│  │  • Active connection registry                            │    │
-│  │  • Message routing (user → channels)                     │    │
-│  │  • Presence tracking                                     │    │
-│  │  • Event broadcasting                                    │    │
+│  │         WebSocket Connection Manager                   │    │
+│  │  • Active connection registry                          │    │
+│  │  • Message routing (user → channels)                   │    │
+│  │  • Presence tracking                                   │    │
+│  │  • Event broadcasting                                  │    │
 │  └────────────────────┬───────────────────────────────────┘    │
-│                       │                                         │
+│                       │                                        │
 │       ┌───────────────┼───────────────┐                        │
 │       ▼               ▼               ▼                        │
-│  ┌────────┐     ┌──────────┐    ┌────────────┐               │
-│  │  Chat  │     │  Users   │    │   Voice    │               │
-│  │ Module │     │  Module  │    │   Module   │               │
-│  │        │     │          │    │  (WebRTC)  │               │
-│  │ • Msgs │     │ • Auth   │    │  • SFU     │               │
-│  │ • Chans│     │ • Roles  │    │  • ICE     │               │
-│  │ • Perms│     │ • Servers│    │  • DTLS    │               │
-│  └────┬───┘     └────┬─────┘    └─────┬──────┘               │
+│  ┌────────┐     ┌──────────┐    ┌────────────┐                 │
+│  │  Chat  │     │  Users   │    │   Voice    │                 │
+│  │ Module │     │  Module  │    │   Module   │                 │
+│  │        │     │          │    │  (WebRTC)  │                 │
+│  │ • Msgs │     │ • Auth   │    │  • SFU     │                 │
+│  │ • Chans│     │ • Roles  │    │  • ICE     │                 │
+│  │ • Perms│     │ • Servers│    │  • DTLS    │                 │
+│  └────┬───┘     └────┬─────┘    └─────┬──────┘                 │
 │       │              │                 │                       │
 │       └──────────────┴─────────────────┘                       │
 │                      │                                         │
@@ -375,25 +375,25 @@ async fn can_send_message(user_id: Uuid, channel_id: Uuid) -> Result<bool> {
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│              Voice Service                           │
-│                                                      │
-│  ┌─────────────────────────────────────────────┐   │
-│  │         Signaling (WebSocket)               │   │
-│  │  • SDP offer/answer exchange                │   │
-│  │  • ICE candidate gathering                  │   │
-│  │  • Voice state management                   │   │
-│  └─────────────────┬───────────────────────────┘   │
+│              Voice Service                          │
+│                                                     │
+│  ┌─────────────────────────────────────────────┐    │
+│  │         Signaling (WebSocket)               │    │
+│  │  • SDP offer/answer exchange                │    │
+│  │  • ICE candidate gathering                  │    │
+│  │  • Voice state management                   │    │
+│  └─────────────────┬───────────────────────────┘    │
 │                    │                                │
-│  ┌─────────────────▼───────────────────────────┐   │
-│  │          WebRTC SFU (Pion)                  │   │
-│  │                                              │   │
-│  │   User A ──► [Router] ──► User B            │   │
-│  │             (forward)                        │   │
-│  │   User B ──►   ▲   ▼  ──► User C            │   │
-│  │                │                             │   │
-│  │            No mixing,                        │   │
-│  │         just forwarding                      │   │
-│  └──────────────────────────────────────────────┘   │
+│  ┌─────────────────▼───────────────────────────┐    │
+│  │          WebRTC SFU (Pion)                  │    │
+│  │                                             │    │
+│  │   User A ──► [Router] ──► User B            │    │
+│  │             (forward)                       │    │
+│  │   User B ──►   ▲   ▼  ──► User C            │    │
+│  │                │                            │    │
+│  │            No mixing,                       │    │
+│  │         just forwarding                     │    │
+│  └─────────────────────────────────────────────┘  s  │
 └─────────────────────────────────────────────────────┘
 ```
 
