@@ -1,5 +1,6 @@
 target/
 clients/
+!clients/web/
 docs/
 scripts/
 *.md
