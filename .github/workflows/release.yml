@@ -106,7 +106,8 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            rpm
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -141,6 +142,7 @@ jobs:
           path: |
             clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
             clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+            clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm
 
   # ── Android APK ─────────────────────────────────────────────────────────────
   release-android:
@@ -235,7 +237,7 @@ jobs:
             |---|---|
             | macOS (Apple Silicon) | `.dmg` |
             | Windows | `.msi` (recommended) or `.exe` |
-            | Linux | `.AppImage` (any distro) or `.deb` (Debian/Ubuntu) |
+            | Linux | `.AppImage` (any distro), `.deb` (Debian/Ubuntu), or `.rpm` (Fedora/RHEL/openSUSE) |
             | Android | `.apk` (sideload) |
 
             ### Installation notes
