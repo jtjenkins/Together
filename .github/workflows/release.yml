@@ -108,8 +108,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             rpm \
-            gnupg \
-            dpkg-sig
+            gnupg
 
       - name: Import GPG key for signing
         if: ${{ vars.GPG_KEY_ID != '' }}
@@ -151,21 +150,24 @@ jobs:
           GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
         run: |
           cd clients/desktop/src-tauri/target/release/bundle
-          
-          # Sign .deb package
+
+          # Sign .deb with detached GPG signature
           for deb in deb/*.deb; do
+            [ -f "$deb" ] || continue
             echo "Signing $deb..."
-            dpkg-sig --sign builder -k "$GPG_KEY_ID" "$deb"
+            gpg --batch --yes --detach-sign --armor -u "$GPG_KEY_ID" "$deb"
           done
-          
-          # Sign .rpm package
-          for rpm in rpm/*.rpm; do
-            echo "Signing $rpm..."
-            rpm --addsign "$rpm"
+
+          # Sign .rpm with detached GPG signature
+          for rpm_file in rpm/*.rpm; do
+            [ -f "$rpm_file" ] || continue
+            echo "Signing $rpm_file..."
+            gpg --batch --yes --detach-sign --armor -u "$GPG_KEY_ID" "$rpm_file"
           done
-          
+
           # Create detached signature for AppImage
           for appimage in appimage/*.AppImage; do
+            [ -f "$appimage" ] || continue
             echo "Signing $appimage..."
             gpg --batch --yes --detach-sign --armor -u "$GPG_KEY_ID" "$appimage"
           done
@@ -178,7 +180,9 @@ jobs:
             clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
             clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.asc
             clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+            clients/desktop/src-tauri/target/release/bundle/deb/*.deb.asc
             clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm
+            clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm.asc
 
   # ── Android APK (Signed) ─────────────────────────────────────────────────────
   release-android:
@@ -247,10 +251,8 @@ jobs:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
         run: |
           cd clients/desktop
-          ./node_modules/.bin/tauri android build --apk \
-            --signing-key $ANDROID_KEYSTORE_PATH \
-            --signing-key-alias "$ANDROID_KEY_ALIAS" \
-            --signing-key-password "$ANDROID_KEY_PASSWORD"
+          ./node_modules/.bin/tauri android build --apk
+
 
       - name: Build Android APK (unsigned)
         if: ${{ env.HAS_KEYSTORE != 'true' }}
@@ -335,9 +337,9 @@ jobs:
             # Verify AppImage
             gpg --verify Together-*.AppImage.asc
 
-            # Verify .deb (dpkg-sig)
-            dpkg-sig --verify together_*.deb
+            # Verify .deb
+            gpg --verify together_*.deb.asc
 
             # Verify .rpm
-            rpm --checksig together-*.rpm
+            gpg --verify together-*.rpm.asc
             ```
