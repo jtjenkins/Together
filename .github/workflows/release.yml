@@ -91,7 +91,7 @@ jobs:
             clients/desktop/src-tauri/target/release/bundle/msi/*.msi
             clients/desktop/src-tauri/target/release/bundle/nsis/*.exe
 
-  # ── Desktop: Linux ───────────────────────────────────────────────────────────
+  # ── Desktop: Linux (Signed) ───────────────────────────────────────────────────
   release-linux:
     name: Release Linux
     runs-on: ubuntu-latest
@@ -107,7 +107,16 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf \
-            rpm
+            rpm \
+            gnupg
+
+      - name: Import GPG key for signing
+        if: ${{ env.GPG_PRIVATE_KEY != '' }}
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "GPG key imported successfully"
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -135,16 +144,42 @@ jobs:
         run: npm run build
         working-directory: clients/desktop
 
+      - name: Sign Linux packages
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        env:
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          cd clients/desktop/src-tauri/target/release/bundle
+          
+          # Sign .deb package
+          for deb in deb/*.deb; do
+            echo "Signing $deb..."
+            dpkg-sig --sign builder -k "$GPG_KEY_ID" "$deb"
+          done
+          
+          # Sign .rpm package (creates detached signature)
+          for rpm in rpm/*.rpm; do
+            echo "Signing $rpm..."
+            rpm --addsign "$rpm"
+          done
+          
+          # Create detached signature for AppImage
+          for appimage in appimage/*.AppImage; do
+            echo "Signing $appimage..."
+            gpg --batch --yes --detach-sign --armor -u "$GPG_KEY_ID" "$appimage"
+          done
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-artifacts
           path: |
             clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.asc
             clients/desktop/src-tauri/target/release/bundle/deb/*.deb
             clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm
 
-  # ── Android APK ─────────────────────────────────────────────────────────────
+  # ── Android APK (Signed) ─────────────────────────────────────────────────────
   release-android:
     name: Release Android APK
     runs-on: ubuntu-latest
@@ -195,8 +230,22 @@ jobs:
       - name: Link Tauri CLI for Android Gradle build
         run: ln -sf ../node_modules/@tauri-apps/cli/tauri.js clients/desktop/src-tauri/tauri
 
+      # Build unsigned APK first, then sign if keystore is available
       - name: Build Android APK
-        run: ./node_modules/.bin/tauri android build --apk
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE }}" ]; then
+            # Decode keystore
+            echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
+            
+            # Build signed APK with Tauri
+            ./node_modules/.bin/tauri android build --apk \
+              --signing-key /tmp/keystore.jks \
+              --signing-key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+              --signing-key-password "${{ secrets.ANDROID_KEY_PASSWORD }}"
+          else
+            # Build unsigned APK
+            ./node_modules/.bin/tauri android build --apk
+          fi
         working-directory: clients/desktop
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
@@ -229,16 +278,18 @@ jobs:
           prerelease: true
           generate_release_notes: true
           body: |
-            ## Together — Pre-release (unsigned builds)
-
+            ## Together — Pre-release
+            
             Connect to your own self-hosted Together server. See the [self-hosting guide](https://github.com/jtjenkins/Together/blob/main/docs/self-hosting.md).
 
-            | Platform | File |
-            |---|---|
-            | macOS (Apple Silicon) | `.dmg` |
-            | Windows | `.msi` (recommended) or `.exe` |
-            | Linux | `.AppImage` (any distro), `.deb` (Debian/Ubuntu), or `.rpm` (Fedora/RHEL/openSUSE) |
-            | Android | `.apk` (sideload) |
+            | Platform | File | Notes |
+            |---|---|---|
+            | macOS (Apple Silicon) | `.dmg` | Unsigned: Right-click → Open → "Open Anyway" |
+            | Windows | `.msi` (recommended) or `.exe` | Unsigned: Click "More info" → "Run anyway" |
+            | Linux | `.AppImage`, `.deb`, or `.rpm` | ${{
+ secrets.GPG_PRIVATE_KEY != '' && 'GPG signed' || 'Unsigned' }} |
+            | Android | `.apk` | ${{
+ secrets.ANDROID_KEYSTORE != '' && 'Signed - can be uploaded to Play Store' || 'Unsigned - for testing only' }} |
 
             ### Installation notes
 
@@ -246,6 +297,29 @@ jobs:
 
             **Windows:** If SmartScreen appears, click "More info" → "Run anyway" (unsigned).
 
+            **Linux:** 
+            - **AppImage:** Make executable (`chmod +x`), then run
+            - **.deb:** Install with `sudo dpkg -i` or `sudo apt install`
+            - **.rpm:** Install with `sudo rpm -i` or `sudo dnf install`
+
             **Android:** Enable "Install unknown apps" in settings, then open the `.apk`.
 
             **iOS:** Not available yet — requires App Store signing. Coming in a future release.
+
+            ### Verifying Linux signatures
+
+            If you downloaded a signed release:
+
+            ```bash
+            # Import the signing key (do this once)
+            gpg --import together-signing-public.asc
+
+            # Verify AppImage
+            gpg --verify Together-*.AppImage.asc
+
+            # Verify .deb (dpkg-sig)
+            dpkg-sig --verify together_*.deb
+
+            # Verify .rpm
+            rpm --checksig together-*.rpm
+            ```
