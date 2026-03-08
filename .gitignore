@@ -63,3 +63,4 @@ temp/
 
 # Backup files
 backups/
+.secrets/

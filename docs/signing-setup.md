@@ -2,6 +2,8 @@
 
 This guide covers setting up code signing for Android APK and Linux packages (.deb, .rpm, AppImage).
 
+> **Note:** The signing keys have already been set up for this repository. The public key is available at `together-signing-public.asc` for users to verify signatures.
+
 ## Android Signing
 
 ### 1. Generate Keystore
