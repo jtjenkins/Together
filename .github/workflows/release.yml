@@ -39,7 +39,7 @@ jobs:
           npm ci --prefix clients/web
           npm ci --prefix clients/desktop
 
-      - name: Build desktop app (unsigned)
+      - name: Build desktop app
         run: npm run build
         working-directory: clients/desktop
 
@@ -79,7 +79,7 @@ jobs:
           npm ci --prefix clients/web
           npm ci --prefix clients/desktop
 
-      - name: Build desktop app (unsigned)
+      - name: Build desktop app
         run: npm run build
         working-directory: clients/desktop
 
@@ -112,9 +112,11 @@ jobs:
             dpkg-sig
 
       - name: Import GPG key for signing
-        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        if: ${{ vars.GPG_KEY_ID != '' }}
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
           echo "GPG key imported successfully"
 
       - name: Install Rust (stable)
@@ -144,9 +146,9 @@ jobs:
         working-directory: clients/desktop
 
       - name: Sign Linux packages
-        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        if: ${{ vars.GPG_KEY_ID != '' }}
         env:
-          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
         run: |
           cd clients/desktop/src-tauri/target/release/bundle
           
@@ -182,6 +184,8 @@ jobs:
   release-android:
     name: Release Android APK
     runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -230,12 +234,12 @@ jobs:
         run: ln -sf ../node_modules/@tauri-apps/cli/tauri.js clients/desktop/src-tauri/tauri
 
       - name: Decode Android keystore
-        if: ${{ secrets.ANDROID_KEYSTORE != '' }}
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
 
       - name: Build Android APK (signed)
-        if: ${{ secrets.ANDROID_KEYSTORE != '' }}
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
         env:
           ANDROID_KEYSTORE_PATH: /tmp/keystore.jks
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -249,7 +253,7 @@ jobs:
             --signing-key-password "$ANDROID_KEY_PASSWORD"
 
       - name: Build Android APK (unsigned)
-        if: ${{ secrets.ANDROID_KEYSTORE == '' }}
+        if: ${{ env.HAS_KEYSTORE != 'true' }}
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
         run: |
@@ -300,16 +304,16 @@ jobs:
 
             | Platform | File | Notes |
             |---|---|---|
-            | macOS (Apple Silicon) | `.dmg` | Unsigned: Right-click → Open → "Open Anyway" |
-            | Windows | `.msi` (recommended) or `.exe` | Unsigned: Click "More info" → "Run anyway" |
-            | Linux | `.AppImage`, `.deb`, or `.rpm` | ${{ steps.signing-check.outputs.linux_signed == 'true' && 'GPG signed' || 'Unsigned' }} |
-            | Android | `.apk` | ${{ secrets.ANDROID_KEYSTORE != '' && 'Signed - can be uploaded to Play Store' || 'Unsigned - for testing only' }} |
+            | macOS (Apple Silicon) | `.dmg` | ${{ steps.signing-check.outputs.linux_signed == 'true' && '⚠️ Unsigned: Right-click → Open → "Open Anyway"' || '⚠️ Unsigned: Right-click → Open → "Open Anyway"' }} |
+            | Windows | `.msi` (recommended) or `.exe` | ⚠️ Unsigned: Click "More info" → "Run anyway" |
+            | Linux | `.AppImage`, `.deb`, or `.rpm` | ${{ steps.signing-check.outputs.linux_signed == 'true' && '✅ GPG signed' || '⚠️ Unsigned' }} |
+            | Android | `.apk` | ${{ secrets.ANDROID_KEYSTORE != '' && '✅ Signed - can be uploaded to Play Store' || '⚠️ Unsigned - for testing only' }} |
 
             ### Installation notes
 
-            **macOS:** Right-click the `.dmg` → Open → "Open Anyway" to bypass Gatekeeper (unsigned).
+            **macOS:** Right-click the `.dmg` → Open → "Open Anyway" to bypass Gatekeeper.
 
-            **Windows:** If SmartScreen appears, click "More info" → "Run anyway" (unsigned).
+            **Windows:** If SmartScreen appears, click "More info" → "Run anyway".
 
             **Linux:** 
             - **AppImage:** Make executable (`chmod +x`), then run
