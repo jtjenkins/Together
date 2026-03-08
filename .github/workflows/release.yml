@@ -108,14 +108,13 @@ jobs:
             librsvg2-dev \
             patchelf \
             rpm \
-            gnupg
+            gnupg \
+            dpkg-sig
 
       - name: Import GPG key for signing
-        if: ${{ env.GPG_PRIVATE_KEY != '' }}
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
         run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
           echo "GPG key imported successfully"
 
       - name: Install Rust (stable)
@@ -157,7 +156,7 @@ jobs:
             dpkg-sig --sign builder -k "$GPG_KEY_ID" "$deb"
           done
           
-          # Sign .rpm package (creates detached signature)
+          # Sign .rpm package
           for rpm in rpm/*.rpm; do
             echo "Signing $rpm..."
             rpm --addsign "$rpm"
@@ -230,25 +229,32 @@ jobs:
       - name: Link Tauri CLI for Android Gradle build
         run: ln -sf ../node_modules/@tauri-apps/cli/tauri.js clients/desktop/src-tauri/tauri
 
-      # Build unsigned APK first, then sign if keystore is available
-      - name: Build Android APK
+      - name: Decode Android keystore
+        if: ${{ secrets.ANDROID_KEYSTORE != '' }}
         run: |
-          if [ -n "${{ secrets.ANDROID_KEYSTORE }}" ]; then
-            # Decode keystore
-            echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
-            
-            # Build signed APK with Tauri
-            ./node_modules/.bin/tauri android build --apk \
-              --signing-key /tmp/keystore.jks \
-              --signing-key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
-              --signing-key-password "${{ secrets.ANDROID_KEY_PASSWORD }}"
-          else
-            # Build unsigned APK
-            ./node_modules/.bin/tauri android build --apk
-          fi
-        working-directory: clients/desktop
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
+
+      - name: Build Android APK (signed)
+        if: ${{ secrets.ANDROID_KEYSTORE != '' }}
+        env:
+          ANDROID_KEYSTORE_PATH: /tmp/keystore.jks
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
+        run: |
+          cd clients/desktop
+          ./node_modules/.bin/tauri android build --apk \
+            --signing-key $ANDROID_KEYSTORE_PATH \
+            --signing-key-alias "$ANDROID_KEY_ALIAS" \
+            --signing-key-password "$ANDROID_KEY_PASSWORD"
+
+      - name: Build Android APK (unsigned)
+        if: ${{ secrets.ANDROID_KEYSTORE == '' }}
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
+        run: |
+          cd clients/desktop
+          ./node_modules/.bin/tauri android build --apk
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
@@ -271,6 +277,16 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Check if packages are signed
+        id: signing-check
+        run: |
+          # Check if signature files exist (indicates signing was enabled)
+          if ls artifacts/*.AppImage.asc 1> /dev/null 2>&1; then
+            echo "linux_signed=true" >> $GITHUB_OUTPUT
+          else
+            echo "linux_signed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -286,10 +302,8 @@ jobs:
             |---|---|---|
             | macOS (Apple Silicon) | `.dmg` | Unsigned: Right-click → Open → "Open Anyway" |
             | Windows | `.msi` (recommended) or `.exe` | Unsigned: Click "More info" → "Run anyway" |
-            | Linux | `.AppImage`, `.deb`, or `.rpm` | ${{
- secrets.GPG_PRIVATE_KEY != '' && 'GPG signed' || 'Unsigned' }} |
-            | Android | `.apk` | ${{
- secrets.ANDROID_KEYSTORE != '' && 'Signed - can be uploaded to Play Store' || 'Unsigned - for testing only' }} |
+            | Linux | `.AppImage`, `.deb`, or `.rpm` | ${{ steps.signing-check.outputs.linux_signed == 'true' && 'GPG signed' || 'Unsigned' }} |
+            | Android | `.apk` | ${{ secrets.ANDROID_KEYSTORE != '' && 'Signed - can be uploaded to Play Store' || 'Unsigned - for testing only' }} |
 
             ### Installation notes
 
@@ -312,7 +326,7 @@ jobs:
 
             ```bash
             # Import the signing key (do this once)
-            gpg --import together-signing-public.asc
+            curl -fsSL https://raw.githubusercontent.com/jtjenkins/Together/main/docs/together-signing-public.asc | gpg --import
 
             # Verify AppImage
             gpg --verify Together-*.AppImage.asc
