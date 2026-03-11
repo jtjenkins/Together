@@ -14,6 +14,21 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # TURN server for WebRTC NAT traversal (required for iOS cellular)
+  # Without this: voice/video calls fail on iOS cellular and restrictive firewalls
+  coturn:
+    image: coturn/coturn:latest
+    network_mode: host
+    volumes:
+      - ./turn.conf:/etc/turnserver.conf:ro
+      - ./certs:/etc/ssl:ro
+    restart: unless-stopped
+    # Ports are opened via network_mode: host
+    # Required ports (opened automatically with host networking):
+    #   - 3478/tcp + 3478/udp: STUN/TURN
+    #   - 5349/tcp + 5349/udp: TURN TLS/DTLS (iOS requirement)
+    #   - 49152-65535/udp: Media relay range
+
   server:
     image: ${TOGETHER_IMAGE:-jtjenkins/together-server}:${TOGETHER_VERSION:-latest}
     build:

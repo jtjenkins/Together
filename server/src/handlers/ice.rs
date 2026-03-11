@@ -61,7 +61,7 @@ pub struct IceServersResponse {
 /// Authorization: Requires authentication (user must be logged in).
 pub async fn get_ice_servers(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
 ) -> AppResult<Json<IceServersResponse>> {
     let mut servers: Vec<IceServer> = DEFAULT_STUN_SERVERS
         .iter()
@@ -74,7 +74,9 @@ pub async fn get_ice_servers(
 
     // Add TURN servers if configured
     if let Some(turn_config) = &state.config.turn {
-        let username = generate_turn_username(CREDENTIAL_TTL_SECS);
+        // Use the authenticated user's identity so each user gets distinct credentials,
+        // enabling per-user revocation at the TURN server level.
+        let username = generate_turn_username(CREDENTIAL_TTL_SECS, auth.username());
         let credential = generate_turn_credential(&username, &turn_config.secret);
 
         servers.push(IceServer {
@@ -98,10 +100,12 @@ pub async fn get_ice_servers(
 
 /// Generate a time-limited username for TURN authentication.
 ///
-/// Format: `{timestamp}:{user_id}` where timestamp is UNIX epoch seconds.
-fn generate_turn_username(ttl_secs: u64) -> String {
+/// Format: `{timestamp}:{username}` where timestamp is UNIX epoch seconds
+/// at expiry. Using the authenticated user's identity enables per-user
+/// credential revocation at the TURN server level.
+fn generate_turn_username(ttl_secs: u64, username: &str) -> String {
     let timestamp = chrono::Utc::now().timestamp() as u64 + ttl_secs;
-    format!("{}:together", timestamp)
+    format!("{}:{}", timestamp, username)
 }
 
 /// Generate a TURN credential using HMAC-SHA1.
@@ -126,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_turn_credential_generation() {
-        let username = "1234567890:together";
+        let username = "1234567890:alice";
         let secret = "test-secret-key";
         let credential = generate_turn_credential(username, secret);
 
@@ -137,8 +141,8 @@ mod tests {
 
     #[test]
     fn test_username_format() {
-        let username = generate_turn_username(3600);
-        assert!(username.ends_with(":together"));
+        let username = generate_turn_username(3600, "alice");
+        assert!(username.ends_with(":alice"));
         assert!(username.split(':').next().unwrap().parse::<u64>().is_ok());
     }
 }

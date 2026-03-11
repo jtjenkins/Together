@@ -37,6 +37,7 @@ impl fmt::Debug for Config {
             .field("server_port", &self.server_port)
             .field("is_dev", &self.is_dev)
             .field("upload_dir", &self.upload_dir)
+            .field("turn", &self.turn)
             .finish()
     }
 }

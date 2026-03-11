@@ -65,7 +65,7 @@ pub async fn search_messages(
 
     // Search with optional channel filter
     let results: Vec<SearchRow> = if let Some(channel_id) = params.channel_id {
-        // Channel-scoped search
+        // Channel-scoped search — join channels to verify the channel belongs to this server
         sqlx::query_as::<_, SearchRow>(
             r#"
             SELECT
@@ -80,15 +80,20 @@ pub async fn search_messages(
                 ts_rank_cd(to_tsvector('english', m.content), plainto_tsquery('english', $1)) AS rank
             FROM messages m
             LEFT JOIN users u ON m.author_id = u.id
+            JOIN channels c ON m.channel_id = c.id
             WHERE m.deleted = FALSE
               AND m.channel_id = $2
+              AND c.server_id = $3
               AND to_tsvector('english', m.content) @@ plainto_tsquery('english', $1)
+              AND ($4::uuid IS NULL OR m.created_at < (SELECT created_at FROM messages WHERE id = $4))
             ORDER BY rank DESC, m.created_at DESC
-            LIMIT $3
+            LIMIT $5
             "#,
         )
         .bind(&params.q)
         .bind(channel_id)
+        .bind(server_id)
+        .bind(params.before)
         .bind(limit + 1) // +1 to check for has_more
         .fetch_all(&state.pool)
         .await?
@@ -112,12 +117,14 @@ pub async fn search_messages(
             WHERE m.deleted = FALSE
               AND c.server_id = $2
               AND to_tsvector('english', m.content) @@ plainto_tsquery('english', $1)
+              AND ($3::uuid IS NULL OR m.created_at < (SELECT created_at FROM messages WHERE id = $3))
             ORDER BY rank DESC, m.created_at DESC
-            LIMIT $3
+            LIMIT $4
             "#,
         )
         .bind(&params.q)
         .bind(server_id)
+        .bind(params.before)
         .bind(limit + 1) // +1 to check for has_more
         .fetch_all(&state.pool)
         .await?
@@ -129,12 +136,15 @@ pub async fn search_messages(
             r#"
             SELECT COUNT(*)
             FROM messages m
+            JOIN channels c ON m.channel_id = c.id
             WHERE m.deleted = FALSE
               AND m.channel_id = $1
-              AND to_tsvector('english', m.content) @@ plainto_tsquery('english', $2)
+              AND c.server_id = $2
+              AND to_tsvector('english', m.content) @@ plainto_tsquery('english', $3)
             "#,
         )
         .bind(channel_id)
+        .bind(server_id)
         .bind(&params.q)
         .fetch_one(&state.pool)
         .await?
