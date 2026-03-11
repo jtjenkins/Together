@@ -19,13 +19,14 @@
 import { useEffect, useRef, useCallback } from "react";
 import { gateway } from "../api/websocket";
 import { api } from "../api/client";
-import type { VoiceParticipant, IceServer } from "../types";
+import type { VoiceParticipant } from "../types";
 
 /** Average frequency amplitude (0-255) above which a user is considered speaking. */
 const SPEAKING_THRESHOLD = 15;
 
 // Cache ICE servers for the TTL duration (24 hours by default)
-let iceServersCache: { servers: RTCIceServer[]; expiresAt: number } | null = null;
+let iceServersCache: { servers: RTCIceServer[]; expiresAt: number } | null =
+  null;
 
 async function getIceServers(): Promise<RTCIceServer[]> {
   // Return cached servers if still valid
