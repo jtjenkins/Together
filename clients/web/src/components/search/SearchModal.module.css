@@ -1,0 +1,100 @@
+.messageResult {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.messageResult:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.messageResult:last-child {
+  border-bottom: none;
+}
+
+.messageHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.authorName {
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.channelName {
+  color: var(--text-link);
+}
+
+.timestamp {
+  color: var(--text-muted);
+}
+
+.messageContent {
+  font-size: 14px;
+  color: var(--text-normal);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.messageContent :global(mark) {
+  background-color: rgba(250, 168, 26, 0.3);
+  color: var(--text-normal);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.noResults {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.searchHint {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 16px;
+}
+
+.loadingContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--background-modifier-accent);
+  border-top-color: var(--text-link);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loadMore {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: none;
+  border: none;
+  color: var(--text-link);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.loadMore:hover {
+  background-color: var(--background-modifier-hover);
+}
