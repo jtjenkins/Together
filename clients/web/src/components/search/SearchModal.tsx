@@ -194,7 +194,7 @@ export function SearchModal({
               </div>
             ) : results.length === 0 ? (
               <div className={styles.noResults}>
-                No messages found for "{query}"
+                No messages found for &quot;{query}&quot;
               </div>
             ) : (
               <>
