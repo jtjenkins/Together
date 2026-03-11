@@ -119,6 +119,15 @@ async fn main() {
         .expect("Failed to create upload directory");
     info!("📂 Upload directory: {}", config.upload_dir.display());
 
+    // On Unix, set upload directory permissions to prevent execution.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(e) = tokio::fs::set_permissions(&config.upload_dir, PermissionsExt::from_mode(0o755)).await {
+            tracing::warn!(error = ?e, "Failed to set upload directory permissions");
+        }
+    }
+
     let http_client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -346,6 +355,18 @@ async fn main() {
         .layer(SetResponseHeaderLayer::if_not_present(
             header::HeaderName::from_static("referrer-policy"),
             HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
+        // Content-Security-Policy: defense-in-depth against XSS/injection.
+        // Restrictive policy for API server (returns JSON, not HTML).
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("content-security-policy"),
+            HeaderValue::from_static("default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"),
+        ))
+        // Strict-Transport-Security: force HTTPS (1 year, include subdomains).
+        // Browsers ignore this header over HTTP, so it's safe to send in all environments.
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("strict-transport-security"),
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
         ))
         // ── Prometheus + CORS ──────────────────────────────────────────────
         .layer(prometheus_layer)

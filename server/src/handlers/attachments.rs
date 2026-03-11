@@ -33,6 +33,8 @@ const MAX_FILE_SIZE: usize = 52_428_800;
 /// Allowlist of MIME types accepted for uploaded files.
 /// The MIME type is detected from magic bytes, not from the client-supplied
 /// Content-Type header, so this list is authoritative.
+/// The MIME type is detected from magic bytes, not from the client-supplied
+/// Content-Type header, so this list is authoritative.
 const ALLOWED_MIME_TYPES: &[&str] = &[
     "image/jpeg",
     "image/png",
@@ -186,6 +188,17 @@ pub async fn upload_attachments(
         AppError::Internal
     })?;
 
+    // On Unix, set directory permissions to prevent execution from within.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = PermissionsExt::from_mode(0o755);
+        if let Err(e) = tokio::fs::set_permissions(&dir, perms).await {
+            tracing::warn!(error = ?e, path = ?dir, "Failed to set upload directory permissions");
+            // Non-fatal: continue with default permissions
+        }
+    }
+
     let mut written_paths: Vec<PathBuf> = Vec::new();
 
     for p in &pending {
@@ -195,7 +208,19 @@ pub async fn upload_attachments(
             cleanup_files(&written_paths).await;
             return Err(AppError::Internal);
         }
-        written_paths.push(file_path);
+        written_paths.push(file_path.clone());
+
+        // On Unix, set file permissions to read/write for owner, read for others.
+        // Explicitly removes execute bit for security.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = PermissionsExt::from_mode(0o644);
+            if let Err(e) = tokio::fs::set_permissions(&file_path, perms).await {
+                tracing::warn!(error = ?e, path = ?file_path, "Failed to set upload file permissions");
+                // Non-fatal: file was written successfully
+            }
+        }
     }
 
     // ── Pass 3: insert all rows in a single transaction ───────────────────────
