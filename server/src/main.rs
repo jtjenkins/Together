@@ -123,7 +123,9 @@ async fn main() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if let Err(e) = tokio::fs::set_permissions(&config.upload_dir, PermissionsExt::from_mode(0o755)).await {
+        if let Err(e) =
+            tokio::fs::set_permissions(&config.upload_dir, PermissionsExt::from_mode(0o755)).await
+        {
             tracing::warn!(error = ?e, "Failed to set upload directory permissions");
         }
     }
@@ -360,7 +362,9 @@ async fn main() {
         // Restrictive policy for API server (returns JSON, not HTML).
         .layer(SetResponseHeaderLayer::if_not_present(
             header::HeaderName::from_static("content-security-policy"),
-            HeaderValue::from_static("default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"),
+            HeaderValue::from_static(
+                "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+            ),
         ))
         // Strict-Transport-Security: force HTTPS (1 year, include subdomains).
         // Browsers ignore this header over HTTP, so it's safe to send in all environments.

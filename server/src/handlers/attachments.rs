@@ -33,8 +33,6 @@ const MAX_FILE_SIZE: usize = 52_428_800;
 /// Allowlist of MIME types accepted for uploaded files.
 /// The MIME type is detected from magic bytes, not from the client-supplied
 /// Content-Type header, so this list is authoritative.
-/// The MIME type is detected from magic bytes, not from the client-supplied
-/// Content-Type header, so this list is authoritative.
 const ALLOWED_MIME_TYPES: &[&str] = &[
     "image/jpeg",
     "image/png",
