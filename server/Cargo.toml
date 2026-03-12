@@ -74,7 +74,6 @@ infer = "0.16"               # Magic-byte MIME type detection for uploaded files
 # TURN server credentials (WebRTC NAT traversal)
 hmac = "0.12"
 sha1 = "0.10"
-base64 = "0.22"
 
 [dev-dependencies]
 tokio-test = "0.4"
