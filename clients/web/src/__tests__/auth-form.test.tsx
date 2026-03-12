@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act } from "@testing-library/react";
 import { AuthForm } from "../components/auth/AuthForm";
 import { useAuthStore } from "../stores/authStore";
 import { api } from "../api/client";

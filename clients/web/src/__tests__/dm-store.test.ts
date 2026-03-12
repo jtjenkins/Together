@@ -31,6 +31,7 @@ const mockChannel = (
     status: "online",
     custom_status: null,
     created_at: "2024-01-01T00:00:00Z",
+    is_admin: false,
   },
   created_at: "2024-01-01T00:00:00Z",
   last_message_at: null,
