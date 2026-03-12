@@ -1,7 +1,9 @@
-import { Fragment } from "react";
+import { Fragment, useEffect } from "react";
 import { MessageItem } from "./MessageItem";
 import { DateSeparator } from "./DateSeparator";
 import { useServerStore } from "../../stores/serverStore";
+import { useAuthStore } from "../../stores/authStore";
+import { useMessageStore } from "../../stores/messageStore";
 import type { Message } from "../../types";
 import styles from "./MessageList.module.css";
 
@@ -21,6 +23,34 @@ export function MessageList({
   onOpenThread,
 }: MessageListProps) {
   const members = useServerStore((s) => s.members);
+  const activeServerId = useServerStore((s) => s.activeServerId);
+  const servers = useServerStore((s) => s.servers);
+  const currentUser = useAuthStore((s) => s.user);
+
+  // Derive whether the current user is the server owner (can pin messages).
+  const canPin =
+    currentUser != null &&
+    activeServerId != null &&
+    servers.find((s) => s.id === activeServerId)?.owner_id === currentUser.id;
+
+  const replyTargetCache = useMessageStore((s) => s.replyTargetCache);
+  const ensureReplyTarget = useMessageStore((s) => s.ensureReplyTarget);
+
+  useEffect(() => {
+    const replyIds = messages
+      .filter(
+        (m) =>
+          m.reply_to !== null &&
+          !messages.some((r) => r.id === m.reply_to) &&
+          !replyTargetCache[m.reply_to!],
+      )
+      .map((m) => m.reply_to!);
+
+    const unique = [...new Set(replyIds)];
+    for (const id of unique) {
+      ensureReplyTarget(channelId, id);
+    }
+  }, [messages, replyTargetCache, channelId, ensureReplyTarget]);
 
   const getAuthorName = (authorId: string | null): string => {
     if (!authorId) return "Deleted User";
@@ -80,17 +110,34 @@ export function MessageList({
             replyAuthorName={
               message.reply_to
                 ? getAuthorName(
-                    messages.find((m) => m.id === message.reply_to)
-                      ?.author_id ?? null,
+                    (
+                      messages.find((m) => m.id === message.reply_to) ??
+                      replyTargetCache[message.reply_to] ??
+                      null
+                    )?.author_id ?? null,
                   )
                 : undefined
             }
             replyContent={
               message.reply_to
-                ? messages.find((m) => m.id === message.reply_to)?.content
+                ? (
+                    messages.find((m) => m.id === message.reply_to) ??
+                    replyTargetCache[message.reply_to] ??
+                    null
+                  )?.content
+                : undefined
+            }
+            replyIsDeleted={
+              message.reply_to
+                ? (
+                    messages.find((m) => m.id === message.reply_to) ??
+                    replyTargetCache[message.reply_to] ??
+                    null
+                  )?.deleted === true
                 : undefined
             }
             onOpenThread={onOpenThread}
+            canPin={canPin ?? false}
           />
         </Fragment>
       ))}
