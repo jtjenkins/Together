@@ -55,20 +55,20 @@ Bot requests share the same rate-limiting infrastructure as human users:
 
 ## REST Endpoints
 
-Base path: `/api/bots`
+Base path: `/bots`
 
 All endpoints require a valid human-user JWT unless otherwise noted.
 
 ---
 
-### POST /api/bots
+### POST /bots
 
 Register a new bot under the authenticated user's account.
 
 **Request**
 
 ```http
-POST /api/bots
+POST /bots
 Authorization: Bearer <jwt>
 Content-Type: application/json
 
@@ -111,14 +111,14 @@ The `token` field is the plaintext bot token. **Store it securely — it is show
 
 ---
 
-### GET /api/bots
+### GET /bots
 
 List all bots created by the authenticated user.
 
 **Request**
 
 ```http
-GET /api/bots
+GET /bots
 Authorization: Bearer <jwt>
 ```
 
@@ -150,14 +150,14 @@ Token hashes are never included in list or get responses.
 
 ---
 
-### GET /api/bots/:bot_id
+### GET /bots/:id
 
 Retrieve a single bot by ID. Only the bot's creator can access it.
 
 **Request**
 
 ```http
-GET /api/bots/d4e8a1c2-...
+GET /bots/d4e8a1c2-...
 Authorization: Bearer <jwt>
 ```
 
@@ -184,14 +184,14 @@ Authorization: Bearer <jwt>
 
 ---
 
-### DELETE /api/bots/:bot_id/revoke
+### DELETE /bots/:id
 
 Permanently revoke a bot's token. The bot's user account remains but all future authentication attempts with the old token are rejected. Revocation is irreversible — create a new bot if you need a replacement.
 
 **Request**
 
 ```http
-DELETE /api/bots/d4e8a1c2-.../revoke
+DELETE /bots/d4e8a1c2-...
 Authorization: Bearer <jwt>
 ```
 
@@ -206,14 +206,14 @@ Authorization: Bearer <jwt>
 
 ---
 
-### POST /api/bots/:bot_id/regenerate-token
+### POST /bots/:id/token/regenerate
 
 Issue a new token for an active (non-revoked) bot. The previous token is immediately invalidated. The new plaintext token is returned once and is not stored.
 
 **Request**
 
 ```http
-POST /api/bots/d4e8a1c2-.../regenerate-token
+POST /bots/d4e8a1c2-.../token/regenerate
 Authorization: Bearer <jwt>
 ```
 
@@ -294,7 +294,7 @@ Bots post messages through the standard REST message endpoint (`POST /api/channe
 
 1. **Never expose the token in client-side code, logs, or version control.** Treat it with the same care as a database password.
 2. **Store the token in an environment variable** or a secrets manager, not in a configuration file committed to source control.
-3. **Rotate the token immediately** if you suspect it has been compromised, using the regenerate-token endpoint.
+3. **Rotate the token immediately** if you suspect it has been compromised, using the POST /bots/:id/token/regenerate endpoint.
 4. **Use HTTPS/WSS** in production. Plain HTTP/WS exposes the token in transit.
 5. **Scope bot permissions** by only adding the bot to channels and servers it needs. Bots inherit the permission system the same as human users.
 6. **Monitor bot activity.** Unusual message rates or API call patterns may indicate a compromised token.
