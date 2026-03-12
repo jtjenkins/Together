@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { X, Pin } from "lucide-react";
 import { api } from "../../api/client";
 import { formatMessageTime } from "../../utils/formatTime";
+import { useServerStore } from "../../stores/serverStore";
 import type { Message } from "../../types";
 import styles from "./PinnedMessages.module.css";
 
@@ -11,9 +12,16 @@ interface PinnedMessagesProps {
 }
 
 export function PinnedMessages({ channelId, onClose }: PinnedMessagesProps) {
+  const members = useServerStore((s) => s.members);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const getAuthorName = (authorId: string | null): string => {
+    if (!authorId) return "Deleted User";
+    const member = members.find((m) => m.user_id === authorId);
+    return member?.nickname || member?.username || "Unknown User";
+  };
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -60,7 +68,7 @@ export function PinnedMessages({ channelId, onClose }: PinnedMessagesProps) {
             <div key={msg.id} className={styles.item}>
               <div className={styles.itemMeta}>
                 <span className={styles.itemAuthor}>
-                  {msg.author_id ?? "Deleted User"}
+                  {getAuthorName(msg.author_id)}
                 </span>
                 <span className={styles.itemTime}>
                   {formatMessageTime(msg.created_at)}
