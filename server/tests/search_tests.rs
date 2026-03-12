@@ -221,7 +221,7 @@ async fn test_search_rejects_query_too_short(pool: sqlx::PgPool) {
     let server_id = server["id"].as_str().unwrap();
 
     let (status, _) = get_authed(app, &format!("/servers/{server_id}/search?q=x"), &token).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
