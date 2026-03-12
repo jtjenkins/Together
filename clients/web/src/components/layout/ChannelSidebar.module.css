@@ -61,6 +61,26 @@
   background: var(--bg-hover);
 }
 
+.searchBtn {
+  font-size: 16px;
+  color: var(--text-muted);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.searchBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
 .channelList {
   flex: 1;
   overflow-y: auto;

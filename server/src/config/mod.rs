@@ -3,6 +3,13 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+/// TURN server configuration for WebRTC NAT traversal.
+#[derive(Clone, Debug)]
+pub struct TurnConfig {
+    pub url: String,
+    pub secret: String,
+}
+
 #[derive(Clone)]
 pub struct Config {
     pub database_url: String,
@@ -16,6 +23,8 @@ pub struct Config {
     /// Allowed CORS origins in production (parsed from ALLOWED_ORIGINS, comma-separated).
     /// Empty means no cross-origin requests are allowed.
     pub allowed_origins: Vec<String>,
+    /// Optional TURN server configuration for WebRTC.
+    pub turn: Option<TurnConfig>,
 }
 
 /// Manual Debug impl — never prints jwt_secret or database credentials in plaintext.
@@ -28,6 +37,7 @@ impl fmt::Debug for Config {
             .field("server_port", &self.server_port)
             .field("is_dev", &self.is_dev)
             .field("upload_dir", &self.upload_dir)
+            .field("turn", &self.turn)
             .finish()
     }
 }
@@ -70,6 +80,10 @@ impl Config {
                         .collect()
                 })
                 .unwrap_or_default(),
+            turn: match (env::var("TURN_URL").ok(), env::var("TURN_SECRET").ok()) {
+                (Some(url), Some(secret)) => Some(TurnConfig { url, secret }),
+                _ => None,
+            },
         })
     }
 
