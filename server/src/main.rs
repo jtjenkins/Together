@@ -84,6 +84,9 @@ async fn main() {
         .expect("Database health check failed");
     info!("✅ Database health check passed");
 
+    // Initialize uptime tracking for health endpoint
+    handlers::health::init_uptime();
+
     // CORS: permissive in dev, origin-restricted in production.
     // Set APP_ENV=production and ALLOWED_ORIGINS=https://your-domain.com (see .env.example).
     let cors = if config.is_dev {
@@ -141,12 +144,13 @@ async fn main() {
 
     let app_state = AppState {
         pool,
-        jwt_secret: config.jwt_secret,
+        jwt_secret: config.jwt_secret.clone(),
         connections: ConnectionManager::new(),
         upload_dir: config.upload_dir.clone(),
         link_preview_cache: Arc::new(RwLock::new(HashMap::new())),
         http_client,
         giphy_api_key,
+        config: Arc::new(config),
     };
 
     // Prometheus metrics layer
@@ -185,10 +189,16 @@ async fn main() {
             config: auth_governor_conf,
         });
 
+    // Health check routes are intentionally outside the rate-limit layer so
+    // that monitoring and orchestration probes are never throttled.
+    let health_router = Router::new()
+        .route("/health", get(handlers::health_check))
+        .route("/health/ready", get(handlers::readiness_check))
+        .route("/health/live", get(handlers::liveness_check))
+        .with_state(app_state.clone());
+
     // Build router
     let app = Router::new()
-        // Health check + metrics
-        .route("/health", get(handlers::health_check))
         .route(
             "/link-preview",
             get(handlers::link_preview::get_link_preview),
@@ -219,6 +229,16 @@ async fn main() {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Audit logs (owner only)
+        .route(
+            "/servers/:id/audit-logs",
+            get(handlers::audit::list_audit_logs),
+        )
+        // Search routes (protected, server-scoped)
+        .route(
+            "/servers/:id/search",
+            get(handlers::search::search_messages),
+        )
         // Channel routes (protected, nested under server)
         .route(
             "/servers/:id/channels",
@@ -344,6 +364,8 @@ async fn main() {
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
         )
+        // ICE servers for WebRTC (protected, returns TURN credentials)
+        .route("/ice-servers", get(handlers::ice::get_ice_servers))
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
         // ── Global rate limit (10 req/s per IP, burst 20) ──────────────────
@@ -380,7 +402,10 @@ async fn main() {
         // ── Prometheus + CORS ──────────────────────────────────────────────
         .layer(prometheus_layer)
         .layer(cors)
-        .with_state(app_state);
+        .with_state(app_state)
+        // Merge health routes after all middleware so they are not subject
+        // to rate limiting or other API-only layers.
+        .merge(health_router);
 
     // Start server
     info!("🎧 Server listening on http://{}", addr);

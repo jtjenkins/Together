@@ -53,6 +53,19 @@ pub fn create_test_app(pool: PgPool) -> Router {
         .build()
         .expect("Failed to build test HTTP client");
 
+    let config = together_server::config::Config::from_env().unwrap_or_else(|_| {
+        together_server::config::Config {
+            database_url: String::new(),
+            jwt_secret: Arc::from(TEST_JWT_SECRET),
+            server_host: "127.0.0.1".to_string(),
+            server_port: 8080,
+            is_dev: true,
+            upload_dir: test_upload_dir(),
+            allowed_origins: vec![],
+            turn: None,
+        }
+    });
+
     let state = AppState {
         pool,
         jwt_secret: Arc::from(TEST_JWT_SECRET),
@@ -61,9 +74,12 @@ pub fn create_test_app(pool: PgPool) -> Router {
         link_preview_cache: Arc::new(RwLock::new(HashMap::new())),
         http_client,
         giphy_api_key: None,
+        config: Arc::new(config),
     };
     Router::new()
         .route("/health", get(handlers::health_check))
+        .route("/health/ready", get(handlers::readiness_check))
+        .route("/health/live", get(handlers::liveness_check))
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/refresh", post(handlers::auth::refresh_token))

@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+use validator::Validate;
 
 // ============================================================================
 // User Models
@@ -538,4 +539,117 @@ pub struct GifResult {
     pub title: String,
     pub width: u32,
     pub height: u32,
+}
+
+// ── Audit Logging ───────────────────────────────────────────────────────────
+
+/// Audit log entry for admin actions.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct AuditLog {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub actor_id: Option<Uuid>,
+    pub action: String,
+    pub target_type: Option<String>,
+    pub target_id: Option<Uuid>,
+    pub details: serde_json::Value,
+    pub ip_address: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// DTO for creating an audit log entry.
+#[derive(Debug, Clone)]
+pub struct CreateAuditLog {
+    pub server_id: Uuid,
+    pub actor_id: Uuid,
+    pub action: AuditAction,
+    pub target_type: Option<String>,
+    pub target_id: Option<Uuid>,
+    pub details: serde_json::Value,
+    pub ip_address: Option<String>,
+}
+
+/// Audit action types.
+#[derive(Debug, Clone, Copy, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum AuditAction {
+    // Server actions
+    ServerCreate,
+    ServerUpdate,
+    ServerDelete,
+
+    // Channel actions
+    ChannelCreate,
+    ChannelUpdate,
+    ChannelDelete,
+
+    // Member actions
+    MemberKick,
+    MemberBan,
+    MemberUnban,
+    MemberRoleAdd,
+    MemberRoleRemove,
+
+    // Role actions
+    RoleCreate,
+    RoleUpdate,
+    RoleDelete,
+}
+
+/// Query parameters for listing audit logs.
+#[derive(Debug, Deserialize)]
+pub struct ListAuditLogsQuery {
+    /// Filter by action type.
+    pub action: Option<String>,
+    /// Filter by actor user ID.
+    pub actor_id: Option<Uuid>,
+    /// Filter by target type.
+    pub target_type: Option<String>,
+    /// Cursor for pagination (created_at).
+    pub before: Option<DateTime<Utc>>,
+    /// Maximum results (default 50, max 100).
+    pub limit: Option<i64>,
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
+
+/// Query parameters for message search.
+#[derive(Debug, Deserialize, Validate)]
+pub struct SearchQuery {
+    /// Search query string (2-200 characters).
+    #[validate(length(min = 2, max = 200, message = "Query must be 2–200 characters"))]
+    pub q: String,
+    /// Optional channel ID to limit search scope.
+    pub channel_id: Option<Uuid>,
+    /// Cursor for pagination: return results before this message ID.
+    pub before: Option<Uuid>,
+    /// Maximum results per page (default 50, max 100).
+    #[validate(range(min = 1, max = 100, message = "Limit must be 1–100"))]
+    pub limit: Option<i64>,
+}
+
+/// A single search result with highlighted snippet.
+#[derive(Debug, Serialize)]
+pub struct SearchResult {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub author_id: Option<Uuid>,
+    pub author_username: Option<String>,
+    pub content: String,
+    /// HTML snippet with matching terms wrapped in <mark> tags.
+    pub highlight: String,
+    pub created_at: DateTime<Utc>,
+    /// Relevance rank (higher = better match).
+    pub rank: f32,
+}
+
+/// Paginated search response.
+#[derive(Debug, Serialize)]
+pub struct SearchResponse {
+    pub results: Vec<SearchResult>,
+    /// Total matching messages (approximate for large result sets).
+    pub total: i64,
+    pub has_more: bool,
+    /// Cursor for next page (message ID).
+    pub next_cursor: Option<Uuid>,
 }

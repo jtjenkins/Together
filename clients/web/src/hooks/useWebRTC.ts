@@ -9,23 +9,54 @@
  * for both the local microphone and each incoming remote stream, reporting
  * changes via `onSpeakingChange`.
  *
+ * ICE servers are fetched from the backend API, which provides time-limited
+ * TURN credentials for NAT traversal (iOS cellular, restrictive firewalls).
+ *
  * Note: getUserMedia requires a secure context (HTTPS or localhost).
  * If audio is unavailable the hook calls `onError` and the peer connections
  * are established without local audio (listen-only mode).
  */
 import { useEffect, useRef, useCallback } from "react";
 import { gateway } from "../api/websocket";
+import { api } from "../api/client";
 import type { VoiceParticipant } from "../types";
-
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
-};
 
 /** Average frequency amplitude (0-255) above which a user is considered speaking. */
 const SPEAKING_THRESHOLD = 15;
+
+// Cache ICE servers for the TTL duration (24 hours by default)
+let iceServersCache: { servers: RTCIceServer[]; expiresAt: number } | null =
+  null;
+
+async function getIceServers(): Promise<RTCIceServer[]> {
+  // Return cached servers if still valid
+  if (iceServersCache && Date.now() < iceServersCache.expiresAt) {
+    return iceServersCache.servers;
+  }
+
+  try {
+    const response = await api.getIceServers();
+    // Convert to RTCIceServer format and cache for TTL - 60 seconds buffer
+    const servers: RTCIceServer[] = response.iceServers.map((s) => ({
+      urls: s.urls,
+      username: s.username,
+      credential: s.credential,
+    }));
+    const ttlMs = (response.ttl - 60) * 1000;
+    iceServersCache = {
+      servers,
+      expiresAt: Date.now() + ttlMs,
+    };
+    return servers;
+  } catch (err) {
+    console.warn("[WebRTC] Failed to fetch ICE servers, using STUN only", err);
+    // Fallback to public STUN servers if API fails
+    return [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+    ];
+  }
+}
 
 interface UseWebRTCOptions {
   enabled: boolean;
@@ -108,6 +139,8 @@ export function useWebRTC({
   const offeredPeersRef = useRef<Set<string>>(new Set());
   // Speaking detector cleanup functions keyed by userId
   const speakingStopRef = useRef<Map<string, () => void>>(new Map());
+  // Cached ICE servers (fetched once when enabled)
+  const iceServersRef = useRef<RTCIceServer[]>([]);
 
   // Shared AudioContext for all speaking detectors — Chrome limits concurrent
   // AudioContexts to ~6, so one context must serve the whole call.
@@ -186,10 +219,12 @@ export function useWebRTC({
   );
 
   const createPeer = useCallback(
-    (peerId: string, localStream: MediaStream | null) => {
+    (peerId: string, localStream: MediaStream | null): RTCPeerConnection => {
       if (peersRef.current.has(peerId)) return peersRef.current.get(peerId)!;
 
-      const pc = new RTCPeerConnection(RTC_CONFIG);
+      const pc = new RTCPeerConnection({
+        iceServers: iceServersRef.current,
+      });
       peersRef.current.set(peerId, pc);
 
       // Add local audio tracks
@@ -233,6 +268,26 @@ export function useWebRTC({
     },
     [playRemoteStream, closePeer],
   );
+
+  // Fetch ICE servers once when enabled
+  useEffect(() => {
+    if (!enabled) return;
+
+    let cancelled = false;
+    getIceServers()
+      .then((servers) => {
+        if (!cancelled) {
+          iceServersRef.current = servers;
+        }
+      })
+      .catch((err) => {
+        console.warn("[WebRTC] Failed to fetch ICE servers", err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
 
   // Acquire local audio stream; re-runs when enabled or mic device changes.
   useEffect(() => {
