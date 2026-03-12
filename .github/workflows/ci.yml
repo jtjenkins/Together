@@ -30,7 +30,7 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workdir: server
+          workspaces: "server -> target"
 
       - name: Check formatting
         run: cargo fmt --check
@@ -74,7 +74,7 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workdir: server
+          workspaces: "server -> target"
 
       - name: Install sqlx-cli
         run: |
@@ -112,7 +112,7 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workdir: server
+          workspaces: "server -> target"
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
@@ -238,7 +238,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workdir: clients/desktop/src-tauri
+          workspaces: "clients/desktop/src-tauri -> target"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -296,7 +296,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workdir: clients/desktop/src-tauri
+          workspaces: "clients/desktop/src-tauri -> target"
 
       - name: Install web client dependencies
         run: npm ci
@@ -330,7 +330,7 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
-          workdir: clients/desktop/src-tauri
+          workspaces: "clients/desktop/src-tauri -> target"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -391,7 +391,7 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
-          workdir: clients/desktop/src-tauri
+          workspaces: "clients/desktop/src-tauri -> target"
 
       - name: Check Rust compiles for iOS simulator
         # `tauri ios build` invokes xcodebuild which requires a signing team in

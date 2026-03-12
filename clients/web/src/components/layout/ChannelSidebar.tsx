@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Settings, Plus, Hash, Volume2 } from "lucide-react";
+import { Settings, Plus, Hash, Volume2, Search } from "lucide-react";
 import { useChannelStore } from "../../stores/channelStore";
 import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
@@ -8,6 +8,7 @@ import { useReadStateStore } from "../../stores/readStateStore";
 import { CreateChannelModal } from "../channels/CreateChannelModal";
 import { EditChannelModal } from "../channels/EditChannelModal";
 import { ServerSettingsModal } from "../servers/ServerSettingsModal";
+import { SearchModal } from "../search/SearchModal";
 import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
 import { api } from "../../api/client";
 import type { Channel } from "../../types";
@@ -35,6 +36,7 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
 
   const [showCreate, setShowCreate] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -93,6 +95,14 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
           </button>
         )}
         <h2 className={styles.serverName}>{server?.name ?? "Server"}</h2>
+        <button
+          className={styles.searchBtn}
+          onClick={() => setShowSearch(true)}
+          title="Search Messages"
+          aria-label="Search messages"
+        >
+          <Search size={16} />
+        </button>
         {isOwner && (
           <button
             className={styles.settingsBtn}
@@ -214,6 +224,13 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
             }}
           />
         </ContextMenu>
+      )}
+
+      {showSearch && (
+        <SearchModal
+          serverId={serverId}
+          onClose={() => setShowSearch(false)}
+        />
       )}
     </div>
   );

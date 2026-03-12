@@ -68,9 +68,15 @@ infer = "0.16"               # Magic-byte MIME type detection for uploaded files
 # governor = "0.6"             # Rate limiting (Phase 2-3)
 # webrtc = "0.9"               # Voice/video (Phase 4) - VERY HEAVY
 
+# TURN server credentials (WebRTC NAT traversal)
+hmac = "0.12"
+sha1 = "0.10"
+base64 = "0.22"
+
 [dev-dependencies]
 tokio-test = "0.4"
 http-body-util = "0.1"   # BodyExt::collect() for reading response bodies in tests
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls"] }
 
 [[bin]]
 name = "together-server"

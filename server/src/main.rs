@@ -144,12 +144,13 @@ async fn main() {
 
     let app_state = AppState {
         pool,
-        jwt_secret: config.jwt_secret,
+        jwt_secret: config.jwt_secret.clone(),
         connections: ConnectionManager::new(),
         upload_dir: config.upload_dir.clone(),
         link_preview_cache: Arc::new(RwLock::new(HashMap::new())),
         http_client,
         giphy_api_key,
+        config: Arc::new(config),
     };
 
     // Prometheus metrics layer
@@ -223,6 +224,11 @@ async fn main() {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Search routes (protected, server-scoped)
+        .route(
+            "/servers/:id/search",
+            get(handlers::search::search_messages),
+        )
         // Channel routes (protected, nested under server)
         .route(
             "/servers/:id/channels",
@@ -348,6 +354,8 @@ async fn main() {
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
         )
+        // ICE servers for WebRTC (protected, returns TURN credentials)
+        .route("/ice-servers", get(handlers::ice::get_ice_servers))
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
         // ── Global rate limit (10 req/s per IP, burst 20) ──────────────────
