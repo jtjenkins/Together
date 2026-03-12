@@ -8,6 +8,9 @@ import type {
 } from "../types";
 import { api, ApiRequestError } from "../api/client";
 
+/** Tracks message IDs with an in-flight fetch to prevent duplicate requests. */
+const pendingReplyFetches = new Set<string>();
+
 interface MessageState {
   messages: Message[];
   isLoading: boolean;
@@ -222,14 +225,16 @@ export const useMessageStore = create<MessageState>((set) => ({
     })),
 
   ensureReplyTarget: async (channelId, messageId) => {
-    // Skip fetch if message is already in main list or reply cache
+    // Skip fetch if message is already in main list, reply cache, or in-flight
     const { messages, replyTargetCache } = useMessageStore.getState();
     if (
       messages.some((m) => m.id === messageId) ||
-      replyTargetCache[messageId]
+      replyTargetCache[messageId] ||
+      pendingReplyFetches.has(messageId)
     ) {
       return;
     }
+    pendingReplyFetches.add(messageId);
     try {
       const msg = await api.getMessage(channelId, messageId);
       set((s) => ({
@@ -237,6 +242,8 @@ export const useMessageStore = create<MessageState>((set) => ({
       }));
     } catch {
       // Non-fatal: reply bar will show without content preview
+    } finally {
+      pendingReplyFetches.delete(messageId);
     }
   },
 
