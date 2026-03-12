@@ -10,6 +10,7 @@ export interface UserDto {
   status: UserStatus;
   custom_status: string | null;
   created_at: string;
+  is_admin: boolean;
 }
 
 export interface UpdateUserDto {
@@ -342,6 +343,20 @@ export interface PollVoteEvent {
   poll_id: string;
   channel_id: string;
   updated_poll: PollDto;
+}
+
+// ─── Password Reset ───────────────────────────────────────────────────────
+
+export interface ForgotPasswordResponse {
+  message: string;
+  token: string; // always present — admin-only endpoint, no enumeration risk
+  expires_in_seconds: number;
+  note: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
 }
 
 // ─── ICE Servers (WebRTC) ─────────────────────────────────────────────────

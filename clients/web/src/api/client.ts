@@ -25,6 +25,8 @@ import type {
   LinkPreviewDto,
   GifResult,
   PollDto,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
   IceServersResponse,
   SearchQuery,
   SearchResponse,
@@ -479,6 +481,24 @@ class ApiClient {
     });
   }
 
+  // ─── Password Reset ──────────────────────────────────────────────────────
+
+  /** Generate a password reset token for a user by email. Admin only. */
+  forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+    return this.request<ForgotPasswordResponse>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /** Reset a user's password using a reset token. */
+  resetPassword(data: ResetPasswordRequest): Promise<void> {
+    return this.request<void>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   // ─── Search ──────────────────────────────────────────────────────────────
 
   /** Search messages in a server or specific channel. */
@@ -491,7 +511,6 @@ class ApiClient {
     if (query.channel_id) params.set("channel_id", query.channel_id);
     if (query.before) params.set("before", query.before);
     if (query.limit) params.set("limit", String(query.limit));
-
     return this.request<SearchResponse>(
       `/servers/${serverId}/search?${params.toString()}`,
     );
