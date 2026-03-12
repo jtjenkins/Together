@@ -86,7 +86,8 @@ export const useTypingStore = create<TypingState>((set, get) => ({
       if (!state.typingUsers[channelId]) {
         return state;
       }
-      const { [channelId]: _removed, ...rest } = state.typingUsers;
+      const rest = { ...state.typingUsers };
+      delete rest[channelId];
       return { typingUsers: rest };
     });
   },
