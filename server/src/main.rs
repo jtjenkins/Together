@@ -168,7 +168,7 @@ async fn main() {
     // CORS in dev).
     let governor_conf = Arc::new(if config.is_dev {
         GovernorConfigBuilder::default()
-            .per_millisecond(1)   // 1 token per 1ms ≈ 1000 req/s
+            .per_millisecond(1) // 1 token per 1ms ≈ 1000 req/s
             .burst_size(5_000)
             .finish()
             .expect("Invalid global governor configuration (dev)")
@@ -183,8 +183,8 @@ async fn main() {
     // Stricter limit for authentication endpoints.
     let auth_governor_conf = Arc::new(if config.is_dev {
         GovernorConfigBuilder::default()
-            .per_millisecond(10)  // 1 token per 10ms = 100 req/s for auth in dev
-            .burst_size(5_000)    // large burst so all 500 load-test VUs can register at once
+            .per_millisecond(10) // 1 token per 10ms = 100 req/s for auth in dev
+            .burst_size(5_000) // large burst so all 500 load-test VUs can register at once
             .finish()
             .expect("Invalid auth governor configuration (dev)")
     } else {
@@ -333,7 +333,10 @@ async fn main() {
         .route("/bots/connect", post(handlers::bots::bot_connect))
         .route("/bots/:id", get(handlers::bots::get_bot))
         .route("/bots/:id", delete(handlers::bots::revoke_bot))
-        .route("/bots/:id/token/regenerate", post(handlers::bots::regenerate_bot_token))
+        .route(
+            "/bots/:id/token/regenerate",
+            post(handlers::bots::regenerate_bot_token),
+        )
         // DM routes (protected, user-scoped)
         .route("/dm-channels", post(handlers::dm::open_dm_channel))
         .route("/dm-channels", get(handlers::dm::list_dm_channels))

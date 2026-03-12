@@ -66,7 +66,9 @@ pub async fn websocket_handler(
         // ── Human user: JWT auth ──────────────────────────────────────────
         let claims = match validate_token(&jwt, &state.jwt_secret) {
             Ok(c) => c,
-            Err(_) => return (StatusCode::UNAUTHORIZED, "Invalid or expired token").into_response(),
+            Err(_) => {
+                return (StatusCode::UNAUTHORIZED, "Invalid or expired token").into_response()
+            }
         };
         if claims.token_type != TokenType::Access {
             return (StatusCode::UNAUTHORIZED, "Access token required").into_response();
@@ -75,7 +77,6 @@ pub async fn websocket_handler(
             Ok(id) => id,
             Err(_) => return (StatusCode::UNAUTHORIZED, "Invalid token subject").into_response(),
         }
-
     } else if let Some(raw_token) = params.bot_token {
         // ── Bot: static token auth ────────────────────────────────────────
         // Note: the per-bot rate limiter (50 req/s) is enforced in the REST
@@ -108,9 +109,12 @@ pub async fn websocket_handler(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Auth error").into_response();
             }
         }
-
     } else {
-        return (StatusCode::UNAUTHORIZED, "token or bot_token query parameter required").into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            "token or bot_token query parameter required",
+        )
+            .into_response();
     };
 
     ws.on_upgrade(move |socket| handle_socket(socket, user_id, state))

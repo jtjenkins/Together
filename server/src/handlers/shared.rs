@@ -127,8 +127,8 @@ pub async fn require_member(
 }
 
 // Permission bitflag constants (mirrors migrations/20240216000003_roles_and_permissions.sql)
-const PERMISSION_MANAGE_MESSAGES: i64 = 4;   // bit 2
-const PERMISSION_ADMINISTRATOR: i64 = 8192;  // bit 13
+const PERMISSION_MANAGE_MESSAGES: i64 = 4; // bit 2
+const PERMISSION_ADMINISTRATOR: i64 = 8192; // bit 13
 
 /// Verify the user has the MANAGE_MESSAGES permission in the given server.
 ///
@@ -141,13 +141,12 @@ pub async fn require_manage_messages(
     user_id: Uuid,
 ) -> AppResult<()> {
     // Server owner always has all permissions.
-    let is_owner: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM servers WHERE id = $1 AND owner_id = $2)",
-    )
-    .bind(server_id)
-    .bind(user_id)
-    .fetch_one(pool)
-    .await?;
+    let is_owner: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM servers WHERE id = $1 AND owner_id = $2)")
+            .bind(server_id)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
 
     if is_owner {
         return Ok(());
