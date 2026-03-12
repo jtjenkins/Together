@@ -11,12 +11,11 @@ CREATE TABLE bots (
     name        TEXT        NOT NULL CHECK (char_length(name) BETWEEN 1 AND 64),
     description TEXT        CHECK (char_length(description) <= 512),
     token_hash  TEXT        NOT NULL UNIQUE,
-    created_by  UUID        NOT NULL REFERENCES users(id),
+    created_by  UUID        REFERENCES users(id) ON DELETE SET NULL,
     revoked_at  TIMESTAMPTZ,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_bots_token_hash  ON bots(token_hash);
 CREATE INDEX idx_bots_created_by  ON bots(created_by);
 CREATE INDEX idx_bots_user_id     ON bots(user_id);
 
