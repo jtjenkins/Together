@@ -9,7 +9,8 @@ use uuid::Uuid;
 use validator::Validate;
 
 use super::shared::{
-    fetch_channel_by_id, fetch_message, fetch_server, require_member, validation_error,
+    fetch_channel_by_id, fetch_message, fetch_message_including_deleted, fetch_server,
+    require_member, validation_error,
 };
 use crate::{
     auth::AuthUser,
@@ -522,29 +523,14 @@ pub async fn get_message(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
-    let message = sqlx::query_as::<_, Message>(
-        "SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to,
-                m.mention_user_ids, m.mention_everyone, m.thread_id,
-                COALESCE(
-                  (SELECT COUNT(*)::int FROM messages r
-                   WHERE r.thread_id = m.id AND r.deleted = FALSE),
-                  0
-                ) AS thread_reply_count,
-                m.edited_at, m.deleted, m.created_at, m.pinned, m.pinned_by, m.pinned_at
-         FROM messages m
-         WHERE m.id = $1 AND m.channel_id = $2",
-    )
-    .bind(message_id)
-    .bind(channel_id)
-    .fetch_optional(&state.pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
+    let message =
+        fetch_message_including_deleted(&state.pool, message_id, channel_id).await?;
 
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
     let dto = enriched
         .into_iter()
         .next()
-        .ok_or(AppError::Internal)?;
+        .ok_or_else(|| AppError::Internal)?;
 
     Ok(Json(dto))
 }
