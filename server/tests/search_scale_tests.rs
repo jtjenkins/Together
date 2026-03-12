@@ -87,7 +87,7 @@ fn generate_message_content(seed: usize) -> String {
     ];
 
     let mut content = String::new();
-    let word_count = 5 + (seed % 20) as usize; // 5-24 words per message
+    let word_count = 5 + seed % 20; // 5-24 words per message
 
     for i in 0..word_count {
         if i > 0 {
@@ -97,12 +97,12 @@ fn generate_message_content(seed: usize) -> String {
     }
 
     // Add some unique identifier every 100 messages for rare term testing
-    if seed % 100 == 0 {
+    if seed.is_multiple_of(100) {
         content.push_str(&format!(" uniqueterm{}", seed / 100));
     }
 
     // Add a common term to ~10% of messages
-    if seed % 10 == 0 {
+    if seed.is_multiple_of(10) {
         content.push_str(" commonterm");
     }
 
