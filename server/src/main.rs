@@ -325,6 +325,12 @@ async fn main() {
             "/channels/:channel_id/ack",
             post(handlers::read_states::ack_channel),
         )
+        // Bot management routes (user-scoped, protected)
+        .route("/bots", post(handlers::bots::create_bot))
+        .route("/bots", get(handlers::bots::list_bots))
+        .route("/bots/:id", get(handlers::bots::get_bot))
+        .route("/bots/:id", delete(handlers::bots::revoke_bot))
+        .route("/bots/:id/token/regenerate", post(handlers::bots::regenerate_bot_token))
         // DM routes (protected, user-scoped)
         .route("/dm-channels", post(handlers::dm::open_dm_channel))
         .route("/dm-channels", get(handlers::dm::list_dm_channels))

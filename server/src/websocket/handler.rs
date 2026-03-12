@@ -40,7 +40,10 @@ struct MentionCount {
 /// short-lived access tokens to limit exposure.
 #[derive(Debug, serde::Deserialize)]
 pub struct WsParams {
-    pub token: String,
+    /// JWT access token for human users.
+    pub token: Option<String>,
+    /// Static bot token for bot connections.
+    pub bot_token: Option<String>,
 }
 
 // ============================================================================
@@ -48,31 +51,59 @@ pub struct WsParams {
 // ============================================================================
 
 /// GET /ws?token=<access_token> — upgrade to a WebSocket connection.
+/// GET /ws?bot_token=<static_token> — upgrade as a bot.
 ///
-/// The JWT is validated before the upgrade is accepted; invalid tokens get a
+/// The token is validated before the upgrade is accepted; invalid tokens get a
 /// plain 401 without an upgrade attempt.
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     Query(params): Query<WsParams>,
     State(state): State<AppState>,
 ) -> Response {
-    let claims = match validate_token(&params.token, &state.jwt_secret) {
-        Ok(c) => c,
-        Err(_) => {
-            return (StatusCode::UNAUTHORIZED, "Invalid or expired token").into_response();
+    let user_id = if let Some(jwt) = params.token {
+        // ── Human user: JWT auth ──────────────────────────────────────────
+        let claims = match validate_token(&jwt, &state.jwt_secret) {
+            Ok(c) => c,
+            Err(_) => return (StatusCode::UNAUTHORIZED, "Invalid or expired token").into_response(),
+        };
+        if claims.token_type != TokenType::Access {
+            return (StatusCode::UNAUTHORIZED, "Access token required").into_response();
         }
-    };
-
-    // Reject refresh tokens used as WebSocket credentials.
-    if claims.token_type != TokenType::Access {
-        return (StatusCode::UNAUTHORIZED, "Access token required").into_response();
-    }
-
-    let user_id = match claims.user_id() {
-        Ok(id) => id,
-        Err(_) => {
-            return (StatusCode::UNAUTHORIZED, "Invalid token subject").into_response();
+        match claims.user_id() {
+            Ok(id) => id,
+            Err(_) => return (StatusCode::UNAUTHORIZED, "Invalid token subject").into_response(),
         }
+
+    } else if let Some(raw_token) = params.bot_token {
+        // ── Bot: static token auth ────────────────────────────────────────
+        use crate::bot_auth::hash_bot_token;
+        let token_hash = hash_bot_token(&raw_token);
+
+        #[derive(sqlx::FromRow)]
+        struct BotLookup {
+            user_id: Uuid,
+            revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+        }
+
+        let row = sqlx::query_as::<_, BotLookup>(
+            "SELECT user_id, revoked_at FROM bots WHERE token_hash = $1",
+        )
+        .bind(&token_hash)
+        .fetch_optional(&state.pool)
+        .await;
+
+        match row {
+            Ok(Some(b)) if b.revoked_at.is_none() => b.user_id,
+            Ok(Some(_)) => return (StatusCode::UNAUTHORIZED, "Bot token revoked").into_response(),
+            Ok(None) => return (StatusCode::UNAUTHORIZED, "Invalid bot token").into_response(),
+            Err(e) => {
+                tracing::warn!(error = ?e, "DB error during bot WS auth");
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Auth error").into_response();
+            }
+        }
+
+    } else {
+        return (StatusCode::UNAUTHORIZED, "token or bot_token query parameter required").into_response();
     };
 
     ws.on_upgrade(move |socket| handle_socket(socket, user_id, state))
