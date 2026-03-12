@@ -55,6 +55,33 @@ pub async fn fetch_message(pool: &sqlx::PgPool, message_id: Uuid) -> AppResult<M
     .ok_or_else(|| AppError::NotFound("Message not found".into()))
 }
 
+/// Fetch a message by ID and channel, returning 404 if not found.
+/// Unlike `fetch_message`, this returns messages with `deleted = TRUE` so that
+/// reply-bar previews can display "original message deleted" for soft-deleted targets.
+pub async fn fetch_message_including_deleted(
+    pool: &sqlx::PgPool,
+    message_id: Uuid,
+    channel_id: Uuid,
+) -> AppResult<Message> {
+    sqlx::query_as::<_, Message>(
+        "SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to,
+                m.mention_user_ids, m.mention_everyone, m.thread_id,
+                COALESCE(
+                    (SELECT COUNT(*)::int FROM messages r
+                     WHERE r.thread_id = m.id AND r.deleted = FALSE),
+                    0
+                ) AS thread_reply_count,
+                m.edited_at, m.deleted, m.created_at, m.pinned, m.pinned_by, m.pinned_at
+         FROM messages m
+         WHERE m.id = $1 AND m.channel_id = $2",
+    )
+    .bind(message_id)
+    .bind(channel_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Message not found".into()))
+}
+
 /// Fetch a channel by its ID alone (no server scope), returning 404 if not found.
 pub async fn fetch_channel_by_id(pool: &sqlx::PgPool, channel_id: Uuid) -> AppResult<Channel> {
     sqlx::query_as::<_, Channel>(
@@ -97,4 +124,56 @@ pub async fn require_member(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Server not found".into()))
+}
+
+// Permission bitflag constants (mirrors migrations/20240216000003_roles_and_permissions.sql)
+const PERMISSION_MANAGE_MESSAGES: i64 = 4; // bit 2
+const PERMISSION_ADMINISTRATOR: i64 = 8192; // bit 13
+
+/// Verify the user has the MANAGE_MESSAGES permission in the given server.
+///
+/// Grants access if the user is the server owner, or if any of their roles
+/// have MANAGE_MESSAGES (bit 2) or ADMINISTRATOR (bit 13) set.
+/// Returns 403 Forbidden when the user is a member but lacks the permission.
+pub async fn require_manage_messages(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    user_id: Uuid,
+) -> AppResult<()> {
+    // Server owner always has all permissions.
+    let is_owner: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM servers WHERE id = $1 AND owner_id = $2)")
+            .bind(server_id)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
+
+    if is_owner {
+        return Ok(());
+    }
+
+    // Check role-based permissions: MANAGE_MESSAGES or ADMINISTRATOR bit set.
+    let has_perm: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM member_roles mr
+             JOIN roles r ON r.id = mr.role_id
+             WHERE mr.user_id = $1
+               AND mr.server_id = $2
+               AND (r.permissions & $3 != 0 OR r.permissions & $4 != 0)
+         )",
+    )
+    .bind(user_id)
+    .bind(server_id)
+    .bind(PERMISSION_MANAGE_MESSAGES)
+    .bind(PERMISSION_ADMINISTRATOR)
+    .fetch_one(pool)
+    .await?;
+
+    if has_perm {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "You need the Manage Messages permission to pin messages".into(),
+        ))
+    }
 }

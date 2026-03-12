@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod bot_auth;
 pub mod config;
 pub mod db;
 pub mod error;

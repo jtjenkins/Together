@@ -9,6 +9,8 @@ interface MessageListProps {
   messages: Message[];
   channelId: string;
   onOpenThread?: (messageId: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
+  onRegisterMessageRef?: (id: string, el: HTMLDivElement | null) => void;
 }
 
 function isSameDay(a: string, b: string) {

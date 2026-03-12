@@ -36,6 +36,9 @@ const mockMsg = (overrides: Partial<Message> = {}): Message => ({
   edited_at: null,
   deleted: false,
   created_at: "2024-01-01T00:00:00Z",
+  pinned: false,
+  pinned_by: null,
+  pinned_at: null,
   ...overrides,
 });
 

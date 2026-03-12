@@ -278,6 +278,26 @@ class ApiClient {
     return this.request(`/channels/${channelId}/messages${qs ? `?${qs}` : ""}`);
   }
 
+  getMessage(channelId: string, messageId: string): Promise<Message> {
+    return this.request(`/channels/${channelId}/messages/${messageId}`);
+  }
+
+  pinMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
+      method: "POST",
+    });
+  }
+
+  unpinMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
+      method: "DELETE",
+    });
+  }
+
+  listPinnedMessages(channelId: string): Promise<Message[]> {
+    return this.request(`/channels/${channelId}/pinned-messages`);
+  }
+
   updateMessage(
     messageId: string,
     data: UpdateMessageRequest,

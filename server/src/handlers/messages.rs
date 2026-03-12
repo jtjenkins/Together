@@ -523,8 +523,7 @@ pub async fn get_message(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
-    let message =
-        fetch_message_including_deleted(&state.pool, message_id, channel_id).await?;
+    let message = fetch_message_including_deleted(&state.pool, message_id, channel_id).await?;
 
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
     let dto = enriched
