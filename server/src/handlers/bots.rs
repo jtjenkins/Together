@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::{
-    auth::AuthUser,
+    auth::{create_access_token, AuthUser},
     bot_auth::{generate_bot_token, hash_bot_token},
     error::AppError,
     models::{Bot, BotCreatedResponse, BotDto, CreateBotDto},
@@ -35,10 +35,23 @@ pub async fn create_bot(
         ));
     }
 
+    // Reject names whose alphanumeric content is empty (e.g., "!!!") — they
+    // would produce a username with a leading hyphen after slugging.
+    if !name.chars().any(|c| c.is_alphanumeric()) {
+        return Err(AppError::Validation(
+            "Bot name must contain at least one alphanumeric character".into(),
+        ));
+    }
+
     let short_id = &Uuid::new_v4().to_string()[..8];
     let bot_username = format!("{}-bot-{}", slug_name(&name), short_id);
     let placeholder_hash =
         "$2b$12$BOTS.DO.NOT.HAVE.PASSWORDS.REPLACE.WITH.LONG.INVALID.HASH";
+
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!(error = ?e, "Failed to begin transaction");
+        AppError::Internal
+    })?;
 
     let bot_user_id: Uuid = sqlx::query_scalar(
         "INSERT INTO users (username, password_hash, status, is_bot)
@@ -47,7 +60,7 @@ pub async fn create_bot(
     )
     .bind(&bot_username)
     .bind(placeholder_hash)
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(error = ?e, "Failed to create bot user account");
@@ -67,10 +80,15 @@ pub async fn create_bot(
     .bind(payload.description.as_deref())
     .bind(&token_hash)
     .bind(auth.user_id())
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(error = ?e, "Failed to insert bot record");
+        AppError::Internal
+    })?;
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!(error = ?e, "Failed to commit bot creation transaction");
         AppError::Internal
     })?;
 
@@ -223,6 +241,27 @@ pub async fn regenerate_bot_token(
         bot: updated_bot.into(),
         token: raw_token,
     }))
+}
+
+/// POST /bots/connect — Exchange a static bot token for a short-lived JWT.
+///
+/// Bots should use this endpoint to obtain a short-lived access token (15 min)
+/// for WebSocket connections via `?token=<jwt>`. This avoids exposing the
+/// static bot token in server/proxy access logs.
+///
+/// Returns: {"access_token": "<jwt>"}
+pub async fn bot_connect(
+    auth: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<Value>, AppError> {
+    if !auth.is_bot() {
+        return Err(AppError::Forbidden("Only bots can use this endpoint".into()));
+    }
+
+    let token = create_access_token(auth.user_id(), auth.username().to_string(), &state.jwt_secret)
+        .map_err(|_| AppError::Internal)?;
+
+    Ok(Json(json!({ "access_token": token })))
 }
 
 fn slug_name(name: &str) -> String {

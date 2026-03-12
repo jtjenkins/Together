@@ -150,7 +150,7 @@ pub fn verify_password(password: &str, hash: &str) -> AppResult<bool> {
 pub struct AuthUser {
     user_id: Uuid,
     username: String,
-    pub is_bot: bool,
+    is_bot: bool,
 }
 
 impl AuthUser {

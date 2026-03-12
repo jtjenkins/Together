@@ -42,7 +42,9 @@ struct MentionCount {
 pub struct WsParams {
     /// JWT access token for human users.
     pub token: Option<String>,
-    /// Static bot token for bot connections.
+    /// Static bot token for bot connections. Prefer using POST /bots/connect to
+    /// exchange this for a short-lived JWT (`token` param) to avoid the static
+    /// token appearing in server access logs.
     pub bot_token: Option<String>,
 }
 

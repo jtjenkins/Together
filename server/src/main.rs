@@ -328,6 +328,9 @@ async fn main() {
         // Bot management routes (user-scoped, protected)
         .route("/bots", post(handlers::bots::create_bot))
         .route("/bots", get(handlers::bots::list_bots))
+        // NOTE: /bots/connect must be registered before /bots/:id so the literal
+        // path segment "connect" is not consumed by the :id parameter capture.
+        .route("/bots/connect", post(handlers::bots::bot_connect))
         .route("/bots/:id", get(handlers::bots::get_bot))
         .route("/bots/:id", delete(handlers::bots::revoke_bot))
         .route("/bots/:id/token/regenerate", post(handlers::bots::regenerate_bot_token))
