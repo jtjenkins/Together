@@ -84,4 +84,20 @@ mod tests {
         assert_eq!(h1, h2, "hashing the same generated token must be deterministic");
         assert_eq!(h1.len(), 64);
     }
+
+    #[test]
+    fn hash_bot_token_output_length_is_always_64() {
+        // Test with empty string, short string, long string
+        for input in ["", "x", "a".repeat(1000).as_str()] {
+            let hash = hash_bot_token(input);
+            assert_eq!(hash.len(), 64, "SHA-256 output must always be 64 hex chars, input_len={}", input.len());
+        }
+    }
+
+    #[test]
+    fn generated_tokens_have_no_uppercase() {
+        // Bot tokens should be lowercase hex (consistent with hash_bot_token output)
+        let token = generate_bot_token();
+        assert_eq!(token, token.to_lowercase(), "token must be lowercase hex");
+    }
 }

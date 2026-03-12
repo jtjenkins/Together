@@ -256,4 +256,19 @@ mod tests {
     fn slug_name_trims_hyphens() {
         assert_eq!(slug_name("  Bot  "), "bot");
     }
+
+    #[test]
+    fn slug_name_all_special_chars_returns_empty_or_hyphens() {
+        // This tests the edge case documented in code review: all-special input
+        let result = slug_name("!!!");
+        // trim_matches('-') on "---" should give ""
+        assert_eq!(result, "", "all-special-char input should produce empty string after trim");
+    }
+
+    #[test]
+    fn slug_name_mixed_unicode_lowercases_ascii_replaces_non_ascii() {
+        // ASCII portion lowercased, non-ASCII (non-alphanumeric) replaced with hyphens
+        let result = slug_name("Bot-v2.0");
+        assert_eq!(result, "bot-v2-0");
+    }
 }
