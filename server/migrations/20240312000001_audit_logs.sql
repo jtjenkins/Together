@@ -5,13 +5,13 @@
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     server_id UUID NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
-    actor_id UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
     target_type TEXT,
     target_id UUID,
     details JSONB DEFAULT '{}',
     ip_address INET,
-    created_at TIMESTAMPT DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Index for querying by server (most common query)

@@ -15,7 +15,7 @@ use super::shared::fetch_server;
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
-    models::{AuditAction, AuditLog, CreateAuditLog, ListAuditLogsQuery},
+    models::{AuditLog, CreateAuditLog, ListAuditLogsQuery},
     state::AppState,
 };
 
@@ -122,6 +122,7 @@ pub async fn list_audit_logs(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::AuditAction;
 
     #[test]
     fn test_audit_action_serialization() {
