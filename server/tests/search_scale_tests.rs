@@ -135,7 +135,10 @@ async fn test_search_scales_to_100k_messages(pool: sqlx::PgPool) -> sqlx::Result
 
     sqlx::query("INSERT INTO servers (id, name, owner_id) VALUES ($1, $2, $3)")
         .bind(server_id)
-        .bind(format!("test-server-{}", &server_id.simple().to_string()[..8]))
+        .bind(format!(
+            "test-server-{}",
+            &server_id.simple().to_string()[..8]
+        ))
         .bind(user_id)
         .execute(&pool)
         .await?;
@@ -317,7 +320,10 @@ async fn test_search_scales_to_1m_messages(pool: sqlx::PgPool) -> sqlx::Result<(
 
     sqlx::query("INSERT INTO servers (id, name, owner_id) VALUES ($1, $2, $3)")
         .bind(server_id)
-        .bind(format!("test-server-{}", &server_id.simple().to_string()[..8]))
+        .bind(format!(
+            "test-server-{}",
+            &server_id.simple().to_string()[..8]
+        ))
         .bind(user_id)
         .execute(&pool)
         .await?;
