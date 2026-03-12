@@ -84,6 +84,9 @@ async fn main() {
         .expect("Database health check failed");
     info!("✅ Database health check passed");
 
+    // Initialize uptime tracking for health endpoint
+    handlers::health::init_uptime();
+
     // CORS: permissive in dev, origin-restricted in production.
     // Set APP_ENV=production and ALLOWED_ORIGINS=https://your-domain.com (see .env.example).
     let cors = if config.is_dev {
@@ -182,8 +185,10 @@ async fn main() {
 
     // Build router
     let app = Router::new()
-        // Health check + metrics
+        // Health check endpoints (for monitoring and Kubernetes)
         .route("/health", get(handlers::health_check))
+        .route("/health/ready", get(handlers::readiness_check))
+        .route("/health/live", get(handlers::liveness_check))
         .route(
             "/link-preview",
             get(handlers::link_preview::get_link_preview),
