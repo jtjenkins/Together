@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import DOMPurify from "dompurify";
 import { Search, X } from "lucide-react";
-import { api } from "../../api/client";
+import { api, ApiRequestError } from "../../api/client";
 import type { SearchResult, SearchResponse } from "../../types";
 import styles from "./SearchModal.module.css";
 import modalStyles from "../common/Modal.module.css";
@@ -8,6 +9,8 @@ import modalStyles from "../common/Modal.module.css";
 interface SearchModalProps {
   serverId: string;
   channelId?: string;
+  /** Human-readable name for the channel filter (used in result display). */
+  channelName?: string;
   onClose: () => void;
   onResultClick?: (result: SearchResult) => void;
 }
@@ -18,6 +21,7 @@ const MIN_QUERY_LENGTH = 2;
 export function SearchModal({
   serverId,
   channelId,
+  channelName,
   onClose,
   onResultClick,
 }: SearchModalProps) {
@@ -28,7 +32,7 @@ export function SearchModal({
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -48,40 +52,49 @@ export function SearchModal({
         return;
       }
 
-      // Cancel previous request
       abortControllerRef.current?.abort();
-      abortControllerRef.current = new AbortController();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
       setLoading(true);
       setError(null);
 
       try {
-        const response: SearchResponse = await api.searchMessages(serverId, {
-          q: searchQuery,
-          channel_id: channelId,
-          before: cursor,
-          limit: 20,
-        });
+        const response: SearchResponse = await api.searchMessages(
+          serverId,
+          { q: searchQuery, channel_id: channelId, before: cursor, limit: 20 },
+          controller.signal,
+        );
 
         if (cursor) {
-          // Append to existing results (load more)
           setResults((prev: SearchResult[]) => [...prev, ...response.results]);
         } else {
-          // New search
           setResults(response.results);
         }
         setTotal(response.total);
         setHasMore(response.has_more);
         setNextCursor(response.next_cursor);
       } catch (err) {
-        if (err instanceof Error && err.name !== "AbortError") {
+        if (err instanceof Error && err.name === "AbortError") {
+          return; // cancelled — don't touch state
+        }
+        console.error("[SearchModal] Search error:", err);
+        if (err instanceof ApiRequestError) {
+          if (err.status === 401) {
+            setError("Your session has expired. Please log in again.");
+          } else if (err.status === 403 || err.status === 404) {
+            setError("You no longer have access to this server.");
+          } else {
+            setError("Search failed. Please try again.");
+          }
+        } else {
           setError("Search failed. Please try again.");
         }
       } finally {
         setLoading(false);
       }
     },
-    [serverId, channelId]
+    [serverId, channelId],
   );
 
   // Debounce effect
@@ -113,15 +126,19 @@ export function SearchModal({
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
-    if (days === 0) {
+    if (date.toDateString() === now.toDateString()) {
       return "Today";
-    } else if (days === 1) {
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
       return "Yesterday";
-    } else if (days < 7) {
-      return `${days} days ago`;
+    }
+    const diffDays = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (diffDays < 7) {
+      return `${diffDays} days ago`;
     } else {
       return date.toLocaleDateString();
     }
@@ -212,7 +229,7 @@ export function SearchModal({
                         {result.author_username || "Unknown"}
                       </span>
                       <span className={styles.channelName}>
-                        #{channelId || "All channels"}
+                        #{channelName ?? result.channel_id.slice(0, 8)}
                       </span>
                       <span className={styles.timestamp}>
                         {formatDate(result.created_at)}
@@ -220,7 +237,11 @@ export function SearchModal({
                     </div>
                     <div
                       className={styles.messageContent}
-                      dangerouslySetInnerHTML={{ __html: result.highlight }}
+                      dangerouslySetInnerHTML={{
+                        __html: DOMPurify.sanitize(result.highlight, {
+                          ALLOWED_TAGS: ["mark"],
+                        }),
+                      }}
                     />
                   </div>
                 ))}

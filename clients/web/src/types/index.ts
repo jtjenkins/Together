@@ -121,6 +121,9 @@ export interface Message {
   edited_at: string | null;
   deleted: boolean;
   created_at: string;
+  pinned: boolean;
+  pinned_by: string | null;
+  pinned_at: string | null;
   poll?: PollDto;
   event?: ServerEventDto;
 }
@@ -277,6 +280,13 @@ export interface PresenceUpdateEvent {
   user_id: string;
   status: UserStatus;
   custom_status: string | null;
+}
+
+export interface TypingStartEvent {
+  user_id: string;
+  username: string | null;
+  channel_id: string;
+  timestamp: string;
 }
 
 export interface MessageDeleteEvent {

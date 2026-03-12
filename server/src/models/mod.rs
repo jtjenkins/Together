@@ -206,6 +206,16 @@ pub struct Message {
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted: bool,
     pub created_at: DateTime<Utc>,
+    /// Whether this message has been pinned in its channel.
+    /// Defaults to false; not included in some validation-only queries.
+    #[sqlx(default)]
+    pub pinned: bool,
+    /// The user who pinned this message, if pinned.
+    #[sqlx(default)]
+    pub pinned_by: Option<Uuid>,
+    /// When this message was pinned, if pinned.
+    #[sqlx(default)]
+    pub pinned_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -450,6 +460,9 @@ pub struct MessageDto {
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted: bool,
     pub created_at: DateTime<Utc>,
+    pub pinned: bool,
+    pub pinned_by: Option<Uuid>,
+    pub pinned_at: Option<DateTime<Utc>>,
     /// Some when the message was created by /poll
     pub poll: Option<PollDto>,
     /// Some when the message was created by /event
@@ -471,6 +484,9 @@ impl MessageDto {
             edited_at: msg.edited_at,
             deleted: msg.deleted,
             created_at: msg.created_at,
+            pinned: msg.pinned,
+            pinned_by: msg.pinned_by,
+            pinned_at: msg.pinned_at,
             poll: None,
             event: None,
         }
@@ -652,4 +668,63 @@ pub struct SearchResponse {
     pub has_more: bool,
     /// Cursor for next page (message ID).
     pub next_cursor: Option<Uuid>,
+}
+
+// ── Bot Models ──────────────────────────────────────────────────────────────
+
+/// Internal database row for a registered bot.
+/// Never serialized to clients — use BotDto.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct Bot {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub token_hash: String,
+    pub created_by: Option<Uuid>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Public bot shape returned by REST API responses.
+/// token_hash is intentionally excluded.
+#[derive(Debug, Serialize)]
+pub struct BotDto {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<Bot> for BotDto {
+    fn from(b: Bot) -> Self {
+        BotDto {
+            id: b.id,
+            user_id: b.user_id,
+            name: b.name,
+            description: b.description,
+            created_by: b.created_by,
+            revoked_at: b.revoked_at,
+            created_at: b.created_at,
+        }
+    }
+}
+
+/// Request body for POST /bots.
+#[derive(Debug, Deserialize)]
+pub struct CreateBotDto {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+/// Response for POST /bots and POST /bots/:id/token/regenerate.
+/// Token is shown exactly once and never stored in plaintext.
+#[derive(Debug, Serialize)]
+pub struct BotCreatedResponse {
+    pub bot: BotDto,
+    /// Plaintext token — shown once at creation/regeneration only.
+    pub token: String,
 }

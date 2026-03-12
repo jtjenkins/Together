@@ -2,11 +2,7 @@ use axum::{
     async_trait,
     extract::FromRequestParts,
     http::{request::Parts, StatusCode},
-    Json, RequestPartsExt,
-};
-use axum_extra::{
-    headers::{authorization::Bearer, Authorization},
-    TypedHeader,
+    Json,
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
@@ -145,13 +141,16 @@ pub fn verify_password(password: &str, hash: &str) -> AppResult<bool> {
 // Auth Middleware
 // ============================================================================
 
-/// Authenticated user extracted from a valid access-token bearer header.
+/// Authenticated user extracted from a valid access-token bearer header or a
+/// bot static token (`Bot <token>` scheme).
 ///
-/// Fields are private: the only valid constructor is the `FromRequestParts`
-/// impl, preventing callers from forging an `AuthUser` via struct literal.
+/// Fields are private: the only valid constructors are the `FromRequestParts`
+/// impl and `authenticate_bot_token`, preventing callers from forging an
+/// `AuthUser` via struct literal.
 pub struct AuthUser {
     user_id: Uuid,
     username: String,
+    is_bot: bool,
 }
 
 impl AuthUser {
@@ -161,6 +160,10 @@ impl AuthUser {
 
     pub fn username(&self) -> &str {
         &self.username
+    }
+
+    pub fn is_bot(&self) -> bool {
+        self.is_bot
     }
 }
 
@@ -178,29 +181,95 @@ impl FromRequestParts<AppState> for AuthUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let TypedHeader(Authorization(bearer)) = parts
-            .extract::<TypedHeader<Authorization<Bearer>>>()
-            .await
-            .map_err(|_| auth_error("Missing or invalid Authorization header"))?;
+        // Extract the raw Authorization header value.
+        let auth_value = parts
+            .headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| auth_error("Missing or invalid Authorization header"))?;
 
-        let claims = validate_token(bearer.token(), &state.jwt_secret)
-            .map_err(|_| auth_error("Invalid or expired token"))?;
+        if let Some(jwt) = auth_value.strip_prefix("Bearer ") {
+            // ── JWT path (human users) ────────────────────────────────────
+            let claims = validate_token(jwt, &state.jwt_secret)
+                .map_err(|_| auth_error("Invalid or expired token"))?;
 
-        // Reject refresh tokens used as access tokens — they have a 7-day
-        // expiry and must never be accepted on protected API endpoints.
-        if claims.token_type != TokenType::Access {
-            return Err(auth_error("Invalid token type"));
+            // Reject refresh tokens used as access tokens — they have a 7-day
+            // expiry and must never be accepted on protected API endpoints.
+            if claims.token_type != TokenType::Access {
+                return Err(auth_error("Invalid token type"));
+            }
+
+            let user_id = claims
+                .user_id()
+                .map_err(|_| auth_error("Invalid token subject"))?;
+
+            Ok(AuthUser {
+                user_id,
+                username: claims.username,
+                is_bot: false,
+            })
+        } else if let Some(raw_token) = auth_value.strip_prefix("Bot ") {
+            // ── Bot static token path ─────────────────────────────────────
+            authenticate_bot_token(raw_token, state).await
+        } else {
+            Err(auth_error("Missing or invalid Authorization header"))
         }
-
-        let user_id = claims
-            .user_id()
-            .map_err(|_| auth_error("Invalid token subject"))?;
-
-        Ok(AuthUser {
-            user_id,
-            username: claims.username,
-        })
     }
+}
+
+/// Look up a bot by its plaintext token, verify it is not revoked,
+/// apply per-bot rate limiting, and return an `AuthUser` backed by the
+/// bot's user account.
+async fn authenticate_bot_token(
+    raw_token: &str,
+    state: &AppState,
+) -> Result<AuthUser, AuthRejection> {
+    use crate::bot_auth::hash_bot_token;
+
+    let token_hash = hash_bot_token(raw_token);
+
+    #[derive(sqlx::FromRow)]
+    struct BotRow {
+        user_id: Uuid,
+        username: String,
+        revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+    }
+
+    let row = sqlx::query_as::<_, BotRow>(
+        "SELECT b.user_id, u.username, b.revoked_at
+         FROM bots b
+         JOIN users u ON u.id = b.user_id
+         WHERE b.token_hash = $1",
+    )
+    .bind(&token_hash)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::warn!(error = ?e, "DB error during bot token lookup");
+        auth_error("Internal authentication error")
+    })?;
+
+    let row = row.ok_or_else(|| auth_error("Invalid bot token"))?;
+
+    if row.revoked_at.is_some() {
+        return Err(auth_error("Bot token has been revoked"));
+    }
+
+    // Per-bot rate limiting: 50 req/s per bot user_id.
+    if state.bot_rate_limiter.check_key(&row.user_id).is_err() {
+        return Err((
+            axum::http::StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(serde_json::json!({
+                "error": "Bot rate limit exceeded. Max 50 requests/second."
+            })),
+        ));
+    }
+
+    Ok(AuthUser {
+        user_id: row.user_id,
+        username: row.username,
+        is_bot: true,
+    })
 }
 
 // ============================================================================

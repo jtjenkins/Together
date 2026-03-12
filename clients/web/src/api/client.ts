@@ -280,6 +280,12 @@ class ApiClient {
     return this.request(`/channels/${channelId}/messages${qs ? `?${qs}` : ""}`);
   }
 
+  getMessage(channelId: string, messageId: string): Promise<Message> {
+    return this.request<Message>(
+      `/channels/${channelId}/messages/${messageId}`,
+    );
+  }
+
   updateMessage(
     messageId: string,
     data: UpdateMessageRequest,
@@ -442,6 +448,24 @@ class ApiClient {
     );
   }
 
+  // ─── Pins ───────────────────────────────────────────────
+
+  pinMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
+      method: "POST",
+    });
+  }
+
+  unpinMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
+      method: "DELETE",
+    });
+  }
+
+  listPinnedMessages(channelId: string): Promise<Message[]> {
+    return this.request(`/channels/${channelId}/pinned-messages`);
+  }
+
   getLinkPreview(url: string): Promise<LinkPreviewDto> {
     return this.request<LinkPreviewDto>(
       `/link-preview?url=${encodeURIComponent(url)}`,
@@ -505,6 +529,7 @@ class ApiClient {
   searchMessages(
     serverId: string,
     query: SearchQuery,
+    signal?: AbortSignal,
   ): Promise<SearchResponse> {
     const params = new URLSearchParams();
     params.set("q", query.q);
@@ -513,6 +538,7 @@ class ApiClient {
     if (query.limit) params.set("limit", String(query.limit));
     return this.request<SearchResponse>(
       `/servers/${serverId}/search?${params.toString()}`,
+      { signal },
     );
   }
 

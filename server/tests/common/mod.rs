@@ -75,6 +75,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
         http_client,
         giphy_api_key: None,
         config: Arc::new(config),
+        bot_rate_limiter: AppState::new_bot_rate_limiter(),
     };
     Router::new()
         .route("/health", get(handlers::health_check))
@@ -220,6 +221,11 @@ pub fn create_test_app(pool: PgPool) -> Router {
         .route(
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
+        )
+        // Search
+        .route(
+            "/servers/:id/search",
+            get(handlers::search::search_messages),
         )
         // Link preview
         .route(

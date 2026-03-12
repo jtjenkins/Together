@@ -1,6 +1,7 @@
 pub mod attachments;
 pub mod audit;
 pub mod auth;
+pub mod bots;
 pub mod channels;
 pub mod dm;
 pub mod events;
@@ -9,6 +10,7 @@ pub mod health;
 pub mod ice;
 pub mod link_preview;
 pub mod messages;
+pub mod pins;
 pub mod polls;
 pub mod reactions;
 pub mod read_states;

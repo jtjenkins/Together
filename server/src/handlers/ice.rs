@@ -8,7 +8,11 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
 
-use crate::{auth::AuthUser, error::AppResult, state::AppState};
+use crate::{
+    auth::AuthUser,
+    error::{AppError, AppResult},
+    state::AppState,
+};
 
 // HMAC-SHA1 type alias for TURN credential generation
 type HmacSha1 = Hmac<Sha1>;
@@ -43,6 +47,7 @@ pub struct IceServer {
 
 /// Response containing ICE servers with time-limited TURN credentials.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IceServersResponse {
     ice_servers: Vec<IceServer>,
     /// Time-to-live for the credentials in seconds.
@@ -76,8 +81,8 @@ pub async fn get_ice_servers(
     if let Some(turn_config) = &state.config.turn {
         // Use the authenticated user's identity so each user gets distinct credentials,
         // enabling per-user revocation at the TURN server level.
-        let username = generate_turn_username(CREDENTIAL_TTL_SECS, auth.username());
-        let credential = generate_turn_credential(&username, &turn_config.secret);
+        let username = generate_turn_username(CREDENTIAL_TTL_SECS, auth.username())?;
+        let credential = generate_turn_credential(&username, &turn_config.secret)?;
 
         servers.push(IceServer {
             urls: turn_config.url.clone(),
@@ -103,21 +108,29 @@ pub async fn get_ice_servers(
 /// Format: `{timestamp}:{username}` where timestamp is UNIX epoch seconds
 /// at expiry. Using the authenticated user's identity enables per-user
 /// credential revocation at the TURN server level.
-fn generate_turn_username(ttl_secs: u64, username: &str) -> String {
-    let timestamp = chrono::Utc::now().timestamp() as u64 + ttl_secs;
-    format!("{}:{}", timestamp, username)
+fn generate_turn_username(ttl_secs: u64, username: &str) -> Result<String, AppError> {
+    let now = chrono::Utc::now().timestamp();
+    let expiry = u64::try_from(now)
+        .map_err(|_| {
+            tracing::error!("System clock is before Unix epoch — cannot generate TURN credentials");
+            AppError::Internal
+        })?
+        .saturating_add(ttl_secs);
+    Ok(format!("{}:{}", expiry, username))
 }
 
 /// Generate a TURN credential using HMAC-SHA1.
 ///
 /// The credential is derived from the username and shared secret,
 /// allowing the TURN server to verify without storing state.
-fn generate_turn_credential(username: &str, secret: &str) -> String {
-    let mut mac =
-        HmacSha1::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
+fn generate_turn_credential(username: &str, secret: &str) -> Result<String, AppError> {
+    let mut mac = HmacSha1::new_from_slice(secret.as_bytes()).map_err(|_| {
+        tracing::error!("Failed to initialise HMAC-SHA1 for TURN credential");
+        AppError::Internal
+    })?;
     mac.update(username.as_bytes());
     let result = mac.finalize();
-    BASE64.encode(result.into_bytes())
+    Ok(BASE64.encode(result.into_bytes()))
 }
 
 // ============================================================================
@@ -132,7 +145,7 @@ mod tests {
     fn test_turn_credential_generation() {
         let username = "1234567890:alice";
         let secret = "test-secret-key";
-        let credential = generate_turn_credential(username, secret);
+        let credential = generate_turn_credential(username, secret).unwrap();
 
         // Credential should be non-empty base64
         assert!(!credential.is_empty());
@@ -141,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_username_format() {
-        let username = generate_turn_username(3600, "alice");
+        let username = generate_turn_username(3600, "alice").unwrap();
         assert!(username.ends_with(":alice"));
         assert!(username.split(':').next().unwrap().parse::<u64>().is_ok());
     }
