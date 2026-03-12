@@ -22,7 +22,7 @@ CREATE INDEX idx_bots_user_id     ON bots(user_id);
 -- Comments for documentation
 COMMENT ON TABLE bots IS 'Registry of bot accounts with their hashed authentication tokens';
 COMMENT ON COLUMN bots.user_id IS 'The user account associated with this bot';
-COMMENT ON COLUMN bots.token_hash IS 'Bcrypt hash of the static bot token used for authentication';
+COMMENT ON COLUMN bots.token_hash IS 'SHA-256 hex hash of the static bot token used for authentication';
 COMMENT ON COLUMN bots.created_by IS 'Human user who registered this bot';
 COMMENT ON COLUMN bots.revoked_at IS 'When the bot token was revoked; NULL means token is active';
 COMMENT ON COLUMN users.is_bot IS 'True if this user account represents a bot';

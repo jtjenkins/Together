@@ -175,7 +175,10 @@ pub async fn revoke_bot(
     .bind(auth.user_id())
     .execute(&state.pool)
     .await
-    .map_err(|_| AppError::Internal)?
+    .map_err(|e| {
+        tracing::error!(error = ?e, bot_id = %bot_id, "Failed to revoke bot");
+        AppError::Internal
+    })?
     .rows_affected();
 
     if rows_affected == 0 {

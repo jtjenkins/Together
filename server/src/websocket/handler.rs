@@ -78,6 +78,11 @@ pub async fn websocket_handler(
 
     } else if let Some(raw_token) = params.bot_token {
         // ── Bot: static token auth ────────────────────────────────────────
+        // Note: the per-bot rate limiter (50 req/s) is enforced in the REST
+        // auth extractor but not here, because WebSocket connections are
+        // persistent resources rather than per-request calls. Abuse of the
+        // WS upgrade itself is bounded by connection limits at the TCP/HTTP
+        // layer. Prefer POST /bots/connect → ?token=<jwt> to use the limiter.
         use crate::bot_auth::hash_bot_token;
         let token_hash = hash_bot_token(&raw_token);
 
