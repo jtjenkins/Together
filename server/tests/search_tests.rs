@@ -2,8 +2,8 @@ mod common;
 
 use axum::http::StatusCode;
 use common::{
-    create_channel, create_message, create_server, get_authed, get_no_auth,
-    register_and_get_token, unique_username,
+    create_channel, create_message, create_server, get_authed, get_no_auth, register_and_get_token,
+    unique_username,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
