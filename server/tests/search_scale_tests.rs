@@ -140,7 +140,7 @@ async fn test_search_scales_to_100k_messages(pool: sqlx::PgPool) -> sqlx::Result
         .execute(&pool)
         .await?;
 
-    sqlx::query("INSERT INTO channels (id, server_id, name, type) VALUES ($1, $2, $3, 0)")
+    sqlx::query("INSERT INTO channels (id, server_id, name, type) VALUES ($1, $2, $3, 'text')")
         .bind(channel_id)
         .bind(server_id)
         .bind("general")
@@ -322,7 +322,7 @@ async fn test_search_scales_to_1m_messages(pool: sqlx::PgPool) -> sqlx::Result<(
         .execute(&pool)
         .await?;
 
-    sqlx::query("INSERT INTO channels (id, server_id, name, type) VALUES ($1, $2, $3, 0)")
+    sqlx::query("INSERT INTO channels (id, server_id, name, type) VALUES ($1, $2, $3, 'text')")
         .bind(channel_id)
         .bind(server_id)
         .bind("general")
