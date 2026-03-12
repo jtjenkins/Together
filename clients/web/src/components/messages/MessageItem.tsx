@@ -381,7 +381,8 @@ export function MessageItem({
   if (message.deleted) {
     return (
       <div
-        className={`${styles.message} ${styles.deleted} ${isOwnMessage ? styles.own : ""}`}
+        ref={(el) => onRegisterRef?.(message.id, el)}
+        className={`${styles.message} ${styles.deleted} ${isOwnMessage ? styles.own : ""} ${isHighlighted ? styles.highlighted : ""}`}
       >
         <div className={styles.deletedContent}>
           <em>This message has been deleted</em>

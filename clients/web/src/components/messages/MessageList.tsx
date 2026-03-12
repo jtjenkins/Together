@@ -11,6 +11,8 @@ interface MessageListProps {
   messages: Message[];
   channelId: string;
   onOpenThread?: (messageId: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
+  onRegisterMessageRef?: (id: string, el: HTMLDivElement | null) => void;
 }
 
 function isSameDay(a: string, b: string) {
@@ -21,6 +23,8 @@ export function MessageList({
   messages,
   channelId,
   onOpenThread,
+  onJumpToMessage,
+  onRegisterMessageRef,
 }: MessageListProps) {
   const members = useServerStore((s) => s.members);
   const activeServerId = useServerStore((s) => s.activeServerId);
@@ -136,6 +140,12 @@ export function MessageList({
                   )?.deleted === true
                 : undefined
             }
+            onReplyBarClick={
+              message.reply_to && onJumpToMessage
+                ? () => onJumpToMessage(message.reply_to!)
+                : undefined
+            }
+            onRegisterRef={onRegisterMessageRef}
             onOpenThread={onOpenThread}
             canPin={canPin ?? false}
           />
