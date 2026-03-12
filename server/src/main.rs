@@ -176,6 +176,11 @@ async fn main() {
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/refresh", post(handlers::auth::refresh_token))
+        .route(
+            "/auth/forgot-password",
+            post(handlers::auth::forgot_password),
+        )
+        .route("/auth/reset-password", post(handlers::auth::reset_password))
         .route_layer(GovernorLayer {
             config: auth_governor_conf,
         });
