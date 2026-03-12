@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+use validator::Validate;
 
 // ============================================================================
 // User Models
@@ -535,4 +536,47 @@ pub struct GifResult {
     pub title: String,
     pub width: u32,
     pub height: u32,
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
+
+/// Query parameters for message search.
+#[derive(Debug, Deserialize, Validate)]
+pub struct SearchQuery {
+    /// Search query string (2-200 characters).
+    #[validate(length(min = 2, max = 200, message = "Query must be 2–200 characters"))]
+    pub q: String,
+    /// Optional channel ID to limit search scope.
+    pub channel_id: Option<Uuid>,
+    /// Cursor for pagination: return results before this message ID.
+    pub before: Option<Uuid>,
+    /// Maximum results per page (default 50, max 100).
+    #[validate(range(min = 1, max = 100, message = "Limit must be 1–100"))]
+    pub limit: Option<i64>,
+}
+
+/// A single search result with highlighted snippet.
+#[derive(Debug, Serialize)]
+pub struct SearchResult {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub author_id: Option<Uuid>,
+    pub author_username: Option<String>,
+    pub content: String,
+    /// HTML snippet with matching terms wrapped in <mark> tags.
+    pub highlight: String,
+    pub created_at: DateTime<Utc>,
+    /// Relevance rank (higher = better match).
+    pub rank: f32,
+}
+
+/// Paginated search response.
+#[derive(Debug, Serialize)]
+pub struct SearchResponse {
+    pub results: Vec<SearchResult>,
+    /// Total matching messages (approximate for large result sets).
+    pub total: i64,
+    pub has_more: bool,
+    /// Cursor for next page (message ID).
+    pub next_cursor: Option<Uuid>,
 }

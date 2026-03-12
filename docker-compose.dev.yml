@@ -33,6 +33,13 @@ services:
       SERVER_PORT: 8080
       RUST_LOG: together_server=debug,tower_http=debug,sqlx=warn
       GIPHY_API_KEY: ${GIPHY_API_KEY:-dc6zaTOxFJmzC}
+      # TURN server for WebRTC NAT traversal (optional in dev)
+      # Uncomment to enable TURN for iOS cellular testing:
+      # TURN_HOST: host.docker.internal
+      # TURN_PORT: 3478
+      # TURN_TLS_PORT: 5349
+      # TURN_SECRET: together_dev_turn_secret
+      # TURN_REALM: together.local
     ports:
       - "8080:8080"
     volumes:

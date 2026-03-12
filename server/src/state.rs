@@ -6,6 +6,7 @@ use reqwest::Client;
 use sqlx::PgPool;
 use tokio::sync::RwLock;
 
+use crate::config::Config;
 use crate::handlers::link_preview::LinkPreviewCacheEntry;
 use crate::websocket::ConnectionManager;
 
@@ -33,4 +34,6 @@ pub struct AppState {
     pub http_client: Client,
     /// Optional Giphy API key. If None, /giphy/search returns 503.
     pub giphy_api_key: Option<Arc<str>>,
+    /// Application configuration (includes TURN settings for WebRTC).
+    pub config: Arc<Config>,
 }

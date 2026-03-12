@@ -25,6 +25,9 @@ import type {
   LinkPreviewDto,
   GifResult,
   PollDto,
+  IceServersResponse,
+  SearchQuery,
+  SearchResponse,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -474,6 +477,31 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  // ─── Search ──────────────────────────────────────────────────────────────
+
+  /** Search messages in a server or specific channel. */
+  searchMessages(
+    serverId: string,
+    query: SearchQuery,
+  ): Promise<SearchResponse> {
+    const params = new URLSearchParams();
+    params.set("q", query.q);
+    if (query.channel_id) params.set("channel_id", query.channel_id);
+    if (query.before) params.set("before", query.before);
+    if (query.limit) params.set("limit", String(query.limit));
+
+    return this.request<SearchResponse>(
+      `/servers/${serverId}/search?${params.toString()}`,
+    );
+  }
+
+  // ─── ICE Servers (WebRTC) ──────────────────────────────────────────────
+
+  /** Get ICE servers for WebRTC peer connections, including TURN credentials. */
+  getIceServers(): Promise<IceServersResponse> {
+    return this.request<IceServersResponse>("/ice-servers");
   }
 }
 
