@@ -20,6 +20,7 @@ pub struct User {
     pub custom_status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,6 +40,7 @@ pub struct UserDto {
     pub status: String,
     pub custom_status: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub is_admin: bool,
 }
 
 impl From<User> for UserDto {
@@ -51,6 +53,7 @@ impl From<User> for UserDto {
             status: user.status,
             custom_status: user.custom_status,
             created_at: user.created_at,
+            is_admin: user.is_admin,
         }
     }
 }

@@ -9,7 +9,7 @@ use validator::Validate;
 use crate::{
     auth::{
         create_access_token, create_refresh_token, hash_password, hash_refresh_token,
-        validate_token, verify_password, TokenType,
+        validate_token, verify_password, AuthUser, TokenType,
     },
     error::{AppError, AppResult},
     models::{User, UserDto},
@@ -249,33 +249,34 @@ pub struct ResetPasswordRequest {
     pub new_password: String,
 }
 
-/// POST /auth/forgot-password — Request a password reset.
+/// POST /auth/forgot-password — Generate a password reset token for a user.
 ///
-/// If email is configured, sends a reset link to the user's email.
-/// If email is NOT configured (self-hosted without SMTP), returns the reset token
-/// in the response for manual delivery (e.g., admin sharing with user).
-///
-/// Always returns 200 to prevent email enumeration.
+/// Admin-only endpoint. Returns the reset token in the response body for
+/// manual delivery (e.g., admin sharing with user out-of-band).
 pub async fn forgot_password(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(req): Json<ForgotPasswordRequest>,
 ) -> AppResult<Json<serde_json::Value>> {
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-    // Find user by email
+    // Admin-only endpoint — verify via DB lookup
+    let is_admin: bool = sqlx::query_scalar("SELECT is_admin FROM users WHERE id = $1")
+        .bind(auth_user.user_id())
+        .fetch_one(&state.pool)
+        .await?;
+
+    if !is_admin {
+        return Err(AppError::Forbidden("Admin access required".into()));
+    }
+
+    // Find user by email — return 404 since this is admin-only (no enumeration risk)
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
         .bind(&req.email)
         .fetch_optional(&state.pool)
-        .await?;
-
-    let Some(user) = user else {
-        // Return success even if user not found (prevent enumeration)
-        info!("Password reset requested for unknown email: {}", req.email);
-        return Ok(Json(serde_json::json!({
-            "message": "If an account exists with this email, a reset link has been sent"
-        })));
-    };
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("No user found with email: {}", req.email)))?;
 
     // Generate a secure reset token (32 bytes, base64url encoded)
     let reset_token = {
@@ -295,7 +296,8 @@ pub async fn forgot_password(
 
     // Insert new token (expires in 1 hour)
     sqlx::query(
-        "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, NOW() + INTERVAL '1 hour')"
+        "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) \
+         VALUES ($1, $2, NOW() + INTERVAL '1 hour')",
     )
     .bind(user.id)
     .bind(&token_hash)
@@ -306,10 +308,6 @@ pub async fn forgot_password(
         "Password reset token created for user: {} ({})",
         user.username, user.id
     );
-
-    // For self-hosted deployments, return the token for manual delivery.
-    // In production with email configured, this would send an email instead.
-    // TODO: Add email sending when SMTP is configured.
 
     Ok(Json(serde_json::json!({
         "message": "Password reset token generated",

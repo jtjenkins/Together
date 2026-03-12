@@ -498,6 +498,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         recipient_status: String,
         recipient_custom_status: Option<String>,
         recipient_created_at: chrono::DateTime<chrono::Utc>,
+        recipient_is_admin: bool,
         last_message_at: Option<chrono::DateTime<chrono::Utc>>,
     }
 
@@ -512,6 +513,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
             u.status           AS recipient_status,
             u.custom_status    AS recipient_custom_status,
             u.created_at       AS recipient_created_at,
+            u.is_admin         AS recipient_is_admin,
             (SELECT MAX(dm.created_at)
              FROM direct_messages dm
              WHERE dm.channel_id = dmc.id AND dm.deleted = FALSE
@@ -538,6 +540,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
                     status: r.recipient_status,
                     custom_status: r.recipient_custom_status,
                     created_at: r.recipient_created_at,
+                    is_admin: r.recipient_is_admin,
                 },
                 created_at: r.channel_created_at,
                 last_message_at: r.last_message_at,

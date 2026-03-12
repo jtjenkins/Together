@@ -210,6 +210,9 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/link-preview",
             get(handlers::link_preview::get_link_preview),
         )
+        // Password reset routes
+        .route("/auth/forgot-password", post(handlers::auth::forgot_password))
+        .route("/auth/reset-password", post(handlers::auth::reset_password))
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)
