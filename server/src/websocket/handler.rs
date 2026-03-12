@@ -12,8 +12,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::events::{
-    GatewayMessage, GatewayOp, EVENT_PRESENCE_UPDATE, EVENT_READY, EVENT_VOICE_SIGNAL,
-    EVENT_VOICE_STATE_UPDATE,
+    GatewayMessage, GatewayOp, EVENT_PRESENCE_UPDATE, EVENT_READY, EVENT_TYPING_START,
+    EVENT_VOICE_SIGNAL, EVENT_VOICE_STATE_UPDATE,
 };
 use crate::{
     auth::{validate_token, TokenType},
@@ -185,6 +185,11 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
                 }
                 let custom_status = data["custom_status"].as_str().map(ToOwned::to_owned);
                 set_presence(state, user_id, status, custom_status).await;
+            }
+        }
+        GatewayOp::TypingStart => {
+            if let Some(data) = msg.d {
+                handle_typing_start(user_id, data, state).await;
             }
         }
         GatewayOp::VoiceSignal => match msg.d {
@@ -726,6 +731,124 @@ pub async fn set_presence(
                 error = ?e,
                 "Failed to serialize presence event; this is a programming error"
             );
+        }
+    }
+}
+
+// ============================================================================
+// Typing Indicators
+// ============================================================================
+
+/// Handle a TYPING_START event from a client.
+///
+/// Broadcasts a TYPING_START event to all members of the channel who can see
+/// the typing indicator. The event includes the user ID, username, and channel ID.
+/// Clients should auto-expire the typing indicator after ~10 seconds if no
+/// further TYPING_START events are received.
+async fn handle_typing_start(user_id: Uuid, data: serde_json::Value, state: &AppState) {
+    let channel_id = match data["channel_id"].as_str() {
+        Some(id) => match Uuid::parse_str(id) {
+            Ok(uuid) => uuid,
+            Err(_) => {
+                tracing::debug!(user_id = %user_id, "Invalid channel_id in TYPING_START");
+                return;
+            }
+        },
+        None => {
+            tracing::debug!(user_id = %user_id, "Missing channel_id in TYPING_START");
+            return;
+        }
+    };
+
+    // Verify user is a member of the server that owns this channel
+    let server_id: Option<Uuid> =
+        match sqlx::query_scalar("SELECT server_id FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.pool)
+            .await
+        {
+            Ok(Some(id)) => Some(id),
+            Ok(None) => {
+                tracing::debug!(channel_id = %channel_id, "Channel not found for TYPING_START");
+                return;
+            }
+            Err(e) => {
+                tracing::warn!(error = ?e, "Failed to fetch channel for TYPING_START");
+                return;
+            }
+        };
+
+    let server_id = match server_id {
+        Some(id) => id,
+        None => return,
+    };
+
+    // Verify membership
+    let is_member: bool = match sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM server_members WHERE server_id = $1 AND user_id = $2)",
+    )
+    .bind(server_id)
+    .bind(user_id)
+    .fetch_one(&state.pool)
+    .await
+    {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!(error = ?e, "Failed to verify membership for TYPING_START");
+            return;
+        }
+    };
+
+    if !is_member {
+        tracing::debug!(
+            user_id = %user_id,
+            channel_id = %channel_id,
+            "Non-member attempted TYPING_START"
+        );
+        return;
+    }
+
+    // Get username for the event payload
+    let username: Option<String> = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten();
+
+    // Get all members of the server to broadcast to
+    let member_ids: Vec<Uuid> =
+        match sqlx::query_scalar("SELECT user_id FROM server_members WHERE server_id = $1")
+            .bind(server_id)
+            .fetch_all(&state.pool)
+            .await
+        {
+            Ok(ids) => ids,
+            Err(e) => {
+                tracing::warn!(error = ?e, "Failed to fetch server members for TYPING_START");
+                return;
+            }
+        };
+
+    let event = GatewayMessage::dispatch(
+        EVENT_TYPING_START,
+        json!({
+            "user_id": user_id,
+            "username": username,
+            "channel_id": channel_id,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        }),
+    );
+
+    match serde_json::to_string(&event) {
+        Ok(json) => {
+            state
+                .connections
+                .broadcast_to_users(&member_ids, &json)
+                .await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize TYPING_START event");
         }
     }
 }

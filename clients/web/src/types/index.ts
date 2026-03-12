@@ -278,6 +278,13 @@ export interface PresenceUpdateEvent {
   custom_status: string | null;
 }
 
+export interface TypingStartEvent {
+  user_id: string;
+  username: string | null;
+  channel_id: string;
+  timestamp: string;
+}
+
 export interface MessageDeleteEvent {
   id: string;
   channel_id: string;
