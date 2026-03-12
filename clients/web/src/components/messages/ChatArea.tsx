@@ -22,6 +22,9 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevMessageCount = useRef(0);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const setHighlightedMessageId = useMessageStore(
     (s) => s.setHighlightedMessageId,
   );
@@ -45,6 +48,11 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
     setShowPinned(false);
   }, [channelId]);
 
+  // Clear message refs when channel changes.
+  useEffect(() => {
+    messageRefs.current.clear();
+  }, [channelId]);
+
   // Auto-scroll when new messages arrive at bottom
   useEffect(() => {
     if (messages.length > prevMessageCount.current) {
@@ -59,6 +67,14 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
     }
     prevMessageCount.current = messages.length;
   }, [messages.length]);
+
+  // Cleanup: cancel highlight timeout on unmount.
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current)
+        clearTimeout(highlightTimeoutRef.current);
+    };
+  }, []);
 
   const handleLoadMore = useCallback(() => {
     if (!isLoading && hasMore && messages.length > 0) {
@@ -87,7 +103,12 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         setHighlightedMessageId(messageId);
-        setTimeout(() => setHighlightedMessageId(null), 2100);
+        if (highlightTimeoutRef.current)
+          clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = setTimeout(
+          () => setHighlightedMessageId(null),
+          2100,
+        );
       }
     },
     [setHighlightedMessageId],
