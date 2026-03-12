@@ -84,6 +84,9 @@ async fn main() {
         .expect("Database health check failed");
     info!("✅ Database health check passed");
 
+    // Initialize uptime tracking for health endpoint
+    handlers::health::init_uptime();
+
     // CORS: permissive in dev, origin-restricted in production.
     // Set APP_ENV=production and ALLOWED_ORIGINS=https://your-domain.com (see .env.example).
     let cors = if config.is_dev {
@@ -181,10 +184,16 @@ async fn main() {
             config: auth_governor_conf,
         });
 
+    // Health check routes are intentionally outside the rate-limit layer so
+    // that monitoring and orchestration probes are never throttled.
+    let health_router = Router::new()
+        .route("/health", get(handlers::health_check))
+        .route("/health/ready", get(handlers::readiness_check))
+        .route("/health/live", get(handlers::liveness_check))
+        .with_state(app_state.clone());
+
     // Build router
     let app = Router::new()
-        // Health check + metrics
-        .route("/health", get(handlers::health_check))
         .route(
             "/link-preview",
             get(handlers::link_preview::get_link_preview),
@@ -383,7 +392,10 @@ async fn main() {
         // ── Prometheus + CORS ──────────────────────────────────────────────
         .layer(prometheus_layer)
         .layer(cors)
-        .with_state(app_state);
+        .with_state(app_state)
+        // Merge health routes after all middleware so they are not subject
+        // to rate limiting or other API-only layers.
+        .merge(health_router);
 
     // Start server
     info!("🎧 Server listening on http://{}", addr);
