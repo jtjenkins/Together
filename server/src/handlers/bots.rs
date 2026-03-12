@@ -24,12 +24,12 @@ pub async fn create_bot(
     }
 
     let name = payload.name.trim().to_string();
-    if name.is_empty() || name.len() > 64 {
+    if name.is_empty() || name.chars().count() > 64 {
         return Err(AppError::Validation(
             "Bot name must be 1–64 characters".into(),
         ));
     }
-    if payload.description.as_deref().map(|d| d.len()).unwrap_or(0) > 512 {
+    if payload.description.as_deref().map(|d| d.chars().count()).unwrap_or(0) > 512 {
         return Err(AppError::Validation(
             "Bot description must be ≤512 characters".into(),
         ));
@@ -131,7 +131,10 @@ pub async fn get_bot(
     .bind(auth.user_id())
     .fetch_optional(&state.pool)
     .await
-    .map_err(|_| AppError::Internal)?
+    .map_err(|e| {
+        tracing::error!(error = ?e, "Failed to fetch bot");
+        AppError::Internal
+    })?
     .ok_or_else(|| AppError::NotFound("Bot not found".into()))?;
 
     Ok(Json(bot.into()))
@@ -186,7 +189,10 @@ pub async fn regenerate_bot_token(
     .bind(auth.user_id())
     .fetch_optional(&state.pool)
     .await
-    .map_err(|_| AppError::Internal)?
+    .map_err(|e| {
+        tracing::error!(error = ?e, "Failed to fetch bot for token regeneration");
+        AppError::Internal
+    })?
     .ok_or_else(|| AppError::NotFound("Bot not found".into()))?;
 
     if bot.revoked_at.is_some() {
@@ -199,14 +205,18 @@ pub async fn regenerate_bot_token(
     let token_hash = hash_bot_token(&raw_token);
 
     let updated_bot = sqlx::query_as::<_, Bot>(
-        "UPDATE bots SET token_hash = $1 WHERE id = $2
+        "UPDATE bots SET token_hash = $1 WHERE id = $2 AND created_by = $3
          RETURNING id, user_id, name, description, token_hash, created_by, revoked_at, created_at",
     )
     .bind(&token_hash)
     .bind(bot_id)
+    .bind(auth.user_id())
     .fetch_one(&state.pool)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|e| {
+        tracing::error!(error = ?e, "Failed to update bot token");
+        AppError::Internal
+    })?;
 
     tracing::info!(bot_id = %bot_id, "Bot token regenerated");
     Ok(Json(BotCreatedResponse {
