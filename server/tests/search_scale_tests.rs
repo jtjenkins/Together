@@ -1,16 +1,22 @@
 //! Scale tests for message search.
 //!
 //! These tests verify search performance at scale (up to 1M messages).
-//! Run with: cargo test --test search_scale_tests -- --ignored --nocapture
 //!
 //! Prerequisites:
 //! - PostgreSQL database with the Together schema
 //! - DATABASE_URL environment variable set
 //!
-//! The tests are marked #[ignore] because they:
-//! - Take several minutes to run
-//! - Require a database connection
-//! - Insert a large volume of test data
+//! The 100K test runs as part of the normal `cargo test` suite (requires a
+//! live database via DATABASE_URL).  The 1M test is marked `#[ignore]`
+//! because it takes ~5 minutes and is intended for manual verification:
+//!
+//! ```
+//! # 100K test (runs by default with sqlx::test):
+//! cargo test --test search_scale_tests test_search_scales_to_100k_messages -- --nocapture
+//!
+//! # 1M test (opt-in):
+//! cargo test --test search_scale_tests -- --ignored test_search_scales_to_1m_messages --nocapture
+//! ```
 
 use std::time::Instant;
 use uuid::Uuid;
@@ -206,7 +212,7 @@ async fn test_search_scales_to_100k_messages(pool: sqlx::PgPool) -> sqlx::Result
 
     // Test 2: Search for a common term (should still be reasonable on CI)
     println!("Test 2: Common term search...");
-    let common_term = "commonterm"; // Appears in ~10K messages
+    let common_term = "commonterm"; // Appears in ~10K messages (10% of 100K)
     let start = Instant::now();
     let result = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM messages WHERE deleted = FALSE AND to_tsvector('english', content) @@ plainto_tsquery('english', $1)"
@@ -406,6 +412,7 @@ async fn test_search_scales_to_1m_messages(pool: sqlx::PgPool) -> sqlx::Result<(
     .await?;
     let duration = start.elapsed();
     println!("  Count: {}, Duration: {:?}", result, duration);
+    // ~100K matches (10% of 1M)
     assert!(
         duration.as_millis() < 500,
         "Medium term too slow: {:?}",
@@ -475,7 +482,7 @@ async fn test_search_scales_to_1m_messages(pool: sqlx::PgPool) -> sqlx::Result<(
     );
 
     println!("\n=== All scale tests passed! ===");
-    println!("1M messages indexed and searchable with <200ms latency.");
+    println!("1M messages indexed; query latencies within test thresholds.");
 
     // Cleanup
     println!("\nCleaning up...");

@@ -11,6 +11,7 @@ import type {
   DirectMessage,
   ReactionEvent,
   PollVoteEvent,
+  TypingStartEvent,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -30,6 +31,7 @@ interface EventHandlers {
   REACTION_REMOVE: EventHandler<ReactionEvent>;
   THREAD_MESSAGE_CREATE: EventHandler<Message>;
   POLL_VOTE: EventHandler<PollVoteEvent>;
+  TYPING_START: EventHandler<TypingStartEvent>;
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
 }
@@ -136,6 +138,14 @@ export class WebSocketClient {
       op: "VOICE_SIGNAL" as GatewayOp,
       t: null,
       d: { to_user_id: toUserId, type, sdp, candidate },
+    });
+  }
+
+  sendTypingStart(channelId: string) {
+    this.send({
+      op: "TYPING_START" as GatewayOp,
+      t: null,
+      d: { channel_id: channelId },
     });
   }
 

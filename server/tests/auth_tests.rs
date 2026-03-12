@@ -572,3 +572,55 @@ async fn register_username_at_boundaries() {
         "33-char username should be rejected: {body}"
     );
 }
+
+// ============================================================================
+// forgot_password_requires_auth
+// ============================================================================
+
+#[tokio::test]
+async fn forgot_password_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let (status, _) = common::post_json(
+        app,
+        "/auth/forgot-password",
+        json!({ "email": "user@example.com" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+// ============================================================================
+// forgot_password_requires_admin
+// ============================================================================
+
+#[tokio::test]
+async fn forgot_password_requires_admin() {
+    let pool = common::test_pool().await;
+    let username = common::unique_username();
+
+    // Register a user — they get is_admin = false by default.
+    // Explicitly force is_admin = false in case this is the very first user
+    // on a fresh test DB (where the migration would have set them as admin).
+    let app = common::create_test_app(pool.clone());
+    let token = common::register_and_get_token(app, &username, "password123").await;
+
+    sqlx::query("UPDATE users SET is_admin = false WHERE username = $1")
+        .bind(&username)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let app = common::create_test_app(pool);
+    let (status, _) = common::post_json_authed(
+        app,
+        "/auth/forgot-password",
+        &token,
+        json!({ "email": "other@example.com" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}

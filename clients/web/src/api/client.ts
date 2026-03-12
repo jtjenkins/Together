@@ -25,6 +25,8 @@ import type {
   LinkPreviewDto,
   GifResult,
   PollDto,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
   IceServersResponse,
   SearchQuery,
   SearchResponse,
@@ -279,23 +281,9 @@ class ApiClient {
   }
 
   getMessage(channelId: string, messageId: string): Promise<Message> {
-    return this.request(`/channels/${channelId}/messages/${messageId}`);
-  }
-
-  pinMessage(channelId: string, messageId: string): Promise<void> {
-    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
-      method: "POST",
-    });
-  }
-
-  unpinMessage(channelId: string, messageId: string): Promise<void> {
-    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
-      method: "DELETE",
-    });
-  }
-
-  listPinnedMessages(channelId: string): Promise<Message[]> {
-    return this.request(`/channels/${channelId}/pinned-messages`);
+    return this.request<Message>(
+      `/channels/${channelId}/messages/${messageId}`,
+    );
   }
 
   updateMessage(
@@ -460,6 +448,24 @@ class ApiClient {
     );
   }
 
+  // ─── Pins ───────────────────────────────────────────────
+
+  pinMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
+      method: "POST",
+    });
+  }
+
+  unpinMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
+      method: "DELETE",
+    });
+  }
+
+  listPinnedMessages(channelId: string): Promise<Message[]> {
+    return this.request(`/channels/${channelId}/pinned-messages`);
+  }
+
   getLinkPreview(url: string): Promise<LinkPreviewDto> {
     return this.request<LinkPreviewDto>(
       `/link-preview?url=${encodeURIComponent(url)}`,
@@ -499,21 +505,40 @@ class ApiClient {
     });
   }
 
+  // ─── Password Reset ──────────────────────────────────────────────────────
+
+  /** Generate a password reset token for a user by email. Admin only. */
+  forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+    return this.request<ForgotPasswordResponse>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /** Reset a user's password using a reset token. */
+  resetPassword(data: ResetPasswordRequest): Promise<void> {
+    return this.request<void>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   // ─── Search ──────────────────────────────────────────────────────────────
 
   /** Search messages in a server or specific channel. */
   searchMessages(
     serverId: string,
     query: SearchQuery,
+    signal?: AbortSignal,
   ): Promise<SearchResponse> {
     const params = new URLSearchParams();
     params.set("q", query.q);
     if (query.channel_id) params.set("channel_id", query.channel_id);
     if (query.before) params.set("before", query.before);
     if (query.limit) params.set("limit", String(query.limit));
-
     return this.request<SearchResponse>(
       `/servers/${serverId}/search?${params.toString()}`,
+      { signal },
     );
   }
 

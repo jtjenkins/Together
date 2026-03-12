@@ -21,6 +21,7 @@ pub struct User {
     pub custom_status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +41,7 @@ pub struct UserDto {
     pub status: String,
     pub custom_status: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub is_admin: bool,
 }
 
 impl From<User> for UserDto {
@@ -52,6 +54,7 @@ impl From<User> for UserDto {
             status: user.status,
             custom_status: user.custom_status,
             created_at: user.created_at,
+            is_admin: user.is_admin,
         }
     }
 }
@@ -552,6 +555,76 @@ pub struct GifResult {
     pub title: String,
     pub width: u32,
     pub height: u32,
+}
+
+// ── Audit Logging ───────────────────────────────────────────────────────────
+
+/// Audit log entry for admin actions.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct AuditLog {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub actor_id: Option<Uuid>,
+    pub action: String,
+    pub target_type: Option<String>,
+    pub target_id: Option<Uuid>,
+    pub details: serde_json::Value,
+    pub ip_address: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// DTO for creating an audit log entry.
+#[derive(Debug, Clone)]
+pub struct CreateAuditLog {
+    pub server_id: Uuid,
+    pub actor_id: Uuid,
+    pub action: AuditAction,
+    pub target_type: Option<String>,
+    pub target_id: Option<Uuid>,
+    pub details: serde_json::Value,
+    pub ip_address: Option<String>,
+}
+
+/// Audit action types.
+#[derive(Debug, Clone, Copy, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum AuditAction {
+    // Server actions
+    ServerCreate,
+    ServerUpdate,
+    ServerDelete,
+
+    // Channel actions
+    ChannelCreate,
+    ChannelUpdate,
+    ChannelDelete,
+
+    // Member actions
+    MemberKick,
+    MemberBan,
+    MemberUnban,
+    MemberRoleAdd,
+    MemberRoleRemove,
+
+    // Role actions
+    RoleCreate,
+    RoleUpdate,
+    RoleDelete,
+}
+
+/// Query parameters for listing audit logs.
+#[derive(Debug, Deserialize)]
+pub struct ListAuditLogsQuery {
+    /// Filter by action type.
+    pub action: Option<String>,
+    /// Filter by actor user ID.
+    pub actor_id: Option<Uuid>,
+    /// Filter by target type.
+    pub target_type: Option<String>,
+    /// Cursor for pagination (created_at).
+    pub before: Option<DateTime<Utc>>,
+    /// Maximum results (default 50, max 100).
+    pub limit: Option<i64>,
 }
 
 // ── Search ───────────────────────────────────────────────────────────────────

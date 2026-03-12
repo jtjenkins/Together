@@ -79,6 +79,8 @@ pub fn create_test_app(pool: PgPool) -> Router {
     };
     Router::new()
         .route("/health", get(handlers::health_check))
+        .route("/health/ready", get(handlers::readiness_check))
+        .route("/health/live", get(handlers::liveness_check))
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/refresh", post(handlers::auth::refresh_token))
@@ -220,11 +222,22 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
         )
+        // Search
+        .route(
+            "/servers/:id/search",
+            get(handlers::search::search_messages),
+        )
         // Link preview
         .route(
             "/link-preview",
             get(handlers::link_preview::get_link_preview),
         )
+        // Password reset routes
+        .route(
+            "/auth/forgot-password",
+            post(handlers::auth::forgot_password),
+        )
+        .route("/auth/reset-password", post(handlers::auth::reset_password))
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)

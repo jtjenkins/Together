@@ -6,6 +6,7 @@ import { useMessageStore } from "../stores/messageStore";
 import { useChannelStore } from "../stores/channelStore";
 import { useDmStore } from "../stores/dmStore";
 import { useReadStateStore } from "../stores/readStateStore";
+import { useTypingStore } from "../stores/typingStore";
 import type {
   ReadyEvent,
   Message,
@@ -15,6 +16,7 @@ import type {
   DirectMessage,
   ReactionEvent,
   PollVoteEvent,
+  TypingStartEvent,
 } from "../types";
 
 export function useWebSocket() {
@@ -39,6 +41,8 @@ export function useWebSocket() {
   const incrementUnread = useReadStateStore((s) => s.incrementUnread);
   const setMentionCounts = useReadStateStore((s) => s.setMentionCounts);
   const incrementMention = useReadStateStore((s) => s.incrementMention);
+
+  const addTypingUser = useTypingStore((s) => s.addTypingUser);
 
   useEffect(() => {
     const unsubs = [
@@ -107,6 +111,10 @@ export function useWebSocket() {
       gateway.on("REACTION_ADD", (_event: ReactionEvent) => {}),
       gateway.on("REACTION_REMOVE", (_event: ReactionEvent) => {}),
 
+      gateway.on("TYPING_START", (event: TypingStartEvent) => {
+        addTypingUser(event.user_id, event.username || "Unknown", event.channel_id);
+      }),
+
       gateway.on("connected", () => {
         if (activeServerId) {
           fetchMembers(activeServerId);
@@ -137,5 +145,6 @@ export function useWebSocket() {
     setMentionCounts,
     incrementMention,
     updateMessagePoll,
+    addTypingUser,
   ]);
 }
