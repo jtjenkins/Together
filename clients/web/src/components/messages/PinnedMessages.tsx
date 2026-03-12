@@ -17,6 +17,12 @@ export function PinnedMessages({ channelId, onClose }: PinnedMessagesProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const getAuthorName = (authorId: string | null): string => {
+    if (!authorId) return "Deleted User";
+    const member = members.find((m) => m.user_id === authorId);
+    return member?.nickname || member?.username || "Unknown User";
+  };
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -62,7 +68,7 @@ export function PinnedMessages({ channelId, onClose }: PinnedMessagesProps) {
             <div key={msg.id} className={styles.item}>
               <div className={styles.itemMeta}>
                 <span className={styles.itemAuthor}>
-                  {members.find((m) => m.user_id === msg.author_id)?.username ?? "Deleted User"}
+                  {getAuthorName(msg.author_id)}
                 </span>
                 <span className={styles.itemTime}>
                   {formatMessageTime(msg.pinned_at ?? msg.created_at)}
