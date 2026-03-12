@@ -2,8 +2,8 @@ mod common;
 
 use axum::http::StatusCode;
 use common::{
-    create_channel, create_message, create_server, get_authed, get_no_auth, make_server_public,
-    post_json_authed, register_and_get_token, unique_username,
+    create_channel, create_message, create_server, get_authed, get_no_auth,
+    register_and_get_token, unique_username,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ async fn test_channel_search_rejects_cross_server_channel(pool: sqlx::PgPool) {
     let server_a = create_server(app.clone(), &token_a, "server-a").await;
     let server_a_id = server_a["id"].as_str().unwrap();
     let ch_a = create_channel(app.clone(), &token_a, server_a_id, "general").await;
-    let ch_a_id = ch_a["id"].as_str().unwrap();
+    let _ch_a_id = ch_a["id"].as_str().unwrap();
 
     // User B owns Server B and posts a secret message
     let token_b = register_and_get_token(app.clone(), &unique_username(), "pw123456").await;
@@ -255,7 +255,7 @@ async fn test_search_pagination_has_more_and_cursor(pool: sqlx::PgPool) {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["results"].as_array().unwrap().len(), 3);
-    assert_eq!(body["has_more"].as_bool().unwrap(), true);
+    assert!(body["has_more"].as_bool().unwrap());
     assert!(body["next_cursor"].is_string());
 
     let cursor = body["next_cursor"].as_str().unwrap();
@@ -274,6 +274,6 @@ async fn test_search_pagination_has_more_and_cursor(pool: sqlx::PgPool) {
         2,
         "second page should have remaining 2 results"
     );
-    assert_eq!(body2["has_more"].as_bool().unwrap(), false);
+    assert!(!body2["has_more"].as_bool().unwrap());
     assert!(body2["next_cursor"].is_null());
 }
