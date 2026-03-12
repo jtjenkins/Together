@@ -91,9 +91,18 @@ async fn health_response_contains_expected_fields() {
     assert!(body.get("connections").is_some(), "missing: connections");
 
     // Nested fields
-    assert!(body["database"].get("status").is_some(), "missing: database.status");
-    assert!(body["database"].get("latency_ms").is_some(), "missing: database.latency_ms");
-    assert!(body["connections"].get("websocket").is_some(), "missing: connections.websocket");
+    assert!(
+        body["database"].get("status").is_some(),
+        "missing: database.status"
+    );
+    assert!(
+        body["database"].get("latency_ms").is_some(),
+        "missing: database.latency_ms"
+    );
+    assert!(
+        body["connections"].get("websocket").is_some(),
+        "missing: connections.websocket"
+    );
 }
 
 #[tokio::test]
@@ -105,8 +114,14 @@ async fn readiness_response_contains_expected_fields() {
 
     assert!(body.get("ready").is_some(), "missing: ready");
     assert!(body.get("checks").is_some(), "missing: checks");
-    assert!(body["checks"].get("database").is_some(), "missing: checks.database");
-    assert!(body["checks"]["database"].get("ok").is_some(), "missing: checks.database.ok");
+    assert!(
+        body["checks"].get("database").is_some(),
+        "missing: checks.database"
+    );
+    assert!(
+        body["checks"]["database"].get("ok").is_some(),
+        "missing: checks.database.ok"
+    );
 }
 
 #[tokio::test]

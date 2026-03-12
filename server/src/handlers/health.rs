@@ -106,7 +106,10 @@ pub async fn health_check(State(state): State<AppState>) -> (StatusCode, Json<He
             ("unavailable", false)
         }
         Err(_elapsed) => {
-            tracing::error!(latency_ms = db_latency, "Health check: database query timed out after 5s");
+            tracing::error!(
+                latency_ms = db_latency,
+                "Health check: database query timed out after 5s"
+            );
             ("timeout", false)
         }
     };
@@ -153,7 +156,10 @@ pub async fn readiness_check(
     )
     .await
     {
-        Ok(Ok(_)) => CheckResult { ok: true, error: None },
+        Ok(Ok(_)) => CheckResult {
+            ok: true,
+            error: None,
+        },
         Ok(Err(e)) => {
             tracing::error!(error = ?e, "Readiness check: database unavailable — instance will not receive traffic");
             CheckResult {
@@ -222,7 +228,10 @@ mod tests {
         // START_TIME in parallel test runs. We test the logic directly.
         let t = Instant::now();
         let elapsed = t.elapsed().as_secs();
-        assert!(elapsed < 5, "elapsed should be < 5s immediately after creation");
+        assert!(
+            elapsed < 5,
+            "elapsed should be < 5s immediately after creation"
+        );
     }
 
     #[test]
