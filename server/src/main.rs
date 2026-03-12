@@ -148,6 +148,7 @@ async fn main() {
         http_client,
         giphy_api_key,
         config: Arc::new(config.clone()),
+        bot_rate_limiter: AppState::new_bot_rate_limiter(),
     };
 
     // Prometheus metrics layer
