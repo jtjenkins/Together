@@ -224,6 +224,11 @@ async fn main() {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Audit logs (owner only)
+        .route(
+            "/servers/:id/audit-logs",
+            get(handlers::audit::list_audit_logs),
+        )
         // Search routes (protected, server-scoped)
         .route(
             "/servers/:id/search",
