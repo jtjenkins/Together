@@ -14,17 +14,18 @@ Add a password reset flow for self-hosted deployments where no email service is 
 
 ## Security Model
 
-- `POST /auth/forgot-password` is **admin-only** — protected by the `AuthUser` extractor and a `403 Forbidden` check on `auth_user.is_admin`. Unauthenticated or non-admin callers are rejected.
+- `POST /auth/forgot-password` is **admin-only** — requires a valid JWT and a DB-level `is_admin` check in the handler (see Backend Changes §3). Unauthenticated or non-admin callers are rejected with `403 Forbidden`.
 - The "Have a reset token?" entry point on the login screen is visible to everyone, but the token is single-use and expires after 1 hour — there is no self-service path to generate a token without admin involvement.
 - Admin status is determined by `is_admin: bool` on the `users` table. The first registered user (`MIN(created_at)`) is set to `is_admin = true` via migration; all others default to `false`.
+- **Limitation:** `is_admin` is read from `UserDto` at login/session-restore time and cached in the Zustand store. If `is_admin` changes in the database after a session is already active, the in-memory user object does not update until the next login or page reload. This is an accepted trade-off for the target deployment scale (one admin, small community).
 
 ---
 
 ## Backend Changes
 
-### 1. Migration (new file)
+### 1. Migration: `server/migrations/20240312000003_is_admin.sql`
 
-`server/migrations/20240312000003_is_admin.sql`
+Follows the existing sequential numbering after `20240312000002_password_reset.sql`. Independent of the password reset tokens migration — both can run in any order, but `000003` must run after the initial `users` table migration (`20240216000001`).
 
 ```sql
 ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT false;
@@ -39,9 +40,30 @@ WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1);
 
 Add `is_admin: bool` to both the `User` struct (`FromRow`) and `UserDto` (`Serialize`). `UserDto` is what the frontend receives on login, register, and `GET /users/@me`.
 
-### 3. `forgot_password` handler
+### 3. `forgot_password` handler — admin gate
 
-Add `AuthUser` extractor as the first parameter. Return `AppError::Forbidden` if `auth_user.is_admin` is false. No other logic changes.
+`AuthUser` stores only `user_id` and `username` (JWT claims only — no DB lookup in the extractor). The admin check is done inside `forgot_password` itself:
+
+```rust
+pub async fn forgot_password(
+    State(state): State<AppState>,
+    auth_user: AuthUser,                       // requires valid JWT
+    Json(req): Json<ForgotPasswordRequest>,
+) -> AppResult<Json<serde_json::Value>> {
+    // Verify caller is admin via DB lookup
+    let is_admin: bool = sqlx::query_scalar("SELECT is_admin FROM users WHERE id = $1")
+        .bind(auth_user.user_id())
+        .fetch_one(&state.pool)
+        .await?;
+
+    if !is_admin {
+        return Err(AppError::Forbidden);
+    }
+    // … rest of existing logic unchanged
+}
+```
+
+This keeps `AuthUser` and `Claims` unchanged — no JWT modification required.
 
 ---
 
@@ -61,7 +83,7 @@ Add new password-reset types:
 ```ts
 export interface ForgotPasswordResponse {
   message: string;
-  token: string;
+  token: string;        // always present — admin-only endpoint, no enumeration risk
   expires_in_seconds: number;
   note: string;
 }
@@ -72,10 +94,11 @@ export interface ResetPasswordRequest {
 }
 ```
 
-Restore types removed as a merge artifact:
+**Restore types removed as a merge artifact** (restore verbatim from `main`):
 
 ```ts
-// IceServer, IceServersResponse, SearchQuery, SearchResult, SearchResponse
+// IceServer, IceServersResponse — for WebRTC ICE server configuration
+// SearchQuery, SearchResult, SearchResponse — for server message search
 ```
 
 ---
@@ -85,14 +108,14 @@ Restore types removed as a merge artifact:
 Add two methods:
 
 ```ts
+/** POST /auth/forgot-password — Admin only; requires auth token. */
 forgotPassword(email: string): Promise<ForgotPasswordResponse>
-// POST /auth/forgot-password  (requires auth token — admin only)
 
+/** POST /auth/reset-password */
 resetPassword(data: ResetPasswordRequest): Promise<void>
-// POST /auth/reset-password
 ```
 
-Restore removed methods:
+**Restore methods removed as a merge artifact** (restore verbatim from `main`):
 
 ```ts
 searchMessages(serverId: string, query: SearchQuery): Promise<SearchResponse>
@@ -117,45 +140,54 @@ getIceServers(): Promise<IceServersResponse>
 - Field 1: `token` — text input, label "Reset Token", placeholder "Paste your reset token"
 - Field 2: `new_password` — password input, label "New Password"
 - Submit button: "Reset Password" / "Resetting…" while in-flight
-- On success: display inline success message "Password reset. You can now log in." then transition to `view = "login"` after 2 seconds.
-- On error: inline error message (same `.error` style as existing).
-- "Back to login" link at the bottom — sets `view = "login"`.
+- Error message: inline, with `role="alert"` (consistent with existing error div in `AuthForm`)
+- On success: display inline success message with `role="alert"` and `aria-live="polite"` — "Password reset. You can now log in." Then transition back to `view = "login"` after 2 seconds. The 2-second timer **must be cancelled in a `useEffect` cleanup function** to avoid calling `setState` on an unmounted component.
+- "Back to login" link at the bottom — sets `view = "login"` and cancels any pending transition timer.
+
+**Email-less users:** The `forgot_password` endpoint accepts email only. Users who registered without an email address cannot use this flow in this iteration. This is noted as out of scope.
 
 ### 2. `UserSettingsModal.tsx` (modified)
 
-- Add `useAuthStore((s) => s.user)` (already present via existing `user` variable).
 - Add `activeTab: "profile" | "admin"` state, default `"profile"`.
 - On `onClose`: reset `activeTab` to `"profile"` before calling the passed-in `onClose`.
 - Tab bar only appears when `user.is_admin === true`. Non-admins see no tab bar and always see the Profile form.
-- Tab bar follows WAI-ARIA Tabs pattern (same as `ServerSettingsModal` audit log design — see Accessibility section below).
-- Render `<AdminTab />` inside `role="tabpanel"` with `hidden` attribute when `activeTab !== "admin"`.
+- Tab bar follows a partial WAI-ARIA Tabs pattern (see Accessibility section). Arrow-key navigation between tabs is deferred — same as `ServerSettingsModal`.
+- Render `<AdminTab />` inside `role="tabpanel"` with `hidden` attribute when `activeTab !== "admin"`. The `hidden` attribute keeps `AdminTab` mounted for the modal lifetime but removes it from the accessibility tree when inactive.
 
 ### 3. `AdminTab.tsx` (new — `components/users/AdminTab.tsx`)
 
 **State:** `email: string`, `isLoading: boolean`, `error: string | null`, `result: ForgotPasswordResponse | null` — local React state only.
 
-**Render:**
-- Label + email input: "User's Email Address"
-- Submit button: "Generate Reset Token" / "Generating…" while in-flight
-- On success: display a read-only token box (monospace, full token value) with a "Copy" button and a warning banner: "This token expires in 1 hour. Share it with the user now and tell them to use 'Have a reset token?' on the login screen."
-- Generating a new token clears `result` and `error` before submitting (backend deletes the old token automatically).
-- On error: inline error message.
+**Behaviour:**
+- Email input field: "User's Email Address". Changing the email value after a successful generation **clears `result`** (previous token is no longer relevant).
+- Submit button: "Generate Reset Token" / "Generating…" while in-flight.
+- Submitting clears both `result` and `error` before the request fires (backend deletes the old token automatically).
+- On success: display token box (see CSS) with copy button and warning banner.
+- Copy button calls `navigator.clipboard.writeText(result.token)`. If the Clipboard API is unavailable (non-HTTPS context), the token remains selectable in the `.tokenBox` via `user-select: all` as a fallback — no error is thrown.
+- On error: inline error message with `role="alert"`.
+
+**Token box content:**
+- Read-only monospace box containing the full token value (`user-select: all` for easy manual selection)
+- "Copy" button (`.copyBtn`) — copies token to clipboard
+- Warning: "This token expires in 1 hour. Share it with the user now and tell them to click 'Have a reset token?' on the login screen." (styled with `.tokenWarning`)
 
 ### 4. `ServerModals.module.css` (modified)
 
-Reuse the existing `.tabs`, `.tab`, `.tabActive` classes added by the audit-log PR for the `UserSettingsModal` tab bar (no duplication needed — both modals share this stylesheet).
+Reuse the existing `.tabs`, `.tab`, `.tabActive` classes (added by the audit-log PR) for the `UserSettingsModal` tab bar — no duplication needed, both modals share this stylesheet.
+
+**Note for implementer:** Before using the `hidden` HTML attribute on `role="tabpanel"` elements, verify that no global CSS rule overrides `[hidden]` with `display: block` or similar. If such a rule exists in `globals.css`, use `aria-hidden` plus a CSS visibility class instead.
 
 Add new classes:
 - `.tokenBox` — `font-family: monospace; background: var(--bg-secondary); padding: 8px 12px; border-radius: 4px; word-break: break-all; user-select: all`
-- `.copyBtn` — small secondary button, right-aligned
+- `.copyBtn` — small secondary button, right-aligned within `.tokenSection`
 - `.tokenWarning` — `color: var(--text-warning, #f0a500); font-size: 13px; margin-top: 8px`
-- `.tokenSection` — wrapper for token box + copy + warning
+- `.tokenSection` — wrapper for token box + copy button + warning
 
 ---
 
 ## Accessibility
 
-Tab bar in `UserSettingsModal` follows the same WAI-ARIA Tabs pattern as `ServerSettingsModal`:
+Tab bar in `UserSettingsModal` follows a **partial WAI-ARIA Tabs pattern** (arrow-key navigation deferred, same trade-off as `ServerSettingsModal`):
 
 ```tsx
 <div role="tablist" aria-label="User settings sections">
@@ -174,8 +206,6 @@ Tab bar in `UserSettingsModal` follows the same WAI-ARIA Tabs pattern as `Server
 </div>
 ```
 
-The `hidden` HTML attribute keeps `AdminTab` mounted for the lifetime of the open modal but removes it from the accessibility tree when inactive.
-
 ---
 
 ## Data Flow
@@ -185,6 +215,7 @@ Admin flow:
   Admin opens User Settings → sees "Admin" tab (is_admin only)
   Admin enters user's email → clicks "Generate Reset Token"
     └─ POST /auth/forgot-password (with JWT)
+         ├─ 401 if no/invalid JWT
          ├─ 403 if not admin
          └─ 200: token displayed in copyable box
   Admin shares token with user out-of-band
@@ -203,11 +234,15 @@ User flow:
 
 | Scenario | Behaviour |
 |----------|-----------|
-| Non-admin calls forgot-password | Backend returns 403; frontend shows error in AdminTab |
-| Unknown email | Backend returns 200 with no token (enumeration prevention); admin sees generic success — handle by showing token only when present in response |
-| Token expired or already used | Backend returns 401; reset view shows "Invalid or expired reset token" |
-| Network error (either form) | Inline error message in the relevant component |
-| New token generated before old one is used | Backend deletes old token; UI clears previous result before submitting |
+| Unauthenticated call to forgot-password | 401; frontend never reaches this (admin must be logged in) |
+| Non-admin calls forgot-password | 403; `AdminTab` shows inline error |
+| Unknown email | Since the endpoint is admin-only, enumeration prevention is unnecessary — the backend implementation should return a clear error (e.g. 404) rather than a silent 200. `AdminTab` shows the error inline. |
+| User has no email | Flow unsupported (out of scope); admin sees the generic unknown-email success |
+| Token expired or already used | Backend returns 401; reset view shows "Invalid or expired reset token" with `role="alert"` |
+| Network error (either form) | Inline error message with `role="alert"` in the relevant component |
+| New token generated before old one used | Backend deletes old token; UI clears `result` before submitting |
+| `navigator.clipboard` unavailable | Token remains selectable in `.tokenBox` via `user-select: all` |
+| 2-second transition timer fires on unmount | Cancelled via `useEffect` cleanup — no stale `setState` |
 
 ---
 
@@ -217,16 +252,18 @@ User flow:
 - "Have a reset token?" link is present on login view
 - Clicking link switches to reset view
 - Reset view renders token and new-password fields
-- Successful reset shows success message then transitions to login
-- Error from API is displayed inline
+- Successful reset shows success message (`role="alert"`) then transitions to login
+- Error from API is displayed inline with `role="alert"`
 - "Back to login" returns to login view without submitting
+- Transition timer is cancelled if component unmounts before 2 seconds
 
 **`AdminTab.test.tsx`** (new):
 - Renders email input and submit button
 - Shows token box and warning on successful API response
-- Copy button writes token to clipboard
-- Inline error shown on API failure
-- Submitting again clears previous token result
+- Copy button writes token to clipboard via `navigator.clipboard.writeText`
+- Changing email input after success clears the token box
+- Inline error shown on API failure with `role="alert"`
+- Submitting again clears previous token result before firing request
 
 **`UserSettingsModal.test.tsx`** (additions):
 - No tab bar rendered for non-admin user
@@ -240,6 +277,8 @@ User flow:
 
 - Email/SMTP delivery (future iteration)
 - Admin ability to list all users or their reset token status
+- Password reset for users who registered without an email (username-based lookup is a future enhancement)
 - Password strength meter
 - Arrow-key keyboard navigation within the tab bar
 - Bulk / multi-user token generation
+- Promoting additional users to admin via the UI
