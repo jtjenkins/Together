@@ -40,7 +40,7 @@ pub async fn pin_message(
         return Err(AppError::NotFound("Message not found".into()));
     }
 
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE messages
          SET pinned = TRUE, pinned_by = $2, pinned_at = NOW()
          WHERE id = $1 AND pinned = FALSE",
@@ -49,6 +49,11 @@ pub async fn pin_message(
     .bind(auth.user_id())
     .execute(&state.pool)
     .await?;
+
+    if result.rows_affected() == 0 {
+        // Already pinned — idempotent success, no event needed.
+        return Ok(StatusCode::NO_CONTENT);
+    }
 
     broadcast_to_server(
         &state,

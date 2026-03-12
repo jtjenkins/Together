@@ -120,6 +120,9 @@ export interface Message {
   edited_at: string | null;
   deleted: boolean;
   created_at: string;
+  pinned: boolean;
+  pinned_by: string | null;
+  pinned_at: string | null;
   poll?: PollDto;
   event?: ServerEventDto;
 }
