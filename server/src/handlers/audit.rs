@@ -121,7 +121,6 @@ pub async fn list_audit_logs(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::models::AuditAction;
 
     #[test]
