@@ -509,6 +509,7 @@ class ApiClient {
   searchMessages(
     serverId: string,
     query: SearchQuery,
+    signal?: AbortSignal,
   ): Promise<SearchResponse> {
     const params = new URLSearchParams();
     params.set("q", query.q);
@@ -518,6 +519,7 @@ class ApiClient {
 
     return this.request<SearchResponse>(
       `/servers/${serverId}/search?${params.toString()}`,
+      { signal },
     );
   }
 

@@ -220,6 +220,11 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
         )
+        // Search
+        .route(
+            "/servers/:id/search",
+            get(handlers::search::search_messages),
+        )
         // Link preview
         .route(
             "/link-preview",

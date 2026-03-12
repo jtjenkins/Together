@@ -81,7 +81,12 @@ impl Config {
                 })
                 .unwrap_or_default(),
             turn: match (env::var("TURN_URL").ok(), env::var("TURN_SECRET").ok()) {
-                (Some(url), Some(secret)) => Some(TurnConfig { url, secret }),
+                (Some(url), Some(secret)) => {
+                    if secret.len() < 32 {
+                        return Err("TURN_SECRET must be at least 32 characters".to_string());
+                    }
+                    Some(TurnConfig { url, secret })
+                }
                 _ => None,
             },
         })
