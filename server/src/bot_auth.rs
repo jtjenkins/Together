@@ -7,11 +7,10 @@ use uuid::Uuid;
 
 /// Generate a cryptographically random 64-character hex-encoded bot token.
 ///
-/// Uses two UUIDv4 values as an OS-entropy source (each carries 122 bits of
-/// random data; version/variant bits account for the remaining 6). Both are
-/// fed into SHA-256, yielding at least 244 bits of effective entropy in a
-/// 32-byte (64 hex char) output — well above the 128-bit security threshold
-/// for a bearer token, with no additional dependencies required.
+/// Uses two independent UUIDv4 values as OS-entropy sources (the `uuid` crate
+/// draws from the OS CSPRNG). Both are fed into SHA-256, producing a 32-byte
+/// (64 hex char) output with combined entropy well above the 128-bit security
+/// threshold for a bearer token — no additional dependencies required.
 ///
 /// The plaintext token is shown to the bot owner exactly once at registration
 /// or regeneration time. Only the SHA-256 hash is stored in the database.

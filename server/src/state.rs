@@ -49,7 +49,8 @@ pub struct AppState {
 impl AppState {
     /// Construct a fresh per-bot rate limiter capped at 50 requests/second.
     pub fn new_bot_rate_limiter() -> Arc<DefaultKeyedRateLimiter<Uuid>> {
-        let quota = Quota::per_second(NonZeroU32::new(50).unwrap());
+        // SAFETY: 50 is a non-zero compile-time constant.
+        let quota = Quota::per_second(unsafe { NonZeroU32::new_unchecked(50) });
         Arc::new(DefaultKeyedRateLimiter::dashmap(quota))
     }
 }
