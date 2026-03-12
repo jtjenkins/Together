@@ -45,7 +45,11 @@ mod tests {
     #[test]
     fn generate_bot_token_is_64_chars() {
         let token = generate_bot_token();
-        assert_eq!(token.len(), 64, "token must be 32 bytes hex-encoded = 64 chars");
+        assert_eq!(
+            token.len(),
+            64,
+            "token must be 32 bytes hex-encoded = 64 chars"
+        );
         assert!(
             token.chars().all(|c| c.is_ascii_hexdigit()),
             "token must be lowercase hex"
@@ -81,7 +85,10 @@ mod tests {
         let token = generate_bot_token();
         let h1 = hash_bot_token(&token);
         let h2 = hash_bot_token(&token);
-        assert_eq!(h1, h2, "hashing the same generated token must be deterministic");
+        assert_eq!(
+            h1, h2,
+            "hashing the same generated token must be deterministic"
+        );
         assert_eq!(h1.len(), 64);
     }
 
@@ -90,7 +97,12 @@ mod tests {
         // Test with empty string, short string, long string
         for input in ["", "x", "a".repeat(1000).as_str()] {
             let hash = hash_bot_token(input);
-            assert_eq!(hash.len(), 64, "SHA-256 output must always be 64 hex chars, input_len={}", input.len());
+            assert_eq!(
+                hash.len(),
+                64,
+                "SHA-256 output must always be 64 hex chars, input_len={}",
+                input.len()
+            );
         }
     }
 

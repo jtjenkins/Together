@@ -29,7 +29,13 @@ pub async fn create_bot(
             "Bot name must be 1–64 characters".into(),
         ));
     }
-    if payload.description.as_deref().map(|d| d.chars().count()).unwrap_or(0) > 512 {
+    if payload
+        .description
+        .as_deref()
+        .map(|d| d.chars().count())
+        .unwrap_or(0)
+        > 512
+    {
         return Err(AppError::Validation(
             "Bot description must be ≤512 characters".into(),
         ));
@@ -45,8 +51,7 @@ pub async fn create_bot(
 
     let short_id = &Uuid::new_v4().to_string()[..8];
     let bot_username = format!("{}-bot-{}", slug_name(&name), short_id);
-    let placeholder_hash =
-        "$2b$12$BOTS.DO.NOT.HAVE.PASSWORDS.REPLACE.WITH.LONG.INVALID.HASH";
+    let placeholder_hash = "$2b$12$BOTS.DO.NOT.HAVE.PASSWORDS.REPLACE.WITH.LONG.INVALID.HASH";
 
     let mut tx = state.pool.begin().await.map_err(|e| {
         tracing::error!(error = ?e, "Failed to begin transaction");
@@ -197,9 +202,7 @@ pub async fn regenerate_bot_token(
     Path(bot_id): Path<Uuid>,
 ) -> Result<Json<BotCreatedResponse>, AppError> {
     if auth.is_bot() {
-        return Err(AppError::Forbidden(
-            "Bots cannot regenerate tokens".into(),
-        ));
+        return Err(AppError::Forbidden("Bots cannot regenerate tokens".into()));
     }
 
     let bot = sqlx::query_as::<_, Bot>(
@@ -258,18 +261,30 @@ pub async fn bot_connect(
     State(state): State<AppState>,
 ) -> Result<Json<Value>, AppError> {
     if !auth.is_bot() {
-        return Err(AppError::Forbidden("Only bots can use this endpoint".into()));
+        return Err(AppError::Forbidden(
+            "Only bots can use this endpoint".into(),
+        ));
     }
 
-    let token = create_access_token(auth.user_id(), auth.username().to_string(), &state.jwt_secret)
-        .map_err(|_| AppError::Internal)?;
+    let token = create_access_token(
+        auth.user_id(),
+        auth.username().to_string(),
+        &state.jwt_secret,
+    )
+    .map_err(|_| AppError::Internal)?;
 
     Ok(Json(json!({ "access_token": token })))
 }
 
 fn slug_name(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect::<String>()
         .trim_matches('-')
         .to_string()
@@ -304,7 +319,10 @@ mod tests {
         // This tests the edge case documented in code review: all-special input
         let result = slug_name("!!!");
         // trim_matches('-') on "---" should give ""
-        assert_eq!(result, "", "all-special-char input should produce empty string after trim");
+        assert_eq!(
+            result, "",
+            "all-special-char input should produce empty string after trim"
+        );
     }
 
     #[test]
