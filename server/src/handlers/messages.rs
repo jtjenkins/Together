@@ -317,7 +317,8 @@ pub async fn list_messages(
                        WHERE t.thread_id = m.id AND t.deleted = FALSE),
                       0
                     ) AS thread_reply_count,
-                    m.edited_at, m.deleted, m.created_at
+                    m.edited_at, m.deleted, m.created_at,
+                    m.pinned, m.pinned_by, m.pinned_at
              FROM messages m
              WHERE m.channel_id = $1
                AND m.thread_id IS NULL
@@ -342,7 +343,8 @@ pub async fn list_messages(
                        WHERE t.thread_id = m.id AND t.deleted = FALSE),
                       0
                     ) AS thread_reply_count,
-                    m.edited_at, m.deleted, m.created_at
+                    m.edited_at, m.deleted, m.created_at,
+                    m.pinned, m.pinned_by, m.pinned_at
              FROM messages m
              WHERE m.channel_id = $1 AND m.thread_id IS NULL AND m.deleted = FALSE
              ORDER BY m.created_at DESC, m.id DESC
@@ -506,6 +508,45 @@ pub async fn delete_message(
     .await;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /channels/:channel_id/messages/:message_id — fetch one message (members only).
+///
+/// Returns the full MessageDto including deleted messages (deleted flag is set
+/// to true) so reply-bar previews can show "original message deleted" state.
+pub async fn get_message(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
+) -> AppResult<Json<MessageDto>> {
+    let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
+    require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    let message = sqlx::query_as::<_, Message>(
+        "SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to,
+                m.mention_user_ids, m.mention_everyone, m.thread_id,
+                COALESCE(
+                  (SELECT COUNT(*)::int FROM messages r
+                   WHERE r.thread_id = m.id AND r.deleted = FALSE),
+                  0
+                ) AS thread_reply_count,
+                m.edited_at, m.deleted, m.created_at, m.pinned, m.pinned_by, m.pinned_at
+         FROM messages m
+         WHERE m.id = $1 AND m.channel_id = $2",
+    )
+    .bind(message_id)
+    .bind(channel_id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
+
+    let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
+    let dto = enriched
+        .into_iter()
+        .next()
+        .ok_or(AppError::Internal)?;
+
+    Ok(Json(dto))
 }
 
 /// POST /channels/:channel_id/messages/:message_id/thread — post a reply into a thread.

@@ -147,31 +147,52 @@ async fn main() {
         link_preview_cache: Arc::new(RwLock::new(HashMap::new())),
         http_client,
         giphy_api_key,
-        config: Arc::new(config),
+        config: Arc::new(config.clone()),
     };
 
     // Prometheus metrics layer
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
 
     // ── Rate limiting ─────────────────────────────────────────────────────────
-    // Global limit: 10 requests/second per IP, burst of 20.
-    let governor_conf = Arc::new(
+    // NOTE: GovernorConfigBuilder::per_second(n) sets the REPLENISHMENT PERIOD
+    // in seconds (interval between tokens), NOT the rate. To get R req/s, use
+    // per_millisecond(1000 / R). Examples:
+    //   10 req/s  → per_millisecond(100)   (1 token per 100ms)
+    //    2 req/s  → per_millisecond(500)   (1 token per 500ms)
+    //  100 req/s  → per_millisecond(10)    (1 token per 10ms)
+    //
+    // Production: 10 req/s per IP (burst 20); auth routes: 2/s (burst 5).
+    // Dev mode: relaxed (1 req/ms = ~1000 req/s) to allow load testing from a
+    // single IP without flooding the per-IP buckets (same policy as permissive
+    // CORS in dev).
+    let governor_conf = Arc::new(if config.is_dev {
         GovernorConfigBuilder::default()
-            .per_second(10)
+            .per_millisecond(1)   // 1 token per 1ms ≈ 1000 req/s
+            .burst_size(5_000)
+            .finish()
+            .expect("Invalid global governor configuration (dev)")
+    } else {
+        GovernorConfigBuilder::default()
+            .per_millisecond(100) // 1 token per 100ms = 10 req/s
             .burst_size(20)
             .finish()
-            .expect("Invalid global governor configuration"),
-    );
+            .expect("Invalid global governor configuration (prod)")
+    });
 
-    // Stricter limit for authentication endpoints: 2 requests/second per IP, burst of 5.
-    // Nested into a sub-router so that `.route_layer()` applies only to these three routes.
-    let auth_governor_conf = Arc::new(
+    // Stricter limit for authentication endpoints.
+    let auth_governor_conf = Arc::new(if config.is_dev {
         GovernorConfigBuilder::default()
-            .per_second(2)
+            .per_millisecond(10)  // 1 token per 10ms = 100 req/s for auth in dev
+            .burst_size(5_000)    // large burst so all 500 load-test VUs can register at once
+            .finish()
+            .expect("Invalid auth governor configuration (dev)")
+    } else {
+        GovernorConfigBuilder::default()
+            .per_millisecond(500) // 1 token per 500ms = 2 req/s
             .burst_size(5)
             .finish()
-            .expect("Invalid auth governor configuration"),
-    );
+            .expect("Invalid auth governor configuration (prod)")
+    });
 
     let auth_router = Router::new()
         .route("/auth/register", post(handlers::auth::register))
@@ -258,6 +279,11 @@ async fn main() {
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
         )
+        // Single message fetch (needed for reply-bar preview when target is off-screen)
+        .route(
+            "/channels/:channel_id/messages/:message_id",
+            get(handlers::messages::get_message),
+        )
         // Thread routes (protected, nested under channel message)
         .route(
             "/channels/:channel_id/messages/:message_id/thread",
@@ -279,6 +305,19 @@ async fn main() {
         .route(
             "/channels/:channel_id/messages/:message_id/reactions/:emoji",
             delete(handlers::reactions::remove_reaction),
+        )
+        // Pin routes (protected, requires MANAGE_MESSAGES permission)
+        .route(
+            "/channels/:channel_id/pinned-messages",
+            get(handlers::pins::list_pinned_messages),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/pin",
+            post(handlers::pins::pin_message),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/pin",
+            delete(handlers::pins::unpin_message),
         )
         // Read-state / ack routes
         .route(
@@ -349,7 +388,7 @@ async fn main() {
         .route("/ice-servers", get(handlers::ice::get_ice_servers))
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
-        // ── Global rate limit (10 req/s per IP, burst 20) ──────────────────
+        // ── Global rate limit ──────────────────────────────────────────────
         .layer(GovernorLayer {
             config: governor_conf,
         })
