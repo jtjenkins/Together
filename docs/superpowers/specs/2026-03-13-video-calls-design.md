@@ -164,6 +164,8 @@ New props:
 ```typescript
 isCameraOn: boolean
 isScreenSharing: boolean
+/** deviceId of the preferred camera input; undefined = browser default. */
+cameraDeviceId?: string | null
 onRemoteStreamsChange?: () => void   // signals that remoteVideoStreamsRef has changed
 ```
 
@@ -185,8 +187,10 @@ New internal refs:
 - `onRemoteStreamsChangeRef` — stable ref wrapping the `onRemoteStreamsChange` callback
 
 **Camera toggle effect:** When `isCameraOn` changes:
-- Enable: call `getUserMedia({ video: true })`, add video track to all existing peer connections via `addTrack`. `onnegotiationneeded` fires on each connection, triggering a new offer/answer exchange.
+- Enable: call `getUserMedia({ video: cameraDeviceId ? { deviceId: { exact: cameraDeviceId } } : true })`, add video track to all existing peer connections via `addTrack`. `onnegotiationneeded` fires on each connection, triggering a new offer/answer exchange.
 - Disable: stop the camera track, remove the sender from each peer connection via `removeTrack`. `onnegotiationneeded` fires, triggering renegotiation.
+
+**Camera device change effect:** When `cameraDeviceId` changes while `isCameraOn` is true, re-acquire the stream with the new device and replace the video track on all existing peer connections via `RTCRtpSender.replaceTrack()` — this does **not** trigger renegotiation, matching the existing `micDeviceId` pattern for seamless device switching. The old camera stream's tracks are stopped before the new stream is acquired.
 
 **Screen share toggle effect:** Same pattern using `getDisplayMedia({ video: true, audio: false })`. System audio capture is intentionally disabled — it introduces privacy concerns (capturing application audio unexpectedly) and adds complexity for an initial implementation. It can be opt-in in a future iteration.
 
@@ -247,7 +251,7 @@ CSS modules for the grid layout and tile styling, consistent with the existing v
 
 ### 5. `VoiceChannel.tsx` Changes
 
-- Passes `isCameraOn` and `isScreenSharing` from `voiceStore` to `useWebRTC`
+- Passes `isCameraOn`, `isScreenSharing`, and `cameraDeviceId` from local state to `useWebRTC`
 - Passes `onRemoteStreamsChange` callback to `useWebRTC`; on callback, increments a `streamVersion` counter state (e.g. `setStreamVersion(v => v + 1)`) to trigger re-render; reads current streams via `getRemoteVideoStreams()` at render time
 - Holds `localCameraStream` and `localScreenStream` from the hook's returned refs
 - Renders `<VideoGrid>` above the participant list when any stream is active
@@ -255,6 +259,28 @@ CSS modules for the grid layout and tile styling, consistent with the existing v
   - Camera: `Video` icon (on) / `VideoOff` icon (off) — from lucide-react
   - Screen share: `ScreenShare` icon (on) / `ScreenShareOff` icon (off) — from lucide-react
   - Both follow the existing mute/deafen button style
+
+**Device enumeration** — `enumerateDevices()` is extended to also enumerate `videoinput` devices and populate a `cameraDevices` state list (same `AudioDevice` shape: `{ deviceId, label }`). The existing call sites (`onJoin` and `showSettings` toggle) already invoke `enumerateDevices()` so no additional call sites are needed.
+
+**Settings panel** — a "Camera" row is added to the existing `showSettings` panel below the Microphone and Speaker rows, following the same `<select>` pattern:
+
+```tsx
+<div className={styles.deviceRow}>
+  <label className={styles.deviceLabel}>Camera</label>
+  <select
+    className={styles.deviceSelect}
+    value={cameraDeviceId ?? ""}
+    onChange={(e) => setCameraDeviceId(e.target.value || null)}
+  >
+    <option value="">Default</option>
+    {cameraDevices.map((d) => (
+      <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
+    ))}
+  </select>
+</div>
+```
+
+> **Screen source selection:** `getDisplayMedia()` opens the OS/browser's native source picker (screen, window, or tab) when the user clicks the screen share button. There is no browser API to pre-select a screen source via `deviceId`, so no screen source dropdown is needed — the OS picker handles it natively.
 
 ---
 
@@ -312,7 +338,9 @@ User clicks camera button
 - `voiceStore` — `leave` resets `isCameraOn` and `isScreenSharing` to `false`
 - `VideoTile` — renders `<video>` element; shows username label; is muted when `isLocal`
 - `useWebRTC` — mock `getUserMedia`; verify track added to peer connections when `isCameraOn` becomes true
+- `useWebRTC` — mock `getUserMedia` with a new device; verify `replaceTrack` called (not renegotiation) when `cameraDeviceId` changes while camera is active
 - `useWebRTC` — mock screen track `ended` event; verify `toggleScreen` is called
+- `VoiceChannel` — camera device dropdown appears in settings panel; selecting a device updates `cameraDeviceId` state
 
 ---
 
