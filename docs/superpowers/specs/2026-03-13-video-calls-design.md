@@ -12,6 +12,8 @@ Add optional camera video and screen sharing to existing voice channels. Users i
 
 This feature extends the existing P2P WebRTC mesh without changing the signaling protocol or channel type system.
 
+> **Architecture note:** `CLAUDE.md` describes the voice architecture as "SFU (Selective Forwarding Unit)" but the actual implementation in `useWebRTC.ts` is a true P2P mesh — each client holds one `RTCPeerConnection` per peer with no server-side media forwarding. This spec and implementation follow the actual code, not the outdated documentation.
+
 ---
 
 ## Scope
@@ -28,6 +30,7 @@ This feature extends the existing P2P WebRTC mesh without changing the signaling
 - Recording
 - SFU/media server
 - Server-side video processing
+- System audio capture during screen sharing (see note in Frontend Changes)
 
 ---
 
@@ -45,7 +48,7 @@ Video and screen tracks are added to the existing `RTCPeerConnection` per peer. 
 
 ### 1. Database Migration
 
-New migration `20240312000004_voice_video.sql`:
+Create a new migration file with a filename that sorts after the current last migration. Sqlx applies migrations in lexicographic filename order. The current last migration is `20240312000003_is_admin.sql`. Using today's date, the new file should be named `20260313000001_voice_video.sql` (which sorts after all existing migrations):
 
 ```sql
 ALTER TABLE voice_states
@@ -56,18 +59,33 @@ COMMENT ON COLUMN voice_states.self_video  IS 'User has camera enabled';
 COMMENT ON COLUMN voice_states.self_screen IS 'User is sharing their screen';
 ```
 
-Both columns default to `FALSE` — existing rows are unaffected.
+Both columns default to `FALSE` — existing rows are unaffected. A corresponding `20260313000001_voice_video.down.sql` should `ALTER TABLE voice_states DROP COLUMN self_video, DROP COLUMN self_screen`.
 
 ### 2. Model Changes (`server/src/models/mod.rs`)
 
 - `VoiceState` gains `self_video: bool`, `self_screen: bool`
 - `VoiceStateDto` gains `self_video: bool`, `self_screen: bool`
 - `UpdateVoiceStateRequest` gains `self_video: Option<bool>`, `self_screen: Option<bool>`
-- `VoiceStateDto::leave` constructor sets both to `false`
+
+> **Important:** `UpdateVoiceStateRequest` is decorated with `#[serde(deny_unknown_fields)]`. The new fields **must** be added to the struct before the migration is deployed — otherwise any request body containing `self_video` or `self_screen` will be rejected with a deserialization error even if the SQL already accepts them.
+
+- `VoiceStateDto::leave` constructor: set `self_video: false` and `self_screen: false`
 
 ### 3. PATCH Handler (`server/src/handlers/voice.rs`)
 
-The `update_voice_state` handler's `COALESCE` SQL extends to include the new fields:
+**Validation guard** — the current guard checks only `self_mute` and `self_deaf`. It must be extended to cover the new fields, otherwise a body of `{ "self_video": true }` will be rejected with a 400:
+
+```rust
+if req.self_mute.is_none() && req.self_deaf.is_none()
+    && req.self_video.is_none() && req.self_screen.is_none()
+{
+    return Err(AppError::Validation(
+        "At least one field must be provided".into(),
+    ));
+}
+```
+
+**SQL** — the `COALESCE` update extends to the new fields, and the `RETURNING` clause must explicitly include them (the existing handler uses an explicit column list, not `RETURNING *`):
 
 ```sql
 UPDATE voice_states
@@ -76,10 +94,13 @@ SET self_mute   = COALESCE($1, self_mute),
     self_video  = COALESCE($3, self_video),
     self_screen = COALESCE($4, self_screen)
 WHERE user_id = $5 AND channel_id = $6
-RETURNING ...
+RETURNING user_id, channel_id, self_mute, self_deaf,
+          server_mute, server_deaf, self_video, self_screen, joined_at
 ```
 
-The existing "at least one field must be provided" validation covers the new fields — no additional validation logic needed.
+**`join_voice_channel` UPSERT** — the existing `RETURNING` clause in `join_voice_channel` also uses an explicit column list and must be updated to include `self_video` and `self_screen`, otherwise `sqlx` will fail to deserialize the returned `VoiceState` row.
+
+**`list_voice_participants`** — `VoiceParticipantRow` is constructed via a `JOIN` query and used to build `VoiceStateDto` with named-field struct syntax. Both the query and the `VoiceParticipantRow` struct must include `self_video` and `self_screen`, otherwise the code will fail to compile (missing struct fields) and the participant list response will be missing the new fields.
 
 ### 4. VOICE_STATE_UPDATE Broadcast
 
@@ -95,11 +116,24 @@ Voice state rows are deleted on leave/disconnect. No explicit cleanup of video/s
 
 ### 1. TypeScript Types (`clients/web/src/types/index.ts`)
 
-`VoiceParticipant` gains:
+**`VoiceParticipant`** gains:
 ```typescript
 self_video: boolean;
 self_screen: boolean;
 ```
+
+**`VoiceStateUpdateEvent`** also gains the same two fields (it mirrors `VoiceParticipant` and is used by the WebSocket event handler for `VOICE_STATE_UPDATE` events):
+```typescript
+self_video: boolean;
+self_screen: boolean;
+```
+
+**`UpdateVoiceStateRequest`** gains:
+```typescript
+self_video?: boolean;
+self_screen?: boolean;
+```
+This is required so `toggleCamera` / `toggleScreen` in `voiceStore` can call `api.updateVoiceState(channelId, { self_video: true } satisfies UpdateVoiceStateRequest)` without a TypeScript compile error.
 
 ### 2. Voice Store (`clients/web/src/stores/voiceStore.ts`)
 
@@ -120,14 +154,20 @@ Both follow the existing `toggleMute` pattern:
 2. Call `PATCH /channels/:id/voice` with the new value
 3. Revert state on API failure
 
+**`join` action** — the existing `join` initializes `isMuted` and `isDeafened` from the server response (`vs.self_mute`, `vs.self_deaf`). It must also initialize `isCameraOn` from `vs.self_video` and `isScreenSharing` from `vs.self_screen`. This ensures consistency if a user rejoins with stale video state in the DB.
+
+**`leave` action** — must reset `isCameraOn` and `isScreenSharing` to `false` alongside the existing `isMuted`/`isDeafened` resets. Without this, a user who leaves while their camera is on will re-enter with `isCameraOn: true`, triggering an immediate `getUserMedia` call on rejoin.
+
 ### 3. `useWebRTC` Hook (`clients/web/src/hooks/useWebRTC.ts`)
 
 New props:
 ```typescript
 isCameraOn: boolean
 isScreenSharing: boolean
-onRemoteStreamsChange?: (streams: Map<string, RemoteStreams>) => void
+onRemoteStreamsChange?: () => void   // signals that remoteVideoStreamsRef has changed
 ```
+
+The `onRemoteStreamsChange` callback follows the existing hook pattern used by `onSpeakingChange` — it is stored in a ref (`onRemoteStreamsChangeRef`) to avoid stale closures and is called to notify the parent that `remoteVideoStreamsRef` has been updated. The parent calls a stable getter (e.g. `getRemoteVideoStreams()`) rather than receiving a new `Map` reference on each call, preventing unnecessary re-renders during active renegotiation.
 
 Where `RemoteStreams` is:
 ```typescript
@@ -142,14 +182,24 @@ New internal refs:
 - `localVideoStreamRef` — camera `MediaStream` from `getUserMedia({ video: true })`
 - `localScreenStreamRef` — screen `MediaStream` from `getDisplayMedia({ video: true, audio: false })`
 - `remoteVideoStreamsRef: Map<peerId, RemoteStreams>` — remote video streams, updated on `ontrack`
+- `onRemoteStreamsChangeRef` — stable ref wrapping the `onRemoteStreamsChange` callback
 
 **Camera toggle effect:** When `isCameraOn` changes:
 - Enable: call `getUserMedia({ video: true })`, add video track to all existing peer connections via `addTrack`. `onnegotiationneeded` fires on each connection, triggering a new offer/answer exchange.
 - Disable: stop the camera track, remove the sender from each peer connection via `removeTrack`. `onnegotiationneeded` fires, triggering renegotiation.
 
-**Screen share toggle effect:** Same pattern using `getDisplayMedia`. Additionally, listen for the `ended` event on the screen track (fired when the user clicks the OS/browser "Stop sharing" button) and call `toggleScreen()` to sync store state.
+**Screen share toggle effect:** Same pattern using `getDisplayMedia({ video: true, audio: false })`. System audio capture is intentionally disabled — it introduces privacy concerns (capturing application audio unexpectedly) and adds complexity for an initial implementation. It can be opt-in in a future iteration.
 
-**Remote track identification:** When `pc.ontrack` fires, distinguish audio vs. video by `event.track.kind`. Distinguish camera vs. screen video tracks using the SDP `mid` — camera is negotiated first (lower mid index) and screen second (higher mid index). Both are stored in `remoteVideoStreamsRef` and reported via `onRemoteStreamsChange`.
+Additionally, listen for the `ended` event on the screen track (fired when the user clicks the OS/browser "Stop sharing" button) and call `toggleScreen()` to sync store state.
+
+**`ontrack` handler rewrite:** The existing `ontrack` handler in `createPeer` only handles audio — it filters `event.streams[0]?.getAudioTracks()` and discards everything else. Adding video requires a full rewrite of this handler to branch on `event.track.kind`:
+
+- `kind === "audio"` → existing audio path (feed to `remoteStream`, play via `<audio>` element, start speaking detector)
+- `kind === "video"` → read `event.streams[0].id` to determine role (see below), store in `remoteVideoStreamsRef`, call `onRemoteStreamsChangeRef.current?.()`
+
+The old handler must not run in parallel with the new one — it should be replaced entirely, not supplemented.
+
+**Remote track identification:** To distinguish camera vs. screen video tracks from the same peer, each track is added to a named `MediaStream` with a stable label: camera tracks are added with stream label `"<peerId>-camera"` and screen tracks with `"<peerId>-screen"`. The offerer creates streams with these labels before calling `addTrack`. The answerer reads `event.streams[0].id` on `ontrack` to determine track role. This is robust across renegotiations and does not depend on SDP `mid` ordering.
 
 **Peer joins mid-stream:** Existing peers act as offerers for new joiners. Because video tracks are already on the peer connection at offer time, new participants receive all active video tracks as part of the initial negotiation.
 
@@ -160,7 +210,8 @@ New internal refs:
 Props:
 ```typescript
 interface VideoGridProps {
-  remoteStreams: Map<string, RemoteStreams>;
+  getRemoteStreams: () => Map<string, RemoteStreams>;
+  streamVersion: number;   // incremented by parent on each onRemoteStreamsChange; triggers re-render
   localCameraStream: MediaStream | null;
   localScreenStream: MediaStream | null;
   localUserId: string;
@@ -171,6 +222,7 @@ interface VideoGridProps {
 - Renders a CSS grid that reflows as streams are added/removed
 - Renders nothing when no video/screen streams are active (participant list shows instead)
 - One `VideoTile` per active stream (camera and screen are separate tiles)
+- Must **not** be wrapped in `React.memo` — or if it is, `streamVersion` must be included so memo comparison fails and re-renders are triggered correctly when remote streams change
 
 #### `VideoTile.tsx` (`clients/web/src/components/voice/VideoTile.tsx`)
 
@@ -196,7 +248,8 @@ CSS modules for the grid layout and tile styling, consistent with the existing v
 ### 5. `VoiceChannel.tsx` Changes
 
 - Passes `isCameraOn` and `isScreenSharing` from `voiceStore` to `useWebRTC`
-- Receives `remoteStreams` via `onRemoteStreamsChange` callback, stored in local state
+- Passes `onRemoteStreamsChange` callback to `useWebRTC`; on callback, increments a `streamVersion` counter state (e.g. `setStreamVersion(v => v + 1)`) to trigger re-render; reads current streams via `getRemoteVideoStreams()` at render time
+- Holds `localCameraStream` and `localScreenStream` from the hook's returned refs
 - Renders `<VideoGrid>` above the participant list when any stream is active
 - Adds two new buttons to the controls bar:
   - Camera: `Video` icon (on) / `VideoOff` icon (off) — from lucide-react
@@ -211,7 +264,7 @@ CSS modules for the grid layout and tile styling, consistent with the existing v
 |---|---|
 | `getUserMedia` denied (camera) | Revert `isCameraOn` to `false`; surface error via `activeError` in `VoiceChannel` |
 | `getDisplayMedia` denied (screen) | Revert `isScreenSharing` to `false`; surface error via `activeError` |
-| Screen share not supported (mobile) | Catch `NotSupportedError`; show "Screen sharing is not supported on this device" |
+| Screen share not supported (mobile) | Catch `NotSupportedError` / `NotAllowedError`; show "Screen sharing is not supported on this device" |
 | OS "Stop sharing" button clicked | `ended` event on screen track → call `toggleScreen()` to sync state |
 | Renegotiation offer/answer fails | Call `onError`; remove track locally; audio connection unaffected |
 | API `PATCH` fails on toggle | Revert optimistic state update (same as existing `toggleMute` pattern) |
@@ -229,12 +282,13 @@ User clicks camera button
     → other clients update participant state
   → useWebRTC detects isCameraOn change
     → getUserMedia({ video: true })
-    → addTrack to all RTCPeerConnections
+    → addTrack to all RTCPeerConnections (stream label: "<peerId>-camera")
     → onnegotiationneeded fires on each connection
     → createOffer → setLocalDescription → sendVoiceSignal(peer, "offer", sdp)
     → peers answer → setRemoteDescription
     → video track flows to peers
-    → peers' ontrack fires → remoteVideoStreamsRef updated → onRemoteStreamsChange called
+    → peers' ontrack fires → stream label read → remoteVideoStreamsRef updated
+    → onRemoteStreamsChangeRef.current() called
     → VoiceChannel re-renders VideoGrid with new stream
 ```
 
@@ -246,21 +300,24 @@ User clicks camera button
 
 - `PATCH /channels/:id/voice` with `self_video: true` — returns updated DTO with `self_video: true`
 - `PATCH /channels/:id/voice` with `self_screen: true` — returns updated DTO with `self_screen: true`
+- `PATCH /channels/:id/voice` with `{}` — returns 400 (at least one field required)
 - `VOICE_STATE_UPDATE` broadcast includes `self_video` and `self_screen` fields
+- `GET /channels/:id/voice` participant list includes `self_video` and `self_screen` fields
 - Existing voice tests pass unmodified (new fields default to `false`)
 
 ### Frontend (`clients/web/src/__tests__/`)
 
 - `voiceStore` — `toggleCamera` optimistic update and revert on API failure
 - `voiceStore` — `toggleScreen` optimistic update and revert on API failure
+- `voiceStore` — `leave` resets `isCameraOn` and `isScreenSharing` to `false`
 - `VideoTile` — renders `<video>` element; shows username label; is muted when `isLocal`
 - `useWebRTC` — mock `getUserMedia`; verify track added to peer connections when `isCameraOn` becomes true
 - `useWebRTC` — mock screen track `ended` event; verify `toggleScreen` is called
 
 ---
 
-## Open Questions / Future Work
+## Future Work
 
-- **Mid-based track identification:** The camera-first, screen-second mid ordering is an implementation convention — it should be enforced explicitly in the offer SDP to be robust. This can be revisited during implementation.
 - **SFU migration path:** When P2P video becomes a bottleneck (typically >10 simultaneous video participants), the defined next step is introducing Livekit or a Pion SFU. The signaling relay is already in place; the main work would be replacing peer connections with a server-side publisher/subscriber model.
-- **Video quality controls:** Bitrate caps per track could be added via `RTCRtpSender.setParameters()` to manage bandwidth in larger calls. Out of scope for initial implementation.
+- **System audio during screen share:** `getDisplayMedia` is called with `audio: false`. System audio capture can be added as an opt-in in a future iteration.
+- **Video quality controls:** Bitrate caps per track can be added via `RTCRtpSender.setParameters()` to manage bandwidth in larger calls.
