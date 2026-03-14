@@ -35,6 +35,8 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   const isMuted = useVoiceStore((s) => s.isMuted);
   const isDeafened = useVoiceStore((s) => s.isDeafened);
   const isConnecting = useVoiceStore((s) => s.isConnecting);
+  const isCameraOn = useVoiceStore((s) => s.isCameraOn);
+  const isScreenSharing = useVoiceStore((s) => s.isScreenSharing);
   const voiceError = useVoiceStore((s) => s.error);
   const clearVoiceError = useVoiceStore((s) => s.clearError);
   const join = useVoiceStore((s) => s.join);
@@ -128,6 +130,8 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                       ...p,
                       self_mute: event.self_mute,
                       self_deaf: event.self_deaf,
+                      self_video: event.self_video,
+                      self_screen: event.self_screen,
                       server_mute: event.server_mute,
                       server_deaf: event.server_deaf,
                     }
@@ -147,6 +151,8 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                 joined_at: event.joined_at ?? new Date().toISOString(),
                 self_mute: event.self_mute,
                 self_deaf: event.self_deaf,
+                self_video: event.self_video,
+                self_screen: event.self_screen,
                 server_mute: event.server_mute,
                 server_deaf: event.server_deaf,
               },
@@ -216,6 +222,8 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
     isDeafened,
     micDeviceId,
     speakerDeviceId,
+    isCameraOn,
+    isScreenSharing,
     onError: setRtcError,
     onSpeakingChange: handleSpeakingChange,
   });

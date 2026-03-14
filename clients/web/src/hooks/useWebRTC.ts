@@ -58,6 +58,12 @@ async function getIceServers(): Promise<RTCIceServer[]> {
   }
 }
 
+export interface RemoteStreams {
+  camera?: MediaStream;
+  screen?: MediaStream;
+  username: string;
+}
+
 interface UseWebRTCOptions {
   enabled: boolean;
   myUserId: string;
@@ -70,10 +76,14 @@ interface UseWebRTCOptions {
   micDeviceId?: string | null;
   /** deviceId of the preferred audio output; undefined = browser default. */
   speakerDeviceId?: string | null;
+  isCameraOn: boolean;
+  isScreenSharing: boolean;
+  cameraDeviceId?: string | null;
   /** Called when a non-fatal error occurs (e.g. mic denied, offer failed). */
   onError?: (message: string) => void;
   /** Called whenever a participant starts or stops speaking. */
   onSpeakingChange?: (userId: string, isSpeaking: boolean) => void;
+  onRemoteStreamsChange?: () => void;
 }
 
 /**
@@ -126,8 +136,12 @@ export function useWebRTC({
   isDeafened,
   micDeviceId,
   speakerDeviceId,
+  isCameraOn,
+  isScreenSharing,
+  cameraDeviceId,
   onError,
   onSpeakingChange,
+  onRemoteStreamsChange,
 }: UseWebRTCOptions) {
   // Map of peerId → RTCPeerConnection
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -146,6 +160,14 @@ export function useWebRTC({
   // AudioContexts to ~6, so one context must serve the whole call.
   const audioCtxRef = useRef<AudioContext | null>(null);
 
+  const localVideoStreamRef = useRef<MediaStream | null>(null);
+  const localScreenStreamRef = useRef<MediaStream | null>(null);
+  const remoteVideoStreamsRef = useRef<Map<string, RemoteStreams>>(new Map());
+  // Tracks which RTCRtpSender corresponds to the screen track per peer connection
+  const screenSendersRef = useRef<Map<RTCPeerConnection, RTCRtpSender>>(
+    new Map(),
+  );
+
   // Keep mutable refs for callbacks/values used inside stable useCallbacks
   // to avoid stale closures without re-creating the callbacks on every render.
   const speakerDeviceIdRef = useRef(speakerDeviceId);
@@ -154,11 +176,18 @@ export function useWebRTC({
   onSpeakingChangeRef.current = onSpeakingChange;
   const isMutedRef = useRef(isMuted);
   isMutedRef.current = isMuted;
+  const onRemoteStreamsChangeRef = useRef(onRemoteStreamsChange);
+  onRemoteStreamsChangeRef.current = onRemoteStreamsChange;
 
   const stopSpeakingDetector = useCallback((userId: string) => {
     speakingStopRef.current.get(userId)?.();
     speakingStopRef.current.delete(userId);
   }, []);
+
+  const getRemoteVideoStreams = useCallback(
+    () => remoteVideoStreamsRef.current,
+    [],
+  );
 
   const closePeer = useCallback(
     (peerId: string) => {
@@ -175,6 +204,8 @@ export function useWebRTC({
       }
       stopSpeakingDetector(peerId);
       onSpeakingChangeRef.current?.(peerId, false);
+      remoteVideoStreamsRef.current.delete(peerId);
+      onRemoteStreamsChangeRef.current?.();
     },
     [stopSpeakingDetector],
   );
@@ -234,13 +265,50 @@ export function useWebRTC({
         });
       }
 
-      // Play remote audio when tracks arrive
+      // Add existing camera track if active
+      if (localVideoStreamRef.current) {
+        const [videoTrack] = localVideoStreamRef.current.getVideoTracks();
+        if (videoTrack) {
+          videoTrack.contentHint = "motion";
+          pc.addTrack(videoTrack, localVideoStreamRef.current);
+        }
+      }
+
+      // Add existing screen track if active
+      if (localScreenStreamRef.current) {
+        const [screenTrack] = localScreenStreamRef.current.getVideoTracks();
+        if (screenTrack) {
+          screenTrack.contentHint = "detail";
+          const sender = pc.addTrack(screenTrack, localScreenStreamRef.current);
+          screenSendersRef.current.set(pc, sender);
+        }
+      }
+
+      // Play remote audio/video when tracks arrive
       const remoteStream = new MediaStream();
       pc.ontrack = (event) => {
-        event.streams[0]?.getAudioTracks().forEach((track) => {
-          remoteStream.addTrack(track);
-        });
-        playRemoteStream(peerId, remoteStream);
+        if (event.track.kind === "audio") {
+          // ── Audio path (unchanged) ──────────────────────────────
+          event.streams[0]?.getAudioTracks().forEach((track) => {
+            remoteStream.addTrack(track);
+          });
+          playRemoteStream(peerId, remoteStream);
+        } else if (event.track.kind === "video") {
+          // ── Video path ──────────────────────────────────────────
+          // contentHint encodes role: "motion" = camera, "detail" = screen
+          const isScreen = event.track.contentHint === "detail";
+          const existing = remoteVideoStreamsRef.current.get(peerId) ?? {
+            username:
+              participants.find((p) => p.user_id === peerId)?.username ??
+              peerId,
+          };
+          const stream = event.streams[0] ?? new MediaStream([event.track]);
+          const updated: RemoteStreams = isScreen
+            ? { ...existing, screen: stream }
+            : { ...existing, camera: stream };
+          remoteVideoStreamsRef.current.set(peerId, updated);
+          onRemoteStreamsChangeRef.current?.();
+        }
       };
 
       // Forward ICE candidates via signaling
@@ -266,7 +334,7 @@ export function useWebRTC({
 
       return pc;
     },
-    [playRemoteStream, closePeer],
+    [playRemoteStream, closePeer, participants],
   );
 
   // Fetch ICE servers once when enabled
@@ -360,6 +428,175 @@ export function useWebRTC({
     // onError and myUserId are stable across re-renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, micDeviceId]);
+
+  // Acquire / release local camera stream
+  useEffect(() => {
+    if (!enabled || !isCameraOn) {
+      if (localVideoStreamRef.current) {
+        localVideoStreamRef.current.getTracks().forEach((t) => t.stop());
+        localVideoStreamRef.current = null;
+        peersRef.current.forEach((pc) => {
+          const sender = pc
+            .getSenders()
+            .find(
+              (s) =>
+                s.track?.kind === "video" && !s.track?.label.includes("screen"),
+            );
+          if (sender) pc.removeTrack(sender);
+        });
+      }
+      return;
+    }
+
+    let cancelled = false;
+    const constraints: MediaStreamConstraints = {
+      video: cameraDeviceId ? { deviceId: { exact: cameraDeviceId } } : true,
+      audio: false,
+    };
+
+    navigator.mediaDevices
+      ?.getUserMedia(constraints)
+      .then((stream) => {
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        localVideoStreamRef.current = stream;
+        const [track] = stream.getVideoTracks();
+        if (!track) return;
+
+        track.contentHint = "motion";
+        peersRef.current.forEach((pc) => {
+          pc.addTrack(track, stream);
+        });
+      })
+      .catch((err) => {
+        console.error("[WebRTC] camera getUserMedia failed", err);
+        onError?.("Camera unavailable");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, isCameraOn]);
+
+  // Hot-swap camera device while camera is active
+  useEffect(() => {
+    if (!enabled || !isCameraOn || !localVideoStreamRef.current) return;
+
+    let cancelled = false;
+    const constraints: MediaStreamConstraints = {
+      video: cameraDeviceId ? { deviceId: { exact: cameraDeviceId } } : true,
+      audio: false,
+    };
+
+    navigator.mediaDevices
+      ?.getUserMedia(constraints)
+      .then((newStream) => {
+        if (cancelled) {
+          newStream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        localVideoStreamRef.current?.getTracks().forEach((t) => t.stop());
+        localVideoStreamRef.current = newStream;
+        const [newTrack] = newStream.getVideoTracks();
+        if (!newTrack) return;
+
+        peersRef.current.forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+          if (sender) {
+            sender.replaceTrack(newTrack).catch((err: unknown) => {
+              console.warn("[WebRTC] replaceTrack failed", err);
+            });
+          }
+        });
+      })
+      .catch((err) => {
+        console.error("[WebRTC] camera device change failed", err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, cameraDeviceId]);
+
+  // Acquire / release screen share stream
+  useEffect(() => {
+    if (!enabled || !isScreenSharing) {
+      if (localScreenStreamRef.current) {
+        localScreenStreamRef.current.getTracks().forEach((t) => t.stop());
+        localScreenStreamRef.current = null;
+        peersRef.current.forEach((pc) => {
+          const sender = screenSendersRef.current.get(pc);
+          if (sender) {
+            pc.removeTrack(sender);
+            screenSendersRef.current.delete(pc);
+          }
+        });
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    (
+      navigator.mediaDevices as MediaDevices & {
+        getDisplayMedia?: (
+          c: DisplayMediaStreamOptions,
+        ) => Promise<MediaStream>;
+      }
+    )
+      .getDisplayMedia?.({ video: true, audio: false })
+      .then((stream) => {
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        localScreenStreamRef.current = stream;
+        const [track] = stream.getVideoTracks();
+        if (!track) return;
+
+        track.contentHint = "detail";
+        track.addEventListener("ended", () => {
+          import("../stores/voiceStore").then(({ useVoiceStore }) => {
+            if (useVoiceStore.getState().isScreenSharing) {
+              useVoiceStore
+                .getState()
+                .toggleScreen()
+                .catch(() => {});
+            }
+          });
+        });
+
+        peersRef.current.forEach((pc) => {
+          const sender = pc.addTrack(track, stream);
+          screenSendersRef.current.set(pc, sender);
+        });
+      })
+      .catch((err: unknown) => {
+        console.error("[WebRTC] getDisplayMedia failed", err);
+        const name = (err as { name?: string }).name;
+        if (name === "NotSupportedError") {
+          onError?.("Screen sharing is not supported on this device");
+        }
+        // NotAllowedError = user cancelled picker — no error message needed
+        import("../stores/voiceStore").then(({ useVoiceStore }) => {
+          if (useVoiceStore.getState().isScreenSharing) {
+            useVoiceStore
+              .getState()
+              .toggleScreen()
+              .catch(() => {});
+          }
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, isScreenSharing]);
 
   // Mute / unmute local tracks
   useEffect(() => {
@@ -486,6 +723,7 @@ export function useWebRTC({
     const audioElements = audioElementsRef.current;
     const offeredPeers = offeredPeersRef.current;
     const speakingStop = speakingStopRef.current;
+    const remoteVideoStreams = remoteVideoStreamsRef.current;
     return () => {
       peers.forEach((_, peerId) => closePeer(peerId));
       audioElements.forEach((audio) => {
@@ -498,7 +736,18 @@ export function useWebRTC({
       // Close the shared AudioContext now that all detectors have been torn down.
       audioCtxRef.current?.close().catch(() => {});
       audioCtxRef.current = null;
+      localVideoStreamRef.current?.getTracks().forEach((t) => t.stop());
+      localVideoStreamRef.current = null;
+      localScreenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      localScreenStreamRef.current = null;
+      remoteVideoStreams.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  return {
+    getRemoteVideoStreams,
+    localVideoStreamRef,
+    localScreenStreamRef,
+  };
 }
