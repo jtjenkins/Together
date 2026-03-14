@@ -123,8 +123,8 @@ function startSpeakingDetector(
       source.disconnect();
       analyser.disconnect();
     };
-  } catch {
-    // AudioContext may be unavailable (e.g. in tests or restricted contexts).
+  } catch (err) {
+    console.warn("[WebRTC] speaking detector setup failed", err);
     return () => {};
   }
 }
@@ -174,6 +174,11 @@ export function useWebRTC({
   const cameraSendersRef = useRef<Map<RTCPeerConnection, RTCRtpSender>>(
     new Map(),
   );
+  // Tracks which peers have completed their initial offer/answer handshake.
+  // onnegotiationneeded is only processed for peers in this set — otherwise
+  // the initial offer (sent explicitly in the "Send offers" effect) races with
+  // the negotiationneeded-triggered offer.
+  const initialNegotiationDoneRef = useRef<Set<string>>(new Set());
 
   // Keep mutable refs for callbacks/values used inside stable useCallbacks
   // to avoid stale closures without re-creating the callbacks on every render.
@@ -187,6 +192,8 @@ export function useWebRTC({
   onRemoteStreamsChangeRef.current = onRemoteStreamsChange;
   const onLocalStreamsChangeRef = useRef(onLocalStreamsChange);
   onLocalStreamsChangeRef.current = onLocalStreamsChange;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   const stopSpeakingDetector = useCallback((userId: string) => {
     speakingStopRef.current.get(userId)?.();
@@ -219,6 +226,7 @@ export function useWebRTC({
         screenSendersRef.current.delete(pc);
         cameraSendersRef.current.delete(pc);
       }
+      initialNegotiationDoneRef.current.delete(peerId);
     },
     [stopSpeakingDetector],
   );
@@ -354,6 +362,24 @@ export function useWebRTC({
         }
       };
 
+      // Handle SDP renegotiation triggered by addTrack / removeTrack after the
+      // initial offer/answer exchange (e.g. camera or screen share toggled mid-call).
+      // We guard against the initial onnegotiationneeded event (which fires when
+      // tracks are first added in createPeer) by checking initialNegotiationDoneRef —
+      // the initial offer is sent explicitly in the "Send offers" effect instead.
+      pc.onnegotiationneeded = async () => {
+        if (!initialNegotiationDoneRef.current.has(peerId)) return;
+        if (pc.signalingState !== "stable") return;
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          gateway.sendVoiceSignal(peerId, "offer", offer.sdp);
+        } catch (err) {
+          console.error(`[WebRTC] renegotiation failed for ${peerId}`, err);
+          onErrorRef.current?.("Failed to renegotiate voice connection");
+        }
+      };
+
       return pc;
     },
     [playRemoteStream, closePeer, participants],
@@ -406,8 +432,14 @@ export function useWebRTC({
               .getSenders()
               .find((s) => s.track?.kind === "audio");
             const [track] = stream.getAudioTracks();
-            if (sender && track) sender.replaceTrack(track);
-            else if (track) pc.addTrack(track, stream);
+            if (sender && track) {
+              sender.replaceTrack(track).catch((err: unknown) => {
+                console.error("[WebRTC] audio replaceTrack failed", err);
+                onError?.("Failed to switch microphone");
+              });
+            } else if (track) {
+              pc.addTrack(track, stream);
+            }
           });
         }
 
@@ -496,6 +528,16 @@ export function useWebRTC({
       .catch((err) => {
         console.error("[WebRTC] camera getUserMedia failed", err);
         onError?.("Camera unavailable");
+        // Roll back the optimistic isCameraOn: true set by toggleCamera() in the
+        // store. Without this the camera button stays active with no stream flowing.
+        import("../stores/voiceStore").then(({ useVoiceStore }) => {
+          if (useVoiceStore.getState().isCameraOn) {
+            useVoiceStore
+              .getState()
+              .toggleCamera()
+              .catch(() => {});
+          }
+        });
       });
 
     return () => {
@@ -527,10 +569,13 @@ export function useWebRTC({
         if (!newTrack) return;
 
         peersRef.current.forEach((pc) => {
-          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+          // Use cameraSendersRef to find the correct sender — getSenders().find()
+          // is ambiguous when screen share is also active (two video senders).
+          const sender = cameraSendersRef.current.get(pc);
           if (sender) {
             sender.replaceTrack(newTrack).catch((err: unknown) => {
-              console.warn("[WebRTC] replaceTrack failed", err);
+              console.error("[WebRTC] camera replaceTrack failed", err);
+              onError?.("Failed to switch camera device");
             });
           }
         });
@@ -590,7 +635,12 @@ export function useWebRTC({
               useVoiceStore
                 .getState()
                 .toggleScreen()
-                .catch(() => {});
+                .catch((err: unknown) => {
+                  console.error(
+                    "[WebRTC] failed to sync screen share stop to server",
+                    err,
+                  );
+                });
             }
           });
         });
@@ -612,7 +662,12 @@ export function useWebRTC({
             useVoiceStore
               .getState()
               .toggleScreen()
-              .catch(() => {});
+              .catch((revertErr: unknown) => {
+                console.error(
+                  "[WebRTC] failed to revert screen share state after getDisplayMedia failure",
+                  revertErr,
+                );
+              });
           }
         });
       });
@@ -693,6 +748,9 @@ export function useWebRTC({
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           gateway.sendVoiceSignal(fromId, "answer", answer.sdp);
+          // Mark initial negotiation done so onnegotiationneeded handles future
+          // renegotiations (e.g. camera / screen share added after join).
+          initialNegotiationDoneRef.current.add(fromId);
         } catch (err) {
           console.error(`[WebRTC] Failed to answer offer from ${fromId}`, err);
           onError?.("Failed to answer voice connection request");
@@ -704,6 +762,9 @@ export function useWebRTC({
             await pc.setRemoteDescription(
               new RTCSessionDescription({ type: "answer", sdp: signal.sdp }),
             );
+            // Initial handshake complete — onnegotiationneeded will handle
+            // subsequent renegotiations for this peer.
+            initialNegotiationDoneRef.current.add(fromId);
           } catch (err) {
             console.error(
               `[WebRTC] Failed to set remote answer from ${fromId}`,
@@ -749,6 +810,7 @@ export function useWebRTC({
     const offeredPeers = offeredPeersRef.current;
     const speakingStop = speakingStopRef.current;
     const remoteVideoStreams = remoteVideoStreamsRef.current;
+    const initialNegotiationDone = initialNegotiationDoneRef.current;
     return () => {
       peers.forEach((_, peerId) => closePeer(peerId));
       audioElements.forEach((audio) => {
@@ -766,6 +828,7 @@ export function useWebRTC({
       localScreenStreamRef.current?.getTracks().forEach((t) => t.stop());
       localScreenStreamRef.current = null;
       remoteVideoStreams.clear();
+      initialNegotiationDone.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

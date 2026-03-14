@@ -13,12 +13,16 @@ interface VideoGridProps {
 
 export function VideoGrid({
   getRemoteStreams,
-  streamVersion: _streamVersion,
+  streamVersion,
   localCameraStream,
   localScreenStream,
   localUserId,
   localUsername,
 }: VideoGridProps) {
+  // streamVersion is intentionally unused in the render output — its presence
+  // in props causes React to re-render the grid whenever the stream list changes,
+  // so that getRemoteStreams() is called again with the latest state.
+  void streamVersion;
   const remoteStreams = getRemoteStreams();
 
   const tiles: Array<{

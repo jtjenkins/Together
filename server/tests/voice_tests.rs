@@ -265,6 +265,50 @@ async fn rejoin_same_channel_resets_self_mute() {
     );
 }
 
+/// Re-joining the same channel must reset self_video and self_screen to false.
+/// Without this, a user who crashes mid-call would re-appear as "video on"
+/// to other participants even though no video stream is actually flowing.
+#[tokio::test]
+async fn rejoin_same_channel_resets_video_and_screen() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    // Join and enable video + screen share.
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+    common::patch_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({ "self_video": true, "self_screen": true }),
+    )
+    .await;
+
+    // Re-join the same channel — UPSERT must reset both to false.
+    let (status, body) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(
+        !body["self_video"].as_bool().unwrap(),
+        "self_video should be reset to false on rejoin"
+    );
+    assert!(
+        !body["self_screen"].as_bool().unwrap(),
+        "self_screen should be reset to false on rejoin"
+    );
+}
+
 // ============================================================================
 // DELETE /channels/:channel_id/voice — leave
 // ============================================================================

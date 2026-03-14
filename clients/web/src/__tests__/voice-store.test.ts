@@ -73,6 +73,11 @@ describe("toggleScreen", () => {
     await expect(useVoiceStore.getState().toggleScreen()).rejects.toThrow();
     expect(useVoiceStore.getState().isScreenSharing).toBe(false);
   });
+
+  it("does nothing when not in a channel", async () => {
+    await useVoiceStore.getState().toggleScreen();
+    expect(api.updateVoiceState).not.toHaveBeenCalled();
+  });
 });
 
 describe("leave", () => {
