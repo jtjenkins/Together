@@ -414,3 +414,60 @@ export interface SearchResponse {
   has_more: boolean;
   next_cursor: string | null;
 }
+
+// ─── Automod Types ────────────────────────────────────────────────────────
+
+export interface AutomodConfig {
+  server_id: string;
+  enabled: boolean;
+  spam_enabled: boolean;
+  spam_max_messages: number;
+  spam_window_secs: number;
+  spam_action: "delete" | "timeout" | "kick" | "ban";
+  duplicate_enabled: boolean;
+  word_filter_enabled: boolean;
+  word_filter_action: "delete" | "timeout" | "kick" | "ban";
+  timeout_minutes: number;
+  updated_at: string;
+}
+
+export interface UpdateAutomodConfigRequest {
+  enabled?: boolean;
+  spam_enabled?: boolean;
+  spam_max_messages?: number;
+  spam_window_secs?: number;
+  spam_action?: AutomodConfig["spam_action"];
+  duplicate_enabled?: boolean;
+  word_filter_enabled?: boolean;
+  word_filter_action?: AutomodConfig["word_filter_action"];
+  timeout_minutes?: number;
+}
+
+export interface AutomodWordFilter {
+  id: string;
+  server_id: string;
+  word: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface AutomodLog {
+  id: string;
+  server_id: string;
+  channel_id: string | null;
+  user_id: string | null;
+  username: string | null;
+  rule_type: string;
+  action_taken: string;
+  matched_term: string | null;
+  message_content: string | null;
+  created_at: string;
+}
+
+export interface ServerBan {
+  user_id: string;
+  server_id: string;
+  banned_by: string | null;
+  reason: string | null;
+  created_at: string;
+}

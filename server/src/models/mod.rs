@@ -738,3 +738,80 @@ pub struct BotCreatedResponse {
     /// Plaintext token — shown once at creation/regeneration only.
     pub token: String,
 }
+
+// ── Automod Models ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct AutomodConfig {
+    pub server_id: Uuid,
+    pub enabled: bool,
+    pub spam_enabled: bool,
+    pub spam_max_messages: i32,
+    pub spam_window_secs: i32,
+    pub spam_action: String,
+    pub duplicate_enabled: bool,
+    pub word_filter_enabled: bool,
+    pub word_filter_action: String,
+    pub timeout_minutes: i32,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAutomodConfigRequest {
+    pub enabled: Option<bool>,
+    pub spam_enabled: Option<bool>,
+    pub spam_max_messages: Option<i32>,
+    pub spam_window_secs: Option<i32>,
+    pub spam_action: Option<String>,
+    pub duplicate_enabled: Option<bool>,
+    pub word_filter_enabled: Option<bool>,
+    pub word_filter_action: Option<String>,
+    pub timeout_minutes: Option<i32>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct AutomodWordFilter {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub word: String,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddWordFilterRequest {
+    pub word: String,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct AutomodLog {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub channel_id: Option<Uuid>,
+    pub user_id: Option<Uuid>,
+    pub username: Option<String>,
+    pub rule_type: String,
+    pub action_taken: String,
+    pub matched_term: Option<String>,
+    pub message_content: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct ServerBan {
+    pub user_id: Uuid,
+    pub server_id: Uuid,
+    pub banned_by: Option<Uuid>,
+    pub reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct AutomodTimeout {
+    pub user_id: Uuid,
+    pub server_id: Uuid,
+    pub expires_at: DateTime<Utc>,
+    pub reason: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}

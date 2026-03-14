@@ -222,6 +222,29 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
         )
+        // Automod routes
+        .route(
+            "/servers/:id/automod",
+            get(handlers::automod::get_automod_config)
+                .patch(handlers::automod::update_automod_config),
+        )
+        .route(
+            "/servers/:id/automod/words",
+            get(handlers::automod::list_word_filters).post(handlers::automod::add_word_filter),
+        )
+        .route(
+            "/servers/:id/automod/words/:word",
+            delete(handlers::automod::remove_word_filter),
+        )
+        .route(
+            "/servers/:id/automod/logs",
+            get(handlers::automod::list_automod_logs),
+        )
+        .route("/servers/:id/bans", get(handlers::automod::list_bans))
+        .route(
+            "/servers/:id/bans/:user_id",
+            delete(handlers::automod::remove_ban),
+        )
         // Search
         .route(
             "/servers/:id/search",
