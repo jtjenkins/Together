@@ -399,3 +399,224 @@ async fn remove_ban_owner_no_content_even_if_not_banned() {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 }
+
+// ============================================================================
+// Enforcement: check_automod wired into create_message
+// ============================================================================
+
+#[tokio::test]
+async fn word_filter_blocks_message_with_banned_word() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "Test").await;
+    let server_id = server["id"].as_str().unwrap();
+    let channel = common::create_channel(app.clone(), &token, server_id, "general").await;
+    let channel_id = channel["id"].as_str().unwrap();
+
+    // Enable automod + word filter
+    let (status, _) = common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod"),
+        &token,
+        json!({ "enabled": true, "word_filter_enabled": true, "word_filter_action": "delete" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Add banned word
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod/words"),
+        &token,
+        json!({ "word": "badword" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Try to send message with banned word
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{channel_id}/messages"),
+        &token,
+        json!({ "content": "this is a badword message" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn word_filter_allows_clean_message() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "Test").await;
+    let server_id = server["id"].as_str().unwrap();
+    let channel = common::create_channel(app.clone(), &token, server_id, "general").await;
+    let channel_id = channel["id"].as_str().unwrap();
+
+    let (status, _) = common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod"),
+        &token,
+        json!({ "enabled": true, "word_filter_enabled": true, "word_filter_action": "delete" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod/words"),
+        &token,
+        json!({ "word": "badword" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{channel_id}/messages"),
+        &token,
+        json!({ "content": "this is a clean message" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn duplicate_detection_blocks_repeat_message() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "Test").await;
+    let server_id = server["id"].as_str().unwrap();
+    let channel = common::create_channel(app.clone(), &token, server_id, "general").await;
+    let channel_id = channel["id"].as_str().unwrap();
+
+    let (status, _) = common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod"),
+        &token,
+        json!({ "enabled": true, "duplicate_enabled": true }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // First message allowed
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{channel_id}/messages"),
+        &token,
+        json!({ "content": "hello world" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Same message immediately blocked
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{channel_id}/messages"),
+        &token,
+        json!({ "content": "hello world" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn timeout_blocks_further_messages() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "Test").await;
+    let server_id = server["id"].as_str().unwrap();
+    let channel = common::create_channel(app.clone(), &token, server_id, "general").await;
+    let channel_id = channel["id"].as_str().unwrap();
+
+    let (status, _) = common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod"),
+        &token,
+        json!({
+            "enabled": true,
+            "word_filter_enabled": true,
+            "word_filter_action": "timeout",
+            "timeout_minutes": 60
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod/words"),
+        &token,
+        json!({ "word": "triggerword" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // First message with banned word → gets timed out AND blocked
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{channel_id}/messages"),
+        &token,
+        json!({ "content": "this is a triggerword" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Clean message is also blocked because of active timeout
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{channel_id}/messages"),
+        &token,
+        json!({ "content": "clean message" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn automod_disabled_allows_all_messages() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &token, "Test").await;
+    let server_id = server["id"].as_str().unwrap();
+    let channel = common::create_channel(app.clone(), &token, server_id, "general").await;
+    let channel_id = channel["id"].as_str().unwrap();
+
+    // Configure everything enabled but master switch off
+    let (status, _) = common::patch_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod"),
+        &token,
+        json!({ "enabled": false, "word_filter_enabled": true, "word_filter_action": "ban" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/automod/words"),
+        &token,
+        json!({ "word": "badword" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{channel_id}/messages"),
+        &token,
+        json!({ "content": "this is a badword message" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+}
