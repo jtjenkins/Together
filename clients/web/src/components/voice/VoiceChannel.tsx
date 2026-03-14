@@ -203,7 +203,11 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   };
 
   const handleLeave = async () => {
-    await leave();
+    try {
+      await leave();
+    } catch (err) {
+      console.error("[VoiceChannel] leave failed", err);
+    }
     setInitialPeers([]);
     setSpeakingUsers(new Set());
     await fetchParticipants();
@@ -215,6 +219,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       await toggleMute();
     } catch (err) {
       console.error("[VoiceChannel] toggleMute failed", err);
+      setRtcError("Failed to sync mute state — try again");
     }
   };
 
@@ -224,6 +229,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       await toggleDeafen();
     } catch (err) {
       console.error("[VoiceChannel] toggleDeafen failed", err);
+      setRtcError("Failed to sync deafen state — try again");
     }
   };
 
@@ -236,6 +242,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       await toggleCamera();
     } catch (err) {
       console.error("[VoiceChannel] toggleCamera failed", err);
+      setRtcError("Failed to sync camera state — try again");
     }
   }, [toggleCamera]);
 
@@ -244,6 +251,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       await toggleScreen();
     } catch (err) {
       console.error("[VoiceChannel] toggleScreen failed", err);
+      setRtcError("Failed to sync screen share state — try again");
     }
   }, [toggleScreen]);
 
