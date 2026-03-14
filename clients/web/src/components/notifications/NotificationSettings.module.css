@@ -1,0 +1,92 @@
+.container {
+  padding: 1rem;
+  background: var(--bg-secondary, #2b2d31);
+  border-radius: 8px;
+}
+
+.title {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #80848e);
+}
+
+.subscribeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.label {
+  font-size: 0.9375rem;
+  color: var(--text-primary, #dcdfe4);
+}
+
+.btnEnable {
+  padding: 0.375rem 0.875rem;
+  border: none;
+  border-radius: 4px;
+  background: #5865f2;
+  color: #fff;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.btnEnable:hover {
+  background: #4752c4;
+}
+
+.btnDisable {
+  padding: 0.375rem 0.875rem;
+  border: none;
+  border-radius: 4px;
+  background: #4e5058;
+  color: #fff;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.btnDisable:hover {
+  background: #6d6f78;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.prefRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  color: var(--text-primary, #dcdfe4);
+  cursor: pointer;
+}
+
+.unsupported,
+.denied,
+.error {
+  font-size: 0.875rem;
+  margin: 0.5rem 0 0;
+}
+
+.unsupported {
+  color: var(--text-muted, #80848e);
+}
+.denied {
+  color: #f0a619;
+}
+.error {
+  color: #ed4245;
+}

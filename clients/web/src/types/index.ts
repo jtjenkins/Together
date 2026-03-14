@@ -408,3 +408,12 @@ export interface SearchResponse {
   has_more: boolean;
   next_cursor: string | null;
 }
+
+// ─── Notification Preferences ─────────────────────────────────────────────
+
+export interface NotificationPreferences {
+  user_id: string;
+  all_messages: boolean;
+  dm_notifications: boolean;
+  mention_notifications: boolean;
+}

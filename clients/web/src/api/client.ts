@@ -30,6 +30,7 @@ import type {
   IceServersResponse,
   SearchQuery,
   SearchResponse,
+  NotificationPreferences,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -547,6 +548,55 @@ class ApiClient {
   /** Get ICE servers for WebRTC peer connections, including TURN credentials. */
   getIceServers(): Promise<IceServersResponse> {
     return this.request<IceServersResponse>("/ice-servers");
+  }
+
+  // ─── Push Notifications ────────────────────────────────────────────────
+
+  async getVapidPublicKey(): Promise<string> {
+    const data = await this.request<{ public_key: string }>(
+      "/notifications/vapid-public-key",
+      { method: "GET" },
+    );
+    return data.public_key;
+  }
+
+  async registerPushSubscription(payload: {
+    subscription_type: "web" | "fcm" | "apns";
+    endpoint?: string;
+    p256dh?: string;
+    auth_key?: string;
+    device_token?: string;
+    user_agent?: string;
+  }): Promise<void> {
+    await this.request<void>("/notifications/subscriptions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deletePushSubscription(payload: {
+    endpoint?: string;
+    device_token?: string;
+  }): Promise<void> {
+    await this.request<void>("/notifications/subscriptions", {
+      method: "DELETE",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getNotificationPreferences(): Promise<NotificationPreferences> {
+    return this.request<NotificationPreferences>("/notifications/preferences", {
+      method: "GET",
+    });
+  }
+
+  async updateNotificationPreferences(
+    prefs: Partial<NotificationPreferences>,
+  ): Promise<NotificationPreferences> {
+    return this.request<NotificationPreferences>("/notifications/preferences", {
+      method: "PUT",
+      body: JSON.stringify(prefs),
+    });
   }
 }
 
