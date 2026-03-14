@@ -19,6 +19,7 @@ This feature extends the existing P2P WebRTC mesh without changing the signaling
 ## Scope
 
 **In scope:**
+
 - Camera video toggle in voice channels
 - Screen share toggle in voice channels (multiple simultaneous sharers)
 - Grid layout for all active video/screen feeds
@@ -26,6 +27,7 @@ This feature extends the existing P2P WebRTC mesh without changing the signaling
 - State broadcast to all channel members via existing `VOICE_STATE_UPDATE` event
 
 **Out of scope:**
+
 - Dedicated video channel type (no new channel type added)
 - Recording
 - SFU/media server
@@ -117,39 +119,46 @@ Voice state rows are deleted on leave/disconnect. No explicit cleanup of video/s
 ### 1. TypeScript Types (`clients/web/src/types/index.ts`)
 
 **`VoiceParticipant`** gains:
+
 ```typescript
 self_video: boolean;
 self_screen: boolean;
 ```
 
 **`VoiceStateUpdateEvent`** also gains the same two fields (it mirrors `VoiceParticipant` and is used by the WebSocket event handler for `VOICE_STATE_UPDATE` events):
+
 ```typescript
 self_video: boolean;
 self_screen: boolean;
 ```
 
 **`UpdateVoiceStateRequest`** gains:
+
 ```typescript
 self_video?: boolean;
 self_screen?: boolean;
 ```
+
 This is required so `toggleCamera` / `toggleScreen` in `voiceStore` can call `api.updateVoiceState(channelId, { self_video: true } satisfies UpdateVoiceStateRequest)` without a TypeScript compile error.
 
 ### 2. Voice Store (`clients/web/src/stores/voiceStore.ts`)
 
 New state fields:
+
 ```typescript
-isCameraOn: boolean       // local camera active
-isScreenSharing: boolean  // local screen share active
+isCameraOn: boolean; // local camera active
+isScreenSharing: boolean; // local screen share active
 ```
 
 New actions:
+
 ```typescript
-toggleCamera: () => Promise<void>
-toggleScreen: () => Promise<void>
+toggleCamera: () => Promise<void>;
+toggleScreen: () => Promise<void>;
 ```
 
 Both follow the existing `toggleMute` pattern:
+
 1. Optimistically update local state
 2. Call `PATCH /channels/:id/voice` with the new value
 3. Revert state on API failure
@@ -161,6 +170,7 @@ Both follow the existing `toggleMute` pattern:
 ### 3. `useWebRTC` Hook (`clients/web/src/hooks/useWebRTC.ts`)
 
 New props:
+
 ```typescript
 isCameraOn: boolean
 isScreenSharing: boolean
@@ -172,6 +182,7 @@ onRemoteStreamsChange?: () => void   // signals that remoteVideoStreamsRef has c
 The `onRemoteStreamsChange` callback follows the existing hook pattern used by `onSpeakingChange` — it is stored in a ref (`onRemoteStreamsChangeRef`) to avoid stale closures and is called to notify the parent that `remoteVideoStreamsRef` has been updated. The parent calls a stable getter (e.g. `getRemoteVideoStreams()`) rather than receiving a new `Map` reference on each call, preventing unnecessary re-renders during active renegotiation.
 
 Where `RemoteStreams` is:
+
 ```typescript
 interface RemoteStreams {
   camera?: MediaStream;
@@ -181,12 +192,14 @@ interface RemoteStreams {
 ```
 
 New internal refs:
+
 - `localVideoStreamRef` — camera `MediaStream` from `getUserMedia({ video: true })`
 - `localScreenStreamRef` — screen `MediaStream` from `getDisplayMedia({ video: true, audio: false })`
 - `remoteVideoStreamsRef: Map<peerId, RemoteStreams>` — remote video streams, updated on `ontrack`
 - `onRemoteStreamsChangeRef` — stable ref wrapping the `onRemoteStreamsChange` callback
 
 **Camera toggle effect:** When `isCameraOn` changes:
+
 - Enable: call `getUserMedia({ video: cameraDeviceId ? { deviceId: { exact: cameraDeviceId } } : true })`, add video track to all existing peer connections via `addTrack`. `onnegotiationneeded` fires on each connection, triggering a new offer/answer exchange.
 - Disable: stop the camera track, remove the sender from each peer connection via `removeTrack`. `onnegotiationneeded` fires, triggering renegotiation.
 
@@ -212,10 +225,11 @@ The old handler must not run in parallel with the new one — it should be repla
 #### `VideoGrid.tsx` (`clients/web/src/components/voice/VideoGrid.tsx`)
 
 Props:
+
 ```typescript
 interface VideoGridProps {
   getRemoteStreams: () => Map<string, RemoteStreams>;
-  streamVersion: number;   // incremented by parent on each onRemoteStreamsChange; triggers re-render
+  streamVersion: number; // incremented by parent on each onRemoteStreamsChange; triggers re-render
   localCameraStream: MediaStream | null;
   localScreenStream: MediaStream | null;
   localUserId: string;
@@ -231,6 +245,7 @@ interface VideoGridProps {
 #### `VideoTile.tsx` (`clients/web/src/components/voice/VideoTile.tsx`)
 
 Props:
+
 ```typescript
 interface VideoTileProps {
   stream: MediaStream;
@@ -274,7 +289,9 @@ CSS modules for the grid layout and tile styling, consistent with the existing v
   >
     <option value="">Default</option>
     {cameraDevices.map((d) => (
-      <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
+      <option key={d.deviceId} value={d.deviceId}>
+        {d.label}
+      </option>
     ))}
   </select>
 </div>
@@ -286,14 +303,14 @@ CSS modules for the grid layout and tile styling, consistent with the existing v
 
 ## Error Handling
 
-| Scenario | Handling |
-|---|---|
-| `getUserMedia` denied (camera) | Revert `isCameraOn` to `false`; surface error via `activeError` in `VoiceChannel` |
-| `getDisplayMedia` denied (screen) | Revert `isScreenSharing` to `false`; surface error via `activeError` |
+| Scenario                            | Handling                                                                                             |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `getUserMedia` denied (camera)      | Revert `isCameraOn` to `false`; surface error via `activeError` in `VoiceChannel`                    |
+| `getDisplayMedia` denied (screen)   | Revert `isScreenSharing` to `false`; surface error via `activeError`                                 |
 | Screen share not supported (mobile) | Catch `NotSupportedError` / `NotAllowedError`; show "Screen sharing is not supported on this device" |
-| OS "Stop sharing" button clicked | `ended` event on screen track → call `toggleScreen()` to sync state |
-| Renegotiation offer/answer fails | Call `onError`; remove track locally; audio connection unaffected |
-| API `PATCH` fails on toggle | Revert optimistic state update (same as existing `toggleMute` pattern) |
+| OS "Stop sharing" button clicked    | `ended` event on screen track → call `toggleScreen()` to sync state                                  |
+| Renegotiation offer/answer fails    | Call `onError`; remove track locally; audio connection unaffected                                    |
+| API `PATCH` fails on toggle         | Revert optimistic state update (same as existing `toggleMute` pattern)                               |
 
 ---
 

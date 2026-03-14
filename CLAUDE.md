@@ -275,6 +275,7 @@ Bots authenticate via `Authorization: Bot <token>` header. Bot tokens are stored
 Tests in `server/tests/` use real PostgreSQL via `sqlx::test`. The `tests/common/mod.rs` module provides helpers: `register_and_get_token`, `create_server`, `create_channel`, `create_message`, `unique_username`, etc.
 
 Key patterns:
+
 - `assert_eq!(status, StatusCode::BAD_REQUEST)` — not `UNPROCESSABLE_ENTITY` (AppError::Validation → 400)
 - `assert!(x)` / `assert!(!x)` — not `assert_eq!(x, true/false)` (Clippy `bool_assert_comparison`)
 - All imports must pass `cargo fmt` alignment rules

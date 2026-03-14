@@ -78,10 +78,10 @@ Content-Type: application/json
 }
 ```
 
-| Field         | Type   | Required | Constraints          |
-|---------------|--------|----------|----------------------|
-| `name`        | string | yes      | 1–64 characters      |
-| `description` | string | no       | max 512 characters   |
+| Field         | Type   | Required | Constraints        |
+| ------------- | ------ | -------- | ------------------ |
+| `name`        | string | yes      | 1–64 characters    |
+| `description` | string | no       | max 512 characters |
 
 **Response** `201 Created`
 
@@ -104,10 +104,10 @@ The `token` field is the plaintext bot token. **Store it securely — it is show
 
 **Errors**
 
-| Status | Condition                                  |
-|--------|--------------------------------------------|
+| Status | Condition                                                         |
+| ------ | ----------------------------------------------------------------- |
 | `400`  | Name is empty, exceeds 64 chars, or description exceeds 512 chars |
-| `403`  | Caller is itself a bot                     |
+| `403`  | Caller is itself a bot                                            |
 
 ---
 
@@ -145,7 +145,7 @@ Token hashes are never included in list or get responses.
 **Errors**
 
 | Status | Condition              |
-|--------|------------------------|
+| ------ | ---------------------- |
 | `403`  | Caller is itself a bot |
 
 ---
@@ -177,10 +177,10 @@ Authorization: Bearer <jwt>
 
 **Errors**
 
-| Status | Condition                                    |
-|--------|----------------------------------------------|
-| `403`  | Caller is itself a bot                       |
-| `404`  | Bot not found or owned by a different user   |
+| Status | Condition                                  |
+| ------ | ------------------------------------------ |
+| `403`  | Caller is itself a bot                     |
+| `404`  | Bot not found or owned by a different user |
 
 ---
 
@@ -199,9 +199,9 @@ Authorization: Bearer <jwt>
 
 **Errors**
 
-| Status | Condition                                      |
-|--------|------------------------------------------------|
-| `403`  | Caller is itself a bot                         |
+| Status | Condition                                                |
+| ------ | -------------------------------------------------------- |
+| `403`  | Caller is itself a bot                                   |
 | `404`  | Bot not found, owned by another user, or already revoked |
 
 ---
@@ -236,11 +236,11 @@ Authorization: Bearer <jwt>
 
 **Errors**
 
-| Status | Condition                                      |
-|--------|------------------------------------------------|
-| `400`  | Bot is revoked — create a new bot instead      |
-| `403`  | Caller is itself a bot                         |
-| `404`  | Bot not found or owned by a different user     |
+| Status | Condition                                  |
+| ------ | ------------------------------------------ |
+| `400`  | Bot is revoked — create a new bot instead  |
+| `403`  | Caller is itself a bot                     |
+| `404`  | Bot not found or owned by a different user |
 
 ---
 
@@ -274,15 +274,15 @@ Send a heartbeat every 30 seconds to keep the connection alive:
 
 Common event types a bot will receive:
 
-| Event                  | Description                              |
-|------------------------|------------------------------------------|
-| `MESSAGE_CREATE`       | A new message was posted in a channel    |
-| `MESSAGE_UPDATE`       | An existing message was edited           |
-| `MESSAGE_DELETE`       | A message was deleted                    |
-| `PRESENCE_UPDATE`      | A user's online status changed           |
-| `VOICE_STATE_UPDATE`   | A user joined/left/moved a voice channel |
-| `CHANNEL_CREATE`       | A new channel was created                |
-| `CHANNEL_DELETE`       | A channel was deleted                    |
+| Event                | Description                              |
+| -------------------- | ---------------------------------------- |
+| `MESSAGE_CREATE`     | A new message was posted in a channel    |
+| `MESSAGE_UPDATE`     | An existing message was edited           |
+| `MESSAGE_DELETE`     | A message was deleted                    |
+| `PRESENCE_UPDATE`    | A user's online status changed           |
+| `VOICE_STATE_UPDATE` | A user joined/left/moved a voice channel |
+| `CHANNEL_CREATE`     | A new channel was created                |
+| `CHANNEL_DELETE`     | A channel was deleted                    |
 
 **Sending messages via REST while connected over WebSocket**
 

@@ -2,8 +2,8 @@ use crate::config::Config;
 use crate::models::PushSubscription;
 use std::sync::Arc;
 use web_push::{
-    ContentEncoding, IsahcWebPushClient, SubscriptionInfo, VapidSignatureBuilder,
-    WebPushClient, WebPushMessageBuilder, URL_SAFE_NO_PAD,
+    ContentEncoding, IsahcWebPushClient, SubscriptionInfo, VapidSignatureBuilder, WebPushClient,
+    WebPushMessageBuilder, URL_SAFE_NO_PAD,
 };
 
 pub async fn send(

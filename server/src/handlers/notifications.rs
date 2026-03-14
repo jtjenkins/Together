@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use serde_json::{json, Value};
 
 use crate::{
@@ -16,9 +12,7 @@ use crate::{
 };
 
 /// GET /notifications/vapid-public-key
-pub async fn get_vapid_public_key(
-    State(state): State<AppState>,
-) -> AppResult<Json<Value>> {
+pub async fn get_vapid_public_key(State(state): State<AppState>) -> AppResult<Json<Value>> {
     let key = state
         .config
         .vapid_public_key
@@ -43,9 +37,7 @@ pub async fn register_subscription(
         }
         "fcm" | "apns" => {
             if req.device_token.is_none() {
-                return Err(AppError::Validation(
-                    "FCM/APNs require device_token".into(),
-                ));
+                return Err(AppError::Validation("FCM/APNs require device_token".into()));
             }
         }
         _ => return Err(AppError::Validation("Invalid subscription_type".into())),

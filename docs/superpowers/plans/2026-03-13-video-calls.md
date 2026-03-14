@@ -15,6 +15,7 @@
 ## File Map
 
 **Create:**
+
 - `server/migrations/20260313000001_voice_video.sql`
 - `server/migrations/20260313000001_voice_video.down.sql`
 - `clients/web/src/components/voice/VideoTile.tsx`
@@ -25,6 +26,7 @@
 - `clients/web/src/__tests__/video-tile.test.tsx`
 
 **Modify:**
+
 - `server/src/models/mod.rs` — add `self_video`/`self_screen` to `VoiceState`, `VoiceStateDto`, `UpdateVoiceStateRequest`
 - `server/src/handlers/voice.rs` — update `VoiceParticipantRow`, RETURNING clauses, validation guard, SQL
 - `server/tests/voice_tests.rs` — new test cases for video/screen fields
@@ -40,6 +42,7 @@
 ### Task 1: Database migration
 
 **Files:**
+
 - Create: `server/migrations/20260313000001_voice_video.sql`
 - Create: `server/migrations/20260313000001_voice_video.down.sql`
 
@@ -85,6 +88,7 @@ git commit -m "feat(db): add self_video and self_screen columns to voice_states"
 ### Task 2: Update Rust models
 
 **Files:**
+
 - Modify: `server/src/models/mod.rs`
 
 - [ ] **Step 1: Add fields to `VoiceState`**
@@ -194,6 +198,7 @@ Expected: compile errors in `voice.rs` (RETURNING clauses and VoiceParticipantRo
 ### Task 3: Update voice handler
 
 **Files:**
+
 - Modify: `server/src/handlers/voice.rs`
 
 - [ ] **Step 1: Add fields to `VoiceParticipantRow`**
@@ -319,6 +324,7 @@ Expected: all existing tests pass. New fields default to `false` so existing ass
 ### Task 4: Backend tests for video/screen fields
 
 **Files:**
+
 - Modify: `server/tests/voice_tests.rs`
 
 Add these test functions at the end of the `// PATCH /channels/:channel_id/voice — additional update tests` section (around line 735):
@@ -450,6 +456,7 @@ git commit -m "feat(voice): add self_video and self_screen to voice state"
 ### Task 5: Update TypeScript types
 
 **Files:**
+
 - Modify: `clients/web/src/types/index.ts`
 
 - [ ] **Step 1: Extend `VoiceParticipant`** (around line 151)
@@ -515,6 +522,7 @@ Expected: no errors (new fields are present wherever the type is used; existing 
 ### Task 6: Update voice store
 
 **Files:**
+
 - Modify: `clients/web/src/stores/voiceStore.ts`
 - Create: `clients/web/src/__tests__/voice-store.test.ts`
 
@@ -820,6 +828,7 @@ git commit -m "feat(voice): add isCameraOn/isScreenSharing state and toggleCamer
 ### Task 7: Extend useWebRTC with video/screen support
 
 **Files:**
+
 - Modify: `clients/web/src/hooks/useWebRTC.ts`
 
 This is the largest change. Work through it in sub-steps.
@@ -972,7 +981,12 @@ useEffect(() => {
       localVideoStreamRef.current.getTracks().forEach((t) => t.stop());
       localVideoStreamRef.current = null;
       peersRef.current.forEach((pc) => {
-        const sender = pc.getSenders().find((s) => s.track?.kind === "video" && !s.track?.label.includes("screen"));
+        const sender = pc
+          .getSenders()
+          .find(
+            (s) =>
+              s.track?.kind === "video" && !s.track?.label.includes("screen"),
+          );
         if (sender) pc.removeTrack(sender);
       });
     }
@@ -1078,7 +1092,8 @@ useEffect(() => {
         const sender = pc.getSenders().find((s) => {
           const streams = pc.getLocalStreams?.() ?? [];
           return streams.some(
-            (st) => st.id.endsWith("-screen") && st.getTracks().includes(s.track!),
+            (st) =>
+              st.id.endsWith("-screen") && st.getTracks().includes(s.track!),
           );
         });
         if (sender) pc.removeTrack(sender);
@@ -1089,7 +1104,11 @@ useEffect(() => {
 
   let cancelled = false;
 
-  (navigator.mediaDevices as MediaDevices & { getDisplayMedia?: (c: DisplayMediaStreamOptions) => Promise<MediaStream> })
+  (
+    navigator.mediaDevices as MediaDevices & {
+      getDisplayMedia?: (c: DisplayMediaStreamOptions) => Promise<MediaStream>;
+    }
+  )
     .getDisplayMedia?.({ video: true, audio: false })
     .then((stream) => {
       if (cancelled) {
@@ -1105,7 +1124,10 @@ useEffect(() => {
         // Dynamically import to avoid circular dep — voiceStore → useWebRTC
         import("../stores/voiceStore").then(({ useVoiceStore }) => {
           if (useVoiceStore.getState().isScreenSharing) {
-            useVoiceStore.getState().toggleScreen().catch(() => {});
+            useVoiceStore
+              .getState()
+              .toggleScreen()
+              .catch(() => {});
           }
         });
       });
@@ -1130,7 +1152,10 @@ useEffect(() => {
       // Revert store state
       import("../stores/voiceStore").then(({ useVoiceStore }) => {
         if (useVoiceStore.getState().isScreenSharing) {
-          useVoiceStore.getState().toggleScreen().catch(() => {});
+          useVoiceStore
+            .getState()
+            .toggleScreen()
+            .catch(() => {});
         }
       });
     });
@@ -1203,6 +1228,7 @@ git commit -m "feat(webrtc): add camera/screen track support with renegotiation"
 ### Task 8: VideoTile component
 
 **Files:**
+
 - Create: `clients/web/src/components/voice/VideoTile.tsx`
 - Create: `clients/web/src/components/voice/VideoTile.module.css`
 - Create: `clients/web/src/__tests__/video-tile.test.tsx`
@@ -1418,6 +1444,7 @@ Expected: all tests pass.
 ### Task 9: VideoGrid component
 
 **Files:**
+
 - Create: `clients/web/src/components/voice/VideoGrid.tsx`
 - Create: `clients/web/src/components/voice/VideoGrid.module.css`
 
@@ -1560,6 +1587,7 @@ git commit -m "feat(voice): add VideoTile and VideoGrid components"
 ### Task 10: Wire everything together in VoiceChannel
 
 **Files:**
+
 - Modify: `clients/web/src/components/voice/VoiceChannel.tsx`
 
 - [ ] **Step 1: Add new imports**
@@ -1568,9 +1596,18 @@ Add to the lucide-react import:
 
 ```typescript
 import {
-  Mic, MicOff, Headphones, HeadphoneOff,
-  Volume2, PhoneOff, Settings, X,
-  Video, VideoOff, ScreenShare, ScreenShareOff,
+  Mic,
+  MicOff,
+  Headphones,
+  HeadphoneOff,
+  Volume2,
+  PhoneOff,
+  Settings,
+  X,
+  Video,
+  VideoOff,
+  ScreenShare,
+  ScreenShareOff,
 } from "lucide-react";
 ```
 
@@ -1644,22 +1681,23 @@ const handleToggleScreen = useCallback(async () => {
 Find the `useWebRTC({...})` call (around line 210) and add the new props:
 
 ```typescript
-const { getRemoteVideoStreams, localVideoStreamRef, localScreenStreamRef } = useWebRTC({
-  enabled: isConnected,
-  myUserId: currentUser?.id ?? "",
-  participants,
-  initialPeers,
-  isMuted,
-  isDeafened,
-  isCameraOn,
-  isScreenSharing,
-  micDeviceId,
-  speakerDeviceId,
-  cameraDeviceId,
-  onError: setRtcError,
-  onSpeakingChange: handleSpeakingChange,
-  onRemoteStreamsChange: handleRemoteStreamsChange,
-});
+const { getRemoteVideoStreams, localVideoStreamRef, localScreenStreamRef } =
+  useWebRTC({
+    enabled: isConnected,
+    myUserId: currentUser?.id ?? "",
+    participants,
+    initialPeers,
+    isMuted,
+    isDeafened,
+    isCameraOn,
+    isScreenSharing,
+    micDeviceId,
+    speakerDeviceId,
+    cameraDeviceId,
+    onError: setRtcError,
+    onSpeakingChange: handleSpeakingChange,
+    onRemoteStreamsChange: handleRemoteStreamsChange,
+  });
 ```
 
 - [ ] **Step 6: Add VideoGrid to the JSX**

@@ -6,11 +6,11 @@ Together's auto-moderation system enforces configurable rules on incoming messag
 
 Auto-moderation is configured per server. The system provides three independent rules:
 
-| Rule | What it detects |
-|------|----------------|
-| Spam detection | A user sending too many messages within a sliding time window |
-| Duplicate detection | The same user posting identical content within 30 seconds |
-| Word filter | Messages containing any word or phrase on the server's blocklist |
+| Rule                | What it detects                                                  |
+| ------------------- | ---------------------------------------------------------------- |
+| Spam detection      | A user sending too many messages within a sliding time window    |
+| Duplicate detection | The same user posting identical content within 30 seconds        |
+| Word filter         | Messages containing any word or phrase on the server's blocklist |
 
 Each rule fires independently. If multiple rules would trigger on the same message, the first matching rule wins (order: spam → duplicate → word filter).
 
@@ -83,35 +83,35 @@ Content-Type: application/json
 
 **Field reference**
 
-| Field | Type | Constraints | Default | Description |
-|-------|------|-------------|---------|-------------|
-| `enabled` | boolean | — | `false` | Master switch. When `false`, no rules run (active timeouts still apply). |
-| `spam_enabled` | boolean | — | `false` | Enable spam rate detection. |
-| `spam_max_messages` | integer | 1–50 | `5` | Maximum messages allowed within the window. |
-| `spam_window_secs` | integer | 1–60 | `5` | Sliding window size in seconds. |
-| `spam_action` | string | see actions | `"delete"` | Action taken when spam is detected. |
-| `duplicate_enabled` | boolean | — | `false` | Block identical messages within 30 seconds. |
-| `word_filter_enabled` | boolean | — | `false` | Enable the word/phrase blocklist. |
-| `word_filter_action` | string | see actions | `"delete"` | Action taken when a blocked word is matched. |
-| `timeout_minutes` | integer | 1–10080 | `10` | Duration of timeouts issued by any rule (max 7 days). |
+| Field                 | Type    | Constraints | Default    | Description                                                              |
+| --------------------- | ------- | ----------- | ---------- | ------------------------------------------------------------------------ |
+| `enabled`             | boolean | —           | `false`    | Master switch. When `false`, no rules run (active timeouts still apply). |
+| `spam_enabled`        | boolean | —           | `false`    | Enable spam rate detection.                                              |
+| `spam_max_messages`   | integer | 1–50        | `5`        | Maximum messages allowed within the window.                              |
+| `spam_window_secs`    | integer | 1–60        | `5`        | Sliding window size in seconds.                                          |
+| `spam_action`         | string  | see actions | `"delete"` | Action taken when spam is detected.                                      |
+| `duplicate_enabled`   | boolean | —           | `false`    | Block identical messages within 30 seconds.                              |
+| `word_filter_enabled` | boolean | —           | `false`    | Enable the word/phrase blocklist.                                        |
+| `word_filter_action`  | string  | see actions | `"delete"` | Action taken when a blocked word is matched.                             |
+| `timeout_minutes`     | integer | 1–10080     | `10`       | Duration of timeouts issued by any rule (max 7 days).                    |
 
 **Actions**
 
-| Value | Effect |
-|-------|--------|
-| `delete` | Block the message. No further action. |
+| Value     | Effect                                                                                                     |
+| --------- | ---------------------------------------------------------------------------------------------------------- |
+| `delete`  | Block the message. No further action.                                                                      |
 | `timeout` | Block the message and prevent the user from sending any messages in this server until the timeout expires. |
-| `kick` | Block the message and remove the user from the server. They may rejoin unless banned. |
-| `ban` | Block the message, remove the user, and add them to the server ban list. |
+| `kick`    | Block the message and remove the user from the server. They may rejoin unless banned.                      |
+| `ban`     | Block the message, remove the user, and add them to the server ban list.                                   |
 
 **Response:** Updated configuration object (same shape as GET).
 
 **Errors**
 
-| Status | Reason |
-|--------|--------|
-| 400 | Invalid action value or field out of allowed range |
-| 403 | Caller does not have `MANAGE_SERVER` permission |
+| Status | Reason                                             |
+| ------ | -------------------------------------------------- |
+| 400    | Invalid action value or field out of allowed range |
+| 403    | Caller does not have `MANAGE_SERVER` permission    |
 
 ---
 
@@ -159,10 +159,10 @@ Content-Type: application/json
 
 **Errors**
 
-| Status | Reason |
-|--------|--------|
-| 400 | Word is blank |
-| 409 | Word already exists in the filter list |
+| Status | Reason                                 |
+| ------ | -------------------------------------- |
+| 400    | Word is blank                          |
+| 409    | Word already exists in the filter list |
 
 ---
 
@@ -180,9 +180,9 @@ Retrieve the auto-moderation audit log. Requires `MANAGE_SERVER`.
 
 **Query parameters**
 
-| Parameter | Type | Default | Max | Description |
-|-----------|------|---------|-----|-------------|
-| `limit` | integer | `50` | `100` | Number of log entries to return |
+| Parameter | Type    | Default | Max   | Description                     |
+| --------- | ------- | ------- | ----- | ------------------------------- |
+| `limit`   | integer | `50`    | `100` | Number of log entries to return |
 
 Results are ordered newest-first.
 
@@ -207,12 +207,12 @@ Results are ordered newest-first.
 
 **Log fields**
 
-| Field | Description |
-|-------|-------------|
-| `rule_type` | Which rule fired: `spam`, `duplicate`, or `word_filter` |
-| `action_taken` | The action that was applied: `delete`, `timeout`, `kick`, or `ban` |
-| `message_content` | The original message text that triggered the rule |
-| `matched_term` | The specific blocked word that matched (word filter only; `null` for spam/duplicate) |
+| Field             | Description                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `rule_type`       | Which rule fired: `spam`, `duplicate`, or `word_filter`                              |
+| `action_taken`    | The action that was applied: `delete`, `timeout`, `kick`, or `ban`                   |
+| `message_content` | The original message text that triggered the rule                                    |
+| `matched_term`    | The specific blocked word that matched (word filter only; `null` for spam/duplicate) |
 
 ---
 

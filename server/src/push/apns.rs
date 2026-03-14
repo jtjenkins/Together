@@ -1,6 +1,9 @@
 use crate::config::Config;
 use crate::models::PushSubscription;
-use a2::{Client, ClientConfig, DefaultNotificationBuilder, Endpoint, NotificationBuilder, NotificationOptions};
+use a2::{
+    Client, ClientConfig, DefaultNotificationBuilder, Endpoint, NotificationBuilder,
+    NotificationOptions,
+};
 use std::sync::Arc;
 
 pub async fn send(

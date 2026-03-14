@@ -83,7 +83,7 @@ Add new password-reset types:
 ```ts
 export interface ForgotPasswordResponse {
   message: string;
-  token: string;        // always present — admin-only endpoint, no enumeration risk
+  token: string; // always present — admin-only endpoint, no enumeration risk
   expires_in_seconds: number;
   note: string;
 }
@@ -131,11 +131,13 @@ getIceServers(): Promise<IceServersResponse>
 **State change:** replace `isLogin: boolean` with `view: "login" | "register" | "reset"`. On every view transition, call `clearError()` and reset all form fields.
 
 **Login view additions:**
+
 - Small "Have a reset token?" link below the submit button.
 - Clicking it: `setView("reset")`.
 - The existing "Create an account" / "Already have an account?" toggle remains, scoped to `login` and `register` views only.
 
 **Reset view (new):**
+
 - Heading: "Reset Password"
 - Field 1: `token` — text input, label "Reset Token", placeholder "Paste your reset token"
 - Field 2: `new_password` — password input, label "New Password"
@@ -159,6 +161,7 @@ getIceServers(): Promise<IceServersResponse>
 **State:** `email: string`, `isLoading: boolean`, `error: string | null`, `result: ForgotPasswordResponse | null` — local React state only.
 
 **Behaviour:**
+
 - Email input field: "User's Email Address". Changing the email value after a successful generation **clears `result`** (previous token is no longer relevant).
 - Submit button: "Generate Reset Token" / "Generating…" while in-flight.
 - Submitting clears both `result` and `error` before the request fires (backend deletes the old token automatically).
@@ -167,6 +170,7 @@ getIceServers(): Promise<IceServersResponse>
 - On error: inline error message with `role="alert"`.
 
 **Token box content:**
+
 - Read-only monospace box containing the full token value (`user-select: all` for easy manual selection)
 - "Copy" button (`.copyBtn`) — copies token to clipboard
 - Warning: "This token expires in 1 hour. Share it with the user now and tell them to click 'Have a reset token?' on the login screen." (styled with `.tokenWarning`)
@@ -178,6 +182,7 @@ Reuse the existing `.tabs`, `.tab`, `.tabActive` classes (added by the audit-log
 **Note for implementer:** Before using the `hidden` HTML attribute on `role="tabpanel"` elements, verify that no global CSS rule overrides `[hidden]` with `display: block` or similar. If such a rule exists in `globals.css`, use `aria-hidden` plus a CSS visibility class instead.
 
 Add new classes:
+
 - `.tokenBox` — `font-family: monospace; background: var(--bg-secondary); padding: 8px 12px; border-radius: 4px; word-break: break-all; user-select: all`
 - `.copyBtn` — small secondary button, right-aligned within `.tokenSection`
 - `.tokenWarning` — `color: var(--text-warning, #f0a500); font-size: 13px; margin-top: 8px`
@@ -232,23 +237,24 @@ User flow:
 
 ## Error Handling
 
-| Scenario | Behaviour |
-|----------|-----------|
-| Unauthenticated call to forgot-password | 401; frontend never reaches this (admin must be logged in) |
-| Non-admin calls forgot-password | 403; `AdminTab` shows inline error |
-| Unknown email | Since the endpoint is admin-only, enumeration prevention is unnecessary — the backend implementation should return a clear error (e.g. 404) rather than a silent 200. `AdminTab` shows the error inline. |
-| User has no email | Flow unsupported (out of scope); admin sees the generic unknown-email success |
-| Token expired or already used | Backend returns 401; reset view shows "Invalid or expired reset token" with `role="alert"` |
-| Network error (either form) | Inline error message with `role="alert"` in the relevant component |
-| New token generated before old one used | Backend deletes old token; UI clears `result` before submitting |
-| `navigator.clipboard` unavailable | Token remains selectable in `.tokenBox` via `user-select: all` |
-| 2-second transition timer fires on unmount | Cancelled via `useEffect` cleanup — no stale `setState` |
+| Scenario                                   | Behaviour                                                                                                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unauthenticated call to forgot-password    | 401; frontend never reaches this (admin must be logged in)                                                                                                                                               |
+| Non-admin calls forgot-password            | 403; `AdminTab` shows inline error                                                                                                                                                                       |
+| Unknown email                              | Since the endpoint is admin-only, enumeration prevention is unnecessary — the backend implementation should return a clear error (e.g. 404) rather than a silent 200. `AdminTab` shows the error inline. |
+| User has no email                          | Flow unsupported (out of scope); admin sees the generic unknown-email success                                                                                                                            |
+| Token expired or already used              | Backend returns 401; reset view shows "Invalid or expired reset token" with `role="alert"`                                                                                                               |
+| Network error (either form)                | Inline error message with `role="alert"` in the relevant component                                                                                                                                       |
+| New token generated before old one used    | Backend deletes old token; UI clears `result` before submitting                                                                                                                                          |
+| `navigator.clipboard` unavailable          | Token remains selectable in `.tokenBox` via `user-select: all`                                                                                                                                           |
+| 2-second transition timer fires on unmount | Cancelled via `useEffect` cleanup — no stale `setState`                                                                                                                                                  |
 
 ---
 
 ## Testing
 
 **`auth-form.test.tsx`** (additions):
+
 - "Have a reset token?" link is present on login view
 - Clicking link switches to reset view
 - Reset view renders token and new-password fields
@@ -258,6 +264,7 @@ User flow:
 - Transition timer is cancelled if component unmounts before 2 seconds
 
 **`AdminTab.test.tsx`** (new):
+
 - Renders email input and submit button
 - Shows token box and warning on successful API response
 - Copy button writes token to clipboard via `navigator.clipboard.writeText`
@@ -266,6 +273,7 @@ User flow:
 - Submitting again clears previous token result before firing request
 
 **`UserSettingsModal.test.tsx`** (additions):
+
 - No tab bar rendered for non-admin user
 - Tab bar rendered for admin user
 - Clicking Admin tab reveals AdminTab panel

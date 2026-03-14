@@ -7,9 +7,12 @@ export async function registerTauriNotifications(): Promise<void> {
   if (!("__TAURI__" in window)) return;
 
   try {
-    const { isPermissionGranted, requestPermission } = await import(
-      "@tauri-apps/plugin-notification"
-    );
+    // Indirect import avoids TS module resolution for Tauri-only package
+    const mod = "@tauri-apps/plugin-notification";
+    const { isPermissionGranted, requestPermission } = await (import(
+      /* @vite-ignore */ mod
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ) as Promise<any>);
 
     let granted = await isPermissionGranted();
     if (!granted) {
@@ -18,10 +21,9 @@ export async function registerTauriNotifications(): Promise<void> {
     }
 
     if (granted) {
-      console.info("Tauri notifications: permission granted");
+      // Permission acquired — no action needed beyond the grant
     }
-  } catch (e) {
-    // Plugin not available in this context
-    console.debug("Tauri notification plugin unavailable:", e);
+  } catch (_e) {
+    // Plugin not available in this context — silently ignore
   }
 }

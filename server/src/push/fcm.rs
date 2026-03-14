@@ -61,8 +61,8 @@ pub async fn send(
         return Err("FCM: missing config or device token".into());
     };
 
-    let sa: ServiceAccount = serde_json::from_str(sa_json)
-        .map_err(|e| format!("FCM: parse service account: {e}"))?;
+    let sa: ServiceAccount =
+        serde_json::from_str(sa_json).map_err(|e| format!("FCM: parse service account: {e}"))?;
 
     let access_token = get_access_token(&sa, http).await?;
 

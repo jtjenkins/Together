@@ -4,12 +4,12 @@ Together tracks each user's online status and an optional custom status message.
 
 ## Status Values
 
-| Value | Display label | Description |
-|-------|--------------|-------------|
-| `online` | Online | User has an active WebSocket connection |
-| `away` | Away | User is connected but idle or has set away manually |
-| `dnd` | Do Not Disturb | User is connected and wants to signal unavailability |
-| `offline` | Invisible | User appears offline to others; functionally connected |
+| Value     | Display label  | Description                                            |
+| --------- | -------------- | ------------------------------------------------------ |
+| `online`  | Online         | User has an active WebSocket connection                |
+| `away`    | Away           | User is connected but idle or has set away manually    |
+| `dnd`     | Do Not Disturb | User is connected and wants to signal unavailability   |
+| `offline` | Invisible      | User appears offline to others; functionally connected |
 
 > **Note:** `offline` is the "Invisible" option in the UI. The user receives events normally; other users see them as offline.
 
@@ -19,13 +19,13 @@ Together tracks each user's online status and an optional custom status message.
 
 ### Automatic transitions
 
-| Event | Status set to |
-|-------|--------------|
-| WebSocket connection established | `online` |
-| WebSocket connection closed | `offline` |
-| 5 minutes of client inactivity | `away` (auto-away, client-initiated) |
-| Tab hidden (page visibility change) | `away` (auto-away, client-initiated) |
-| User returns from auto-away | Previous status restored (client-initiated) |
+| Event                               | Status set to                               |
+| ----------------------------------- | ------------------------------------------- |
+| WebSocket connection established    | `online`                                    |
+| WebSocket connection closed         | `offline`                                   |
+| 5 minutes of client inactivity      | `away` (auto-away, client-initiated)        |
+| Tab hidden (page visibility change) | `away` (auto-away, client-initiated)        |
+| User returns from auto-away         | Previous status restored (client-initiated) |
 
 Auto-away is managed entirely on the client. The client sends a `PRESENCE_UPDATE` op over the existing WebSocket when inactivity or tab-hide is detected; no separate connection is opened.
 
@@ -98,6 +98,7 @@ There is no dedicated REST endpoint for setting status. Status changes are made 
 Users can set a free-text custom status message up to 128 characters. Custom status is independent of the base status value — a user can be `dnd` with the custom status `"In a meeting"`.
 
 Custom status is:
+
 - Persisted to the `users` table alongside the base status
 - Included in `PRESENCE_UPDATE` broadcast events
 - Returned in the `READY` payload and all user-returning REST endpoints
@@ -124,12 +125,12 @@ Users access the status menu by clicking their avatar or username in the bottom-
 
 **Status options**
 
-| Option | Sends |
-|--------|-------|
-| Online | `status: "online"` |
-| Away | `status: "away"` |
-| Do Not Disturb | `status: "dnd"` |
-| Invisible | `status: "offline"` |
+| Option         | Sends               |
+| -------------- | ------------------- |
+| Online         | `status: "online"`  |
+| Away           | `status: "away"`    |
+| Do Not Disturb | `status: "dnd"`     |
+| Invisible      | `status: "offline"` |
 
 The currently active status is indicated with a checkmark.
 
