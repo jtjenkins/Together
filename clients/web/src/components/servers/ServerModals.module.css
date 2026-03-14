@@ -218,6 +218,26 @@
 
 /* ── Settings tabs (shared by UserSettingsModal and ServerSettingsModal) ─── */
 
+.tabRow {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.5rem;
+}
+
+.activeTab {
+  background: rgba(88, 101, 242, 0.2);
+  color: #7289da;
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: color 0.15s, background 0.15s;
+}
+
 .tabs {
   display: flex;
   border-bottom: 1px solid var(--border-color);
