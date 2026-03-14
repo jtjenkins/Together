@@ -154,6 +154,8 @@ export interface VoiceParticipant {
   channel_id: string | null;
   self_mute: boolean;
   self_deaf: boolean;
+  self_video: boolean;
+  self_screen: boolean;
   server_mute: boolean;
   server_deaf: boolean;
   joined_at: string | null;
@@ -162,6 +164,8 @@ export interface VoiceParticipant {
 export interface UpdateVoiceStateRequest {
   self_mute?: boolean;
   self_deaf?: boolean;
+  self_video?: boolean;
+  self_screen?: boolean;
 }
 
 export interface VoiceStateUpdateEvent {
@@ -170,6 +174,8 @@ export interface VoiceStateUpdateEvent {
   channel_id: string | null;
   self_mute: boolean;
   self_deaf: boolean;
+  self_video: boolean;
+  self_screen: boolean;
   server_mute: boolean;
   server_deaf: boolean;
   joined_at: string | null;
