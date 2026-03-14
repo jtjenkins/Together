@@ -63,6 +63,16 @@ pub fn create_test_app(pool: PgPool) -> Router {
             upload_dir: test_upload_dir(),
             allowed_origins: vec![],
             turn: None,
+            vapid_private_key: None,
+            vapid_public_key: None,
+            vapid_subject: "mailto:test@example.com".to_string(),
+            fcm_service_account_json: None,
+            fcm_project_id: None,
+            apns_key_pem: None,
+            apns_key_id: None,
+            apns_team_id: None,
+            apns_bundle_id: None,
+            apns_sandbox: false,
         }
     });
 
@@ -238,6 +248,21 @@ pub fn create_test_app(pool: PgPool) -> Router {
             post(handlers::auth::forgot_password),
         )
         .route("/auth/reset-password", post(handlers::auth::reset_password))
+        // Notification routes
+        .route(
+            "/notifications/vapid-public-key",
+            get(handlers::notifications::get_vapid_public_key),
+        )
+        .route(
+            "/notifications/subscriptions",
+            post(handlers::notifications::register_subscription)
+                .delete(handlers::notifications::delete_subscription),
+        )
+        .route(
+            "/notifications/preferences",
+            get(handlers::notifications::get_preferences)
+                .put(handlers::notifications::update_preferences),
+        )
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)
