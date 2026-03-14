@@ -249,6 +249,8 @@ pub struct VoiceState {
     pub channel_id: Uuid,
     pub self_mute: bool,
     pub self_deaf: bool,
+    pub self_video: bool,
+    pub self_screen: bool,
     pub server_mute: bool,
     pub server_deaf: bool,
     pub joined_at: DateTime<Utc>,
@@ -266,6 +268,8 @@ pub struct VoiceStateDto {
     pub channel_id: Option<Uuid>,
     pub self_mute: bool,
     pub self_deaf: bool,
+    pub self_video: bool,
+    pub self_screen: bool,
     pub server_mute: bool,
     pub server_deaf: bool,
     pub joined_at: Option<DateTime<Utc>>,
@@ -278,6 +282,8 @@ impl From<VoiceState> for VoiceStateDto {
             channel_id: Some(vs.channel_id),
             self_mute: vs.self_mute,
             self_deaf: vs.self_deaf,
+            self_video: vs.self_video,
+            self_screen: vs.self_screen,
             server_mute: vs.server_mute,
             server_deaf: vs.server_deaf,
             joined_at: Some(vs.joined_at),
@@ -298,6 +304,8 @@ impl VoiceStateDto {
             channel_id: None,
             self_mute: false,
             self_deaf: false,
+            self_video: false,
+            self_screen: false,
             server_mute: false,
             server_deaf: false,
             joined_at: None,
@@ -315,6 +323,8 @@ impl VoiceStateDto {
 pub struct UpdateVoiceStateRequest {
     pub self_mute: Option<bool>,
     pub self_deaf: Option<bool>,
+    pub self_video: Option<bool>,
+    pub self_screen: Option<bool>,
 }
 
 // ============================================================================

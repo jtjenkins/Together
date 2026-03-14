@@ -830,3 +830,85 @@ async fn server_mute_preserved_across_channel_switch() {
         "server_mute must be preserved when switching voice channels"
     );
 }
+
+#[tokio::test]
+async fn update_self_video_returns_200() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({ "self_video": true }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["self_video"].as_bool().unwrap());
+    assert!(!body["self_screen"].as_bool().unwrap());
+}
+
+#[tokio::test]
+async fn update_self_screen_returns_200() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({ "self_screen": true }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["self_screen"].as_bool().unwrap());
+    assert!(!body["self_video"].as_bool().unwrap());
+}
+
+#[tokio::test]
+async fn participant_list_includes_video_fields() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, body) = common::get_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let participants = body.as_array().unwrap();
+    assert_eq!(participants.len(), 1);
+    assert!(!participants[0]["self_video"].as_bool().unwrap());
+    assert!(!participants[0]["self_screen"].as_bool().unwrap());
+}
