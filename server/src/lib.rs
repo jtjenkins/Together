@@ -5,5 +5,6 @@ pub mod db;
 pub mod error;
 pub mod handlers;
 pub mod models;
+pub mod push;
 pub mod state;
 pub mod websocket;
