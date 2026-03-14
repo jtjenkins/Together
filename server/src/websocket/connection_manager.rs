@@ -91,6 +91,14 @@ impl ConnectionManager {
     pub async fn connection_count(&self) -> usize {
         self.connections.read().await.len()
     }
+
+    /// Returns the user IDs of all currently connected users.
+    ///
+    /// Used by push notification triggers to skip sending notifications to
+    /// users who are already online and receiving real-time events via WebSocket.
+    pub async fn connected_user_ids(&self) -> Vec<Uuid> {
+        self.connections.read().await.keys().copied().collect()
+    }
 }
 
 // ── Unit tests ────────────────────────────────────────────────────────────────

@@ -418,6 +418,21 @@ async fn main() {
         )
         // ICE servers for WebRTC (protected, returns TURN credentials)
         .route("/ice-servers", get(handlers::ice::get_ice_servers))
+        // Push notification routes (protected)
+        .route(
+            "/notifications/vapid-public-key",
+            get(handlers::notifications::get_vapid_public_key),
+        )
+        .route(
+            "/notifications/subscriptions",
+            post(handlers::notifications::register_subscription)
+                .delete(handlers::notifications::delete_subscription),
+        )
+        .route(
+            "/notifications/preferences",
+            get(handlers::notifications::get_preferences)
+                .put(handlers::notifications::update_preferences),
+        )
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
         // ── Global rate limit ──────────────────────────────────────────────

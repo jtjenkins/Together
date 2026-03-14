@@ -386,6 +386,15 @@ pub async fn send_dm_message(
         }
     }
 
+    // Fire push notifications to offline DM participant (non-blocking).
+    crate::push::trigger::fire_dm_message(
+        std::sync::Arc::new(state),
+        channel_id,
+        auth.user_id(),
+        auth.username().to_string(),
+        message.content.clone(),
+    );
+
     Ok((StatusCode::CREATED, Json(message)))
 }
 

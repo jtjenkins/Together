@@ -284,6 +284,16 @@ pub async fn create_message(
         }
     }
 
+    // Fire push notifications to offline members (non-blocking).
+    crate::push::trigger::fire_channel_message(
+        std::sync::Arc::new(state),
+        channel_id,
+        channel.server_id,
+        auth.user_id(),
+        auth.username().to_string(),
+        dto.content.clone(),
+    );
+
     Ok((StatusCode::CREATED, Json(dto)))
 }
 
