@@ -25,9 +25,22 @@ pub struct Config {
     pub allowed_origins: Vec<String>,
     /// Optional TURN server configuration for WebRTC.
     pub turn: Option<TurnConfig>,
+    // Push Notifications — VAPID (Web Push)
+    pub vapid_private_key: Option<String>,
+    pub vapid_public_key: Option<String>,
+    pub vapid_subject: String,
+    // FCM (optional - Android)
+    pub fcm_service_account_json: Option<String>,
+    pub fcm_project_id: Option<String>,
+    // APNs (optional - iOS)
+    pub apns_key_pem: Option<String>,
+    pub apns_key_id: Option<String>,
+    pub apns_team_id: Option<String>,
+    pub apns_bundle_id: Option<String>,
+    pub apns_sandbox: bool,
 }
 
-/// Manual Debug impl — never prints jwt_secret or database credentials in plaintext.
+/// Manual Debug impl — never prints jwt_secret, database credentials, or API keys in plaintext.
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
@@ -38,6 +51,16 @@ impl fmt::Debug for Config {
             .field("is_dev", &self.is_dev)
             .field("upload_dir", &self.upload_dir)
             .field("turn", &self.turn)
+            .field("vapid_private_key", &"[redacted]")
+            .field("vapid_public_key", &"[redacted]")
+            .field("vapid_subject", &self.vapid_subject)
+            .field("fcm_service_account_json", &"[redacted]")
+            .field("fcm_project_id", &self.fcm_project_id)
+            .field("apns_key_pem", &"[redacted]")
+            .field("apns_key_id", &self.apns_key_id)
+            .field("apns_team_id", &self.apns_team_id)
+            .field("apns_bundle_id", &self.apns_bundle_id)
+            .field("apns_sandbox", &self.apns_sandbox)
             .finish()
     }
 }
@@ -89,6 +112,19 @@ impl Config {
                 }
                 _ => None,
             },
+            vapid_private_key: env::var("VAPID_PRIVATE_KEY").ok(),
+            vapid_public_key: env::var("VAPID_PUBLIC_KEY").ok(),
+            vapid_subject: env::var("VAPID_SUBJECT")
+                .unwrap_or_else(|_| "mailto:admin@example.com".to_string()),
+            fcm_service_account_json: env::var("FCM_SERVICE_ACCOUNT_JSON").ok(),
+            fcm_project_id: env::var("FCM_PROJECT_ID").ok(),
+            apns_key_pem: env::var("APNS_KEY_PEM").ok(),
+            apns_key_id: env::var("APNS_KEY_ID").ok(),
+            apns_team_id: env::var("APNS_TEAM_ID").ok(),
+            apns_bundle_id: env::var("APNS_BUNDLE_ID").ok(),
+            apns_sandbox: env::var("APNS_SANDBOX")
+                .map(|v| v == "true")
+                .unwrap_or(false),
         })
     }
 

@@ -728,3 +728,53 @@ pub struct BotCreatedResponse {
     /// Plaintext token — shown once at creation/regeneration only.
     pub token: String,
 }
+
+// ── Push Notifications ──────────────────────────────────────────────────
+
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct PushSubscription {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub subscription_type: String,
+    // Web Push fields
+    pub endpoint: Option<String>,
+    pub p256dh: Option<String>,
+    pub auth_key: Option<String>,
+    // Native token
+    pub device_token: Option<String>,
+    pub user_agent: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterSubscriptionRequest {
+    pub subscription_type: String, // "web" | "fcm" | "apns"
+    // Web Push
+    pub endpoint: Option<String>,
+    pub p256dh: Option<String>,
+    pub auth_key: Option<String>,
+    // Native
+    pub device_token: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteSubscriptionRequest {
+    pub endpoint: Option<String>,
+    pub device_token: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct NotificationPreferences {
+    pub user_id: Uuid,
+    pub all_messages: bool,
+    pub dm_notifications: bool,
+    pub mention_notifications: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateNotificationPrefsRequest {
+    pub all_messages: Option<bool>,
+    pub dm_notifications: Option<bool>,
+    pub mention_notifications: Option<bool>,
+}
