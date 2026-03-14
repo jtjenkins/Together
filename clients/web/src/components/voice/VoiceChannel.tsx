@@ -8,11 +8,16 @@ import {
   PhoneOff,
   Settings,
   X,
+  Video,
+  VideoOff,
+  ScreenShare,
+  ScreenShareOff,
 } from "lucide-react";
 import { useVoiceStore } from "../../stores/voiceStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useChannelStore } from "../../stores/channelStore";
 import { useWebRTC } from "../../hooks/useWebRTC";
+import { VideoGrid } from "./VideoGrid";
 import { gateway } from "../../api/websocket";
 import { api } from "../../api/client";
 import type { VoiceParticipant, VoiceStateUpdateEvent } from "../../types";
@@ -43,6 +48,8 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   const leave = useVoiceStore((s) => s.leave);
   const toggleMute = useVoiceStore((s) => s.toggleMute);
   const toggleDeafen = useVoiceStore((s) => s.toggleDeafen);
+  const toggleCamera = useVoiceStore((s) => s.toggleCamera);
+  const toggleScreen = useVoiceStore((s) => s.toggleScreen);
 
   const [participants, setParticipants] = useState<VoiceParticipant[]>([]);
   // Peer IDs to send WebRTC offers to — captured once at join time
@@ -58,6 +65,9 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   const [micDevices, setMicDevices] = useState<AudioDevice[]>([]);
   const [speakerDevices, setSpeakerDevices] = useState<AudioDevice[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [cameraDeviceId, setCameraDeviceId] = useState<string | null>(null);
+  const [cameraDevices, setCameraDevices] = useState<AudioDevice[]>([]);
+  const [streamVersion, setStreamVersion] = useState(0);
 
   const channel = channels.find((c) => c.id === channelId);
   const isConnected = connectedChannelId === channelId;
@@ -92,6 +102,14 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
           .map((d, i) => ({
             deviceId: d.deviceId,
             label: d.label || `Speaker ${i + 1}`,
+          })),
+      );
+      setCameraDevices(
+        devices
+          .filter((d) => d.kind === "videoinput")
+          .map((d, i) => ({
+            deviceId: d.deviceId,
+            label: d.label || `Camera ${i + 1}`,
           })),
       );
     } catch (err) {
@@ -212,21 +230,44 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
     }
   };
 
+  const handleRemoteStreamsChange = useCallback(() => {
+    setStreamVersion((v) => v + 1);
+  }, []);
+
+  const handleToggleCamera = useCallback(async () => {
+    try {
+      await toggleCamera();
+    } catch (err) {
+      console.error("[VoiceChannel] toggleCamera failed", err);
+    }
+  }, [toggleCamera]);
+
+  const handleToggleScreen = useCallback(async () => {
+    try {
+      await toggleScreen();
+    } catch (err) {
+      console.error("[VoiceChannel] toggleScreen failed", err);
+    }
+  }, [toggleScreen]);
+
   // WebRTC audio — works on localhost and HTTPS; degrades gracefully otherwise
-  useWebRTC({
-    enabled: isConnected,
-    myUserId: user?.id ?? "",
-    participants,
-    initialPeers,
-    isMuted,
-    isDeafened,
-    micDeviceId,
-    speakerDeviceId,
-    isCameraOn,
-    isScreenSharing,
-    onError: setRtcError,
-    onSpeakingChange: handleSpeakingChange,
-  });
+  const { getRemoteVideoStreams, localVideoStreamRef, localScreenStreamRef } =
+    useWebRTC({
+      enabled: isConnected,
+      myUserId: user?.id ?? "",
+      participants,
+      initialPeers,
+      isMuted,
+      isDeafened,
+      micDeviceId,
+      speakerDeviceId,
+      isCameraOn,
+      isScreenSharing,
+      cameraDeviceId,
+      onError: setRtcError,
+      onSpeakingChange: handleSpeakingChange,
+      onRemoteStreamsChange: handleRemoteStreamsChange,
+    });
 
   const activeError = voiceError ?? rtcError;
 
@@ -263,6 +304,16 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       )}
 
       <div className={styles.body}>
+        {isConnected && (
+          <VideoGrid
+            getRemoteStreams={getRemoteVideoStreams}
+            streamVersion={streamVersion}
+            localCameraStream={localVideoStreamRef.current}
+            localScreenStream={localScreenStreamRef.current}
+            localUserId={user?.id ?? ""}
+            localUsername={user?.username ?? ""}
+          />
+        )}
         <section className={styles.participantsSection}>
           <h3 className={styles.sectionTitle}>
             Participants &mdash; {participants.length}
@@ -346,6 +397,30 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                   )}
                 </button>
                 <button
+                  className={`${styles.controlBtn} ${isCameraOn ? styles.controlActive : ""}`}
+                  onClick={handleToggleCamera}
+                  title={isCameraOn ? "Turn off camera" : "Turn on camera"}
+                  aria-label={isCameraOn ? "Turn off camera" : "Turn on camera"}
+                >
+                  {isCameraOn ? <VideoOff size={20} /> : <Video size={20} />}
+                </button>
+                <button
+                  className={`${styles.controlBtn} ${isScreenSharing ? styles.controlActive : ""}`}
+                  onClick={handleToggleScreen}
+                  title={
+                    isScreenSharing ? "Stop sharing screen" : "Share screen"
+                  }
+                  aria-label={
+                    isScreenSharing ? "Stop sharing screen" : "Share screen"
+                  }
+                >
+                  {isScreenSharing ? (
+                    <ScreenShareOff size={20} />
+                  ) : (
+                    <ScreenShare size={20} />
+                  )}
+                </button>
+                <button
                   className={`${styles.controlBtn} ${showSettings ? styles.controlActive : ""}`}
                   onClick={() => {
                     setShowSettings((v) => !v);
@@ -394,6 +469,23 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                     >
                       <option value="">Default</option>
                       {speakerDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.deviceRow}>
+                    <label className={styles.deviceLabel}>Camera</label>
+                    <select
+                      className={styles.deviceSelect}
+                      value={cameraDeviceId ?? ""}
+                      onChange={(e) =>
+                        setCameraDeviceId(e.target.value || null)
+                      }
+                    >
+                      <option value="">Default</option>
+                      {cameraDevices.map((d) => (
                         <option key={d.deviceId} value={d.deviceId}>
                           {d.label}
                         </option>
