@@ -51,6 +51,17 @@ services:
       RUST_LOG: ${RUST_LOG:-together_server=info,tower_http=info,sqlx=warn}
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}
       UPLOAD_DIR: /app/uploads
+      # Push notifications
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      APNS_KEY_PEM: ${APNS_KEY_PEM:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-}
+      APNS_SANDBOX: ${APNS_SANDBOX:-false}
     # By default the backend is NOT exposed on the host — all traffic flows
     # through the Nginx web service. Uncomment the lines below only if you
     # want to reach the API directly (e.g. for testing or desktop/mobile apps
