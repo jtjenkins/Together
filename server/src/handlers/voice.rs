@@ -137,7 +137,7 @@ struct VoiceParticipantRow {
 /// POST /channels/:channel_id/voice — join a voice channel.
 ///
 /// Uses UPSERT to atomically move the user from any prior channel to this one.
-/// `self_mute` and `self_deaf` are reset to `false` on channel switch.
+/// `self_mute`, `self_deaf`, `self_video`, and `self_screen` are reset to `false` on channel switch.
 /// `server_mute` and `server_deaf` are intentionally preserved so
 /// moderator-applied restrictions survive channel switches.
 ///
@@ -182,10 +182,12 @@ pub async fn join_voice_channel(
         "INSERT INTO voice_states (user_id, channel_id)
          VALUES ($1, $2)
          ON CONFLICT (user_id) DO UPDATE
-             SET channel_id = EXCLUDED.channel_id,
-                 self_mute  = FALSE,
-                 self_deaf  = FALSE,
-                 joined_at  = NOW()
+             SET channel_id  = EXCLUDED.channel_id,
+                 self_mute   = FALSE,
+                 self_deaf   = FALSE,
+                 self_video  = FALSE,
+                 self_screen = FALSE,
+                 joined_at   = NOW()
          RETURNING user_id, channel_id, self_mute, self_deaf,
                    self_video, self_screen, server_mute, server_deaf, joined_at",
     )

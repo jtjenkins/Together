@@ -84,6 +84,8 @@ interface UseWebRTCOptions {
   /** Called whenever a participant starts or stops speaking. */
   onSpeakingChange?: (userId: string, isSpeaking: boolean) => void;
   onRemoteStreamsChange?: () => void;
+  /** Called when a local camera or screen stream is acquired or released. */
+  onLocalStreamsChange?: () => void;
 }
 
 /**
@@ -142,6 +144,7 @@ export function useWebRTC({
   onError,
   onSpeakingChange,
   onRemoteStreamsChange,
+  onLocalStreamsChange,
 }: UseWebRTCOptions) {
   // Map of peerId → RTCPeerConnection
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -167,6 +170,10 @@ export function useWebRTC({
   const screenSendersRef = useRef<Map<RTCPeerConnection, RTCRtpSender>>(
     new Map(),
   );
+  // Tracks which RTCRtpSender corresponds to the camera track per peer connection
+  const cameraSendersRef = useRef<Map<RTCPeerConnection, RTCRtpSender>>(
+    new Map(),
+  );
 
   // Keep mutable refs for callbacks/values used inside stable useCallbacks
   // to avoid stale closures without re-creating the callbacks on every render.
@@ -178,6 +185,8 @@ export function useWebRTC({
   isMutedRef.current = isMuted;
   const onRemoteStreamsChangeRef = useRef(onRemoteStreamsChange);
   onRemoteStreamsChangeRef.current = onRemoteStreamsChange;
+  const onLocalStreamsChangeRef = useRef(onLocalStreamsChange);
+  onLocalStreamsChangeRef.current = onLocalStreamsChange;
 
   const stopSpeakingDetector = useCallback((userId: string) => {
     speakingStopRef.current.get(userId)?.();
@@ -206,6 +215,10 @@ export function useWebRTC({
       onSpeakingChangeRef.current?.(peerId, false);
       remoteVideoStreamsRef.current.delete(peerId);
       onRemoteStreamsChangeRef.current?.();
+      if (pc) {
+        screenSendersRef.current.delete(pc);
+        cameraSendersRef.current.delete(pc);
+      }
     },
     [stopSpeakingDetector],
   );
@@ -270,7 +283,11 @@ export function useWebRTC({
         const [videoTrack] = localVideoStreamRef.current.getVideoTracks();
         if (videoTrack) {
           videoTrack.contentHint = "motion";
-          pc.addTrack(videoTrack, localVideoStreamRef.current);
+          const cameraSender = pc.addTrack(
+            videoTrack,
+            localVideoStreamRef.current,
+          );
+          cameraSendersRef.current.set(pc, cameraSender);
         }
       }
 
@@ -296,6 +313,11 @@ export function useWebRTC({
         } else if (event.track.kind === "video") {
           // ── Video path ──────────────────────────────────────────
           // contentHint encodes role: "motion" = camera, "detail" = screen
+          // Note: contentHint is set by the sender before addTrack. It is a hint to
+          // the encoder, not a guaranteed metadata channel — Safari may not preserve
+          // it across the peer connection. When absent (""), the track defaults to
+          // camera. A more robust approach for future work is to use separate
+          // RTCPeerConnection per media type or SDP msid stream identifiers.
           const isScreen = event.track.contentHint === "detail";
           const existing = remoteVideoStreamsRef.current.get(peerId) ?? {
             username:
@@ -435,14 +457,13 @@ export function useWebRTC({
       if (localVideoStreamRef.current) {
         localVideoStreamRef.current.getTracks().forEach((t) => t.stop());
         localVideoStreamRef.current = null;
+        onLocalStreamsChangeRef.current?.();
         peersRef.current.forEach((pc) => {
-          const sender = pc
-            .getSenders()
-            .find(
-              (s) =>
-                s.track?.kind === "video" && !s.track?.label.includes("screen"),
-            );
-          if (sender) pc.removeTrack(sender);
+          const sender = cameraSendersRef.current.get(pc);
+          if (sender) {
+            pc.removeTrack(sender);
+            cameraSendersRef.current.delete(pc);
+          }
         });
       }
       return;
@@ -462,12 +483,14 @@ export function useWebRTC({
           return;
         }
         localVideoStreamRef.current = stream;
+        onLocalStreamsChangeRef.current?.();
         const [track] = stream.getVideoTracks();
         if (!track) return;
 
         track.contentHint = "motion";
         peersRef.current.forEach((pc) => {
-          pc.addTrack(track, stream);
+          const sender = pc.addTrack(track, stream);
+          cameraSendersRef.current.set(pc, sender);
         });
       })
       .catch((err) => {
@@ -528,6 +551,7 @@ export function useWebRTC({
       if (localScreenStreamRef.current) {
         localScreenStreamRef.current.getTracks().forEach((t) => t.stop());
         localScreenStreamRef.current = null;
+        onLocalStreamsChangeRef.current?.();
         peersRef.current.forEach((pc) => {
           const sender = screenSendersRef.current.get(pc);
           if (sender) {
@@ -555,6 +579,7 @@ export function useWebRTC({
           return;
         }
         localScreenStreamRef.current = stream;
+        onLocalStreamsChangeRef.current?.();
         const [track] = stream.getVideoTracks();
         if (!track) return;
 

@@ -267,6 +267,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       onError: setRtcError,
       onSpeakingChange: handleSpeakingChange,
       onRemoteStreamsChange: handleRemoteStreamsChange,
+      onLocalStreamsChange: handleRemoteStreamsChange,
     });
 
   const activeError = voiceError ?? rtcError;
