@@ -30,6 +30,11 @@ import type {
   IceServersResponse,
   SearchQuery,
   SearchResponse,
+  AutomodConfig,
+  UpdateAutomodConfigRequest,
+  AutomodWordFilter,
+  AutomodLog,
+  ServerBan,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -547,6 +552,59 @@ class ApiClient {
   /** Get ICE servers for WebRTC peer connections, including TURN credentials. */
   getIceServers(): Promise<IceServersResponse> {
     return this.request<IceServersResponse>("/ice-servers");
+  }
+
+  // ─── Automod ───────────────────────────────────────────────────────────
+
+  getAutomodConfig(serverId: string): Promise<AutomodConfig> {
+    return this.request<AutomodConfig>(`/servers/${serverId}/automod`);
+  }
+
+  updateAutomodConfig(
+    serverId: string,
+    updates: UpdateAutomodConfigRequest,
+  ): Promise<AutomodConfig> {
+    return this.request<AutomodConfig>(`/servers/${serverId}/automod`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+  }
+
+  listWordFilters(serverId: string): Promise<AutomodWordFilter[]> {
+    return this.request<AutomodWordFilter[]>(
+      `/servers/${serverId}/automod/words`,
+    );
+  }
+
+  addWordFilter(serverId: string, word: string): Promise<AutomodWordFilter> {
+    return this.request<AutomodWordFilter>(
+      `/servers/${serverId}/automod/words`,
+      {
+        method: "POST",
+        body: JSON.stringify({ word }),
+      },
+    );
+  }
+
+  removeWordFilter(serverId: string, word: string): Promise<void> {
+    return this.request<void>(
+      `/servers/${serverId}/automod/words/${encodeURIComponent(word)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  listAutomodLogs(serverId: string): Promise<AutomodLog[]> {
+    return this.request<AutomodLog[]>(`/servers/${serverId}/automod/logs`);
+  }
+
+  listBans(serverId: string): Promise<ServerBan[]> {
+    return this.request<ServerBan[]>(`/servers/${serverId}/bans`);
+  }
+
+  removeBan(serverId: string, userId: string): Promise<void> {
+    return this.request<void>(`/servers/${serverId}/bans/${userId}`, {
+      method: "DELETE",
+    });
   }
 }
 
