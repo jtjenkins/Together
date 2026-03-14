@@ -375,7 +375,9 @@ pub async fn check_automod(
             .await?;
 
         for row in &words {
-            let word: String = row.try_get("word").unwrap_or_default();
+            let Ok(word): Result<String, _> = row.try_get("word") else {
+                continue;
+            };
             if content_lower.contains(&word) {
                 log_automod_action(
                     pool,
@@ -385,8 +387,8 @@ pub async fn check_automod(
                     username,
                     "word_filter",
                     &config.word_filter_action,
-                    Some(&word.clone()),
-                    None,
+                    Some(&word),
+                    Some(content),
                 )
                 .await;
                 apply_action(
@@ -428,7 +430,7 @@ pub async fn check_automod(
                 "duplicate",
                 "delete",
                 None,
-                None,
+                Some(content),
             )
             .await;
             return Err(AppError::Forbidden("Duplicate message blocked".into()));
@@ -466,17 +468,17 @@ pub async fn check_automod(
                     "spam",
                     &config.spam_action,
                     None,
-                    Some(msg_id),
+                    Some(content),
                 )
                 .await;
-                apply_action(
+                let _ = apply_action(
                     pool,
                     server_id,
                     user_id,
                     &config.spam_action,
                     config.timeout_minutes,
                 )
-                .await?;
+                .await;
             }
         }
     }
@@ -545,7 +547,7 @@ async fn log_automod_action(
     rule_type: &str,
     action_taken: &str,
     matched_term: Option<&str>,
-    message_id: Option<Uuid>,
+    message_content: Option<&str>,
 ) {
     // Fire-and-forget: ignore errors so automod logging never blocks message delivery
     let _ = sqlx::query(
@@ -559,7 +561,7 @@ async fn log_automod_action(
     .bind(rule_type)
     .bind(action_taken)
     .bind(matched_term)
-    .bind(message_id.map(|id| id.to_string()))
+    .bind(message_content)
     .execute(pool)
     .await;
 }
