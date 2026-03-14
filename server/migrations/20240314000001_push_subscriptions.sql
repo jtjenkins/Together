@@ -17,10 +17,14 @@ CREATE TABLE push_subscriptions (
         (subscription_type = 'web'
             AND endpoint IS NOT NULL
             AND p256dh   IS NOT NULL
-            AND auth_key IS NOT NULL)
+            AND auth_key IS NOT NULL
+            AND device_token IS NULL)
         OR
         (subscription_type IN ('fcm', 'apns')
-            AND device_token IS NOT NULL)
+            AND device_token IS NOT NULL
+            AND endpoint IS NULL
+            AND p256dh IS NULL
+            AND auth_key IS NULL)
     )
 );
 
@@ -32,8 +36,8 @@ CREATE UNIQUE INDEX push_subscriptions_endpoint_idx
     ON push_subscriptions(endpoint)
     WHERE endpoint IS NOT NULL;
 
-CREATE UNIQUE INDEX push_subscriptions_token_idx
-    ON push_subscriptions(device_token)
+CREATE UNIQUE INDEX push_subscriptions_user_token_idx
+    ON push_subscriptions(user_id, device_token)
     WHERE device_token IS NOT NULL;
 
 -- Per-user notification preferences (created on first use)
@@ -42,5 +46,6 @@ CREATE TABLE notification_preferences (
     all_messages          BOOLEAN NOT NULL DEFAULT FALSE,
     dm_notifications      BOOLEAN NOT NULL DEFAULT TRUE,
     mention_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
