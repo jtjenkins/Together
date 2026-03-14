@@ -123,6 +123,8 @@ struct VoiceParticipantRow {
     username: String,
     self_mute: bool,
     self_deaf: bool,
+    self_video: bool,
+    self_screen: bool,
     server_mute: bool,
     server_deaf: bool,
     joined_at: DateTime<Utc>,
@@ -135,7 +137,7 @@ struct VoiceParticipantRow {
 /// POST /channels/:channel_id/voice — join a voice channel.
 ///
 /// Uses UPSERT to atomically move the user from any prior channel to this one.
-/// `self_mute` and `self_deaf` are reset to `false` on channel switch.
+/// `self_mute`, `self_deaf`, `self_video`, and `self_screen` are reset to `false` on channel switch.
 /// `server_mute` and `server_deaf` are intentionally preserved so
 /// moderator-applied restrictions survive channel switches.
 ///
@@ -180,12 +182,14 @@ pub async fn join_voice_channel(
         "INSERT INTO voice_states (user_id, channel_id)
          VALUES ($1, $2)
          ON CONFLICT (user_id) DO UPDATE
-             SET channel_id = EXCLUDED.channel_id,
-                 self_mute  = FALSE,
-                 self_deaf  = FALSE,
-                 joined_at  = NOW()
+             SET channel_id  = EXCLUDED.channel_id,
+                 self_mute   = FALSE,
+                 self_deaf   = FALSE,
+                 self_video  = FALSE,
+                 self_screen = FALSE,
+                 joined_at   = NOW()
          RETURNING user_id, channel_id, self_mute, self_deaf,
-                   server_mute, server_deaf, joined_at",
+                   self_video, self_screen, server_mute, server_deaf, joined_at",
     )
     .bind(auth.user_id())
     .bind(channel_id)
@@ -245,9 +249,14 @@ pub async fn update_voice_state(
     Path(channel_id): Path<Uuid>,
     Json(req): Json<UpdateVoiceStateRequest>,
 ) -> AppResult<Json<VoiceStateDto>> {
-    if req.self_mute.is_none() && req.self_deaf.is_none() {
+    if req.self_mute.is_none()
+        && req.self_deaf.is_none()
+        && req.self_video.is_none()
+        && req.self_screen.is_none()
+    {
         return Err(AppError::Validation(
-            "At least one field (self_mute or self_deaf) must be provided".into(),
+            "At least one field (self_mute, self_deaf, self_video, or self_screen) must be provided"
+                .into(),
         ));
     }
 
@@ -257,14 +266,18 @@ pub async fn update_voice_state(
 
     let vs = sqlx::query_as::<_, VoiceState>(
         "UPDATE voice_states
-         SET self_mute = COALESCE($1, self_mute),
-             self_deaf = COALESCE($2, self_deaf)
-         WHERE user_id = $3 AND channel_id = $4
+         SET self_mute   = COALESCE($1, self_mute),
+             self_deaf   = COALESCE($2, self_deaf),
+             self_video  = COALESCE($3, self_video),
+             self_screen = COALESCE($4, self_screen)
+         WHERE user_id = $5 AND channel_id = $6
          RETURNING user_id, channel_id, self_mute, self_deaf,
-                   server_mute, server_deaf, joined_at",
+                   self_video, self_screen, server_mute, server_deaf, joined_at",
     )
     .bind(req.self_mute)
     .bind(req.self_deaf)
+    .bind(req.self_video)
+    .bind(req.self_screen)
     .bind(auth.user_id())
     .bind(channel_id)
     .fetch_optional(&state.pool)
@@ -291,7 +304,8 @@ pub async fn list_voice_participants(
 
     let rows = sqlx::query_as::<_, VoiceParticipantRow>(
         "SELECT vs.user_id, vs.channel_id, u.username,
-                vs.self_mute, vs.self_deaf, vs.server_mute, vs.server_deaf, vs.joined_at
+                vs.self_mute, vs.self_deaf, vs.self_video, vs.self_screen,
+                vs.server_mute, vs.server_deaf, vs.joined_at
          FROM voice_states vs
          JOIN users u ON vs.user_id = u.id
          WHERE vs.channel_id = $1
@@ -309,6 +323,8 @@ pub async fn list_voice_participants(
                 channel_id: Some(row.channel_id),
                 self_mute: row.self_mute,
                 self_deaf: row.self_deaf,
+                self_video: row.self_video,
+                self_screen: row.self_screen,
                 server_mute: row.server_mute,
                 server_deaf: row.server_deaf,
                 joined_at: Some(row.joined_at),

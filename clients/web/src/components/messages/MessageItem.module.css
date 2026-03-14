@@ -595,9 +595,15 @@
 /* ── Jump-to-message highlight ─────────────────────────────────────────── */
 
 @keyframes messageHighlight {
-  0%   { background: rgba(124, 106, 247, 0.18); }
-  60%  { background: rgba(124, 106, 247, 0.18); }
-  100% { background: transparent; }
+  0% {
+    background: rgba(124, 106, 247, 0.18);
+  }
+  60% {
+    background: rgba(124, 106, 247, 0.18);
+  }
+  100% {
+    background: transparent;
+  }
 }
 
 .highlighted {

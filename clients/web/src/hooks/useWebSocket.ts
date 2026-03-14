@@ -112,7 +112,11 @@ export function useWebSocket() {
       gateway.on("REACTION_REMOVE", (_event: ReactionEvent) => {}),
 
       gateway.on("TYPING_START", (event: TypingStartEvent) => {
-        addTypingUser(event.user_id, event.username || "Unknown", event.channel_id);
+        addTypingUser(
+          event.user_id,
+          event.username || "Unknown",
+          event.channel_id,
+        );
       }),
 
       gateway.on("connected", () => {
