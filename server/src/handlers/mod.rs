@@ -1,6 +1,7 @@
 pub mod attachments;
 pub mod audit;
 pub mod auth;
+pub mod automod;
 pub mod bots;
 pub mod channels;
 pub mod dm;
