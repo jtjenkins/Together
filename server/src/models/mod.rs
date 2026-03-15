@@ -391,6 +391,7 @@ pub struct Attachment {
 
 // ── Custom Emojis ────────────────────────────────────────────────────────────
 
+/// A custom emoji uploaded to a server.
 #[derive(Debug, sqlx::FromRow)]
 pub struct CustomEmoji {
     pub id: Uuid,
@@ -403,6 +404,7 @@ pub struct CustomEmoji {
     pub created_at: DateTime<Utc>,
 }
 
+/// API response shape for a custom emoji (omits internal `filename`).
 #[derive(Debug, Serialize)]
 pub struct CustomEmojiDto {
     pub id: Uuid,
