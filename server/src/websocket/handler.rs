@@ -482,14 +482,10 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
 /// database error occurs. Either case is treated as fatal for this
 /// connection's READY handshake.
 async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
-    let user: UserDto = match sqlx::query_as::<_, User>(
-        "SELECT id, username, email, password_hash, avatar_url, status, custom_status,
-                created_at, updated_at
-         FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.pool)
-    .await
+    let user: UserDto = match sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
     {
         Err(e) => {
             tracing::error!(
@@ -542,6 +538,8 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         recipient_username: String,
         recipient_email: Option<String>,
         recipient_avatar_url: Option<String>,
+        recipient_bio: Option<String>,
+        recipient_pronouns: Option<String>,
         recipient_status: String,
         recipient_custom_status: Option<String>,
         recipient_created_at: chrono::DateTime<chrono::Utc>,
@@ -557,6 +555,8 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
             u.username         AS recipient_username,
             u.email            AS recipient_email,
             u.avatar_url       AS recipient_avatar_url,
+            u.bio              AS recipient_bio,
+            u.pronouns         AS recipient_pronouns,
             u.status           AS recipient_status,
             u.custom_status    AS recipient_custom_status,
             u.created_at       AS recipient_created_at,
@@ -584,6 +584,8 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
                     username: r.recipient_username,
                     email: r.recipient_email,
                     avatar_url: r.recipient_avatar_url,
+                    bio: r.recipient_bio,
+                    pronouns: r.recipient_pronouns,
                     status: r.recipient_status,
                     custom_status: r.recipient_custom_status,
                     created_at: r.recipient_created_at,

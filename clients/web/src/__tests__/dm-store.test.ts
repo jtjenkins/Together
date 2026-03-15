@@ -28,6 +28,8 @@ const mockChannel = (
     username: "bob",
     email: "bob@example.com",
     avatar_url: null,
+    bio: null,
+    pronouns: null,
     status: "online",
     custom_status: null,
     created_at: "2024-01-01T00:00:00Z",

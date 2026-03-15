@@ -22,6 +22,12 @@ pub struct UpdateUserRequest {
     /// Must be a valid HTTP(S) URL when provided.
     #[validate(url)]
     pub avatar_url: Option<String>,
+    /// Free-form biography; capped at 500 characters.
+    #[validate(length(max = 500))]
+    pub bio: Option<String>,
+    /// Pronouns string, e.g. "they/them"; capped at 40 characters.
+    #[validate(length(max = 40))]
+    pub pronouns: Option<String>,
     pub status: Option<String>,
     /// Free-form status text; capped at 128 characters.
     #[validate(length(max = 128))]
@@ -72,6 +78,8 @@ pub async fn update_current_user(
 
     let update = UpdateUserDto {
         avatar_url: req.avatar_url,
+        bio: req.bio,
+        pronouns: req.pronouns,
         status: req.status,
         custom_status: req.custom_status,
     };
@@ -80,14 +88,18 @@ pub async fn update_current_user(
         r#"
         UPDATE users
         SET avatar_url    = COALESCE($1, avatar_url),
-            status        = COALESCE($2, status),
-            custom_status = COALESCE($3, custom_status),
+            bio           = COALESCE($2, bio),
+            pronouns      = COALESCE($3, pronouns),
+            status        = COALESCE($4, status),
+            custom_status = COALESCE($5, custom_status),
             updated_at    = NOW()
-        WHERE id = $4
+        WHERE id = $6
         RETURNING *
         "#,
     )
     .bind(update.avatar_url)
+    .bind(update.bio)
+    .bind(update.pronouns)
     .bind(update.status)
     .bind(update.custom_status)
     .bind(auth_user.user_id())

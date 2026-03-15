@@ -37,9 +37,13 @@ export function UserPanel() {
           </div>
           <div className={styles.names}>
             <span className={styles.username}>{user.username}</span>
+            {user.pronouns && (
+              <span className={styles.pronouns}>{user.pronouns}</span>
+            )}
             <span className={styles.statusText}>
               {user.custom_status || user.status}
             </span>
+            {user.bio && <span className={styles.bio}>{user.bio}</span>}
           </div>
         </div>
         <button

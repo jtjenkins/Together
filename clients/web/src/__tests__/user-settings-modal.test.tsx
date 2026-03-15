@@ -24,6 +24,8 @@ const baseUser = {
   username: "testuser",
   email: "test@example.com",
   avatar_url: null,
+  bio: null,
+  pronouns: null,
   status: "online" as const,
   custom_status: null,
   created_at: new Date().toISOString(),
