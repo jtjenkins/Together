@@ -84,6 +84,9 @@ async fn main() {
         .expect("Database health check failed");
     info!("✅ Database health check passed");
 
+    // Initialize uptime tracking for health endpoint
+    handlers::health::init_uptime();
+
     // CORS: permissive in dev, origin-restricted in production.
     // Set APP_ENV=production and ALLOWED_ORIGINS=https://your-domain.com (see .env.example).
     let cors = if config.is_dev {
@@ -147,44 +150,77 @@ async fn main() {
         link_preview_cache: Arc::new(RwLock::new(HashMap::new())),
         http_client,
         giphy_api_key,
-        config: Arc::new(config),
+        config: Arc::new(config.clone()),
+        bot_rate_limiter: AppState::new_bot_rate_limiter(),
     };
 
     // Prometheus metrics layer
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
 
     // ── Rate limiting ─────────────────────────────────────────────────────────
-    // Global limit: 10 requests/second per IP, burst of 20.
-    let governor_conf = Arc::new(
+    // NOTE: GovernorConfigBuilder::per_second(n) sets the REPLENISHMENT PERIOD
+    // in seconds (interval between tokens), NOT the rate. To get R req/s, use
+    // per_millisecond(1000 / R). Examples:
+    //   10 req/s  → per_millisecond(100)   (1 token per 100ms)
+    //    2 req/s  → per_millisecond(500)   (1 token per 500ms)
+    //  100 req/s  → per_millisecond(10)    (1 token per 10ms)
+    //
+    // Production: 10 req/s per IP (burst 20); auth routes: 2/s (burst 5).
+    // Dev mode: relaxed (1 req/ms = ~1000 req/s) to allow load testing from a
+    // single IP without flooding the per-IP buckets (same policy as permissive
+    // CORS in dev).
+    let governor_conf = Arc::new(if config.is_dev {
         GovernorConfigBuilder::default()
-            .per_second(10)
+            .per_millisecond(1) // 1 token per 1ms ≈ 1000 req/s
+            .burst_size(5_000)
+            .finish()
+            .expect("Invalid global governor configuration (dev)")
+    } else {
+        GovernorConfigBuilder::default()
+            .per_millisecond(100) // 1 token per 100ms = 10 req/s
             .burst_size(20)
             .finish()
-            .expect("Invalid global governor configuration"),
-    );
+            .expect("Invalid global governor configuration (prod)")
+    });
 
-    // Stricter limit for authentication endpoints: 2 requests/second per IP, burst of 5.
-    // Nested into a sub-router so that `.route_layer()` applies only to these three routes.
-    let auth_governor_conf = Arc::new(
+    // Stricter limit for authentication endpoints.
+    let auth_governor_conf = Arc::new(if config.is_dev {
         GovernorConfigBuilder::default()
-            .per_second(2)
+            .per_millisecond(10) // 1 token per 10ms = 100 req/s for auth in dev
+            .burst_size(5_000) // large burst so all 500 load-test VUs can register at once
+            .finish()
+            .expect("Invalid auth governor configuration (dev)")
+    } else {
+        GovernorConfigBuilder::default()
+            .per_millisecond(500) // 1 token per 500ms = 2 req/s
             .burst_size(5)
             .finish()
-            .expect("Invalid auth governor configuration"),
-    );
+            .expect("Invalid auth governor configuration (prod)")
+    });
 
     let auth_router = Router::new()
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/refresh", post(handlers::auth::refresh_token))
+        .route(
+            "/auth/forgot-password",
+            post(handlers::auth::forgot_password),
+        )
+        .route("/auth/reset-password", post(handlers::auth::reset_password))
         .route_layer(GovernorLayer {
             config: auth_governor_conf,
         });
 
+    // Health check routes are intentionally outside the rate-limit layer so
+    // that monitoring and orchestration probes are never throttled.
+    let health_router = Router::new()
+        .route("/health", get(handlers::health_check))
+        .route("/health/ready", get(handlers::readiness_check))
+        .route("/health/live", get(handlers::liveness_check))
+        .with_state(app_state.clone());
+
     // Build router
     let app = Router::new()
-        // Health check + metrics
-        .route("/health", get(handlers::health_check))
         .route(
             "/link-preview",
             get(handlers::link_preview::get_link_preview),
@@ -215,6 +251,34 @@ async fn main() {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Audit logs (owner only)
+        .route(
+            "/servers/:id/audit-logs",
+            get(handlers::audit::list_audit_logs),
+        )
+        // Automod routes (owner only)
+        .route(
+            "/servers/:id/automod",
+            get(handlers::automod::get_automod_config)
+                .patch(handlers::automod::update_automod_config),
+        )
+        .route(
+            "/servers/:id/automod/words",
+            get(handlers::automod::list_word_filters).post(handlers::automod::add_word_filter),
+        )
+        .route(
+            "/servers/:id/automod/words/:word",
+            delete(handlers::automod::remove_word_filter),
+        )
+        .route(
+            "/servers/:id/automod/logs",
+            get(handlers::automod::list_automod_logs),
+        )
+        .route("/servers/:id/bans", get(handlers::automod::list_bans))
+        .route(
+            "/servers/:id/bans/:user_id",
+            delete(handlers::automod::remove_ban),
+        )
         // Search routes (protected, server-scoped)
         .route(
             "/servers/:id/search",
@@ -258,6 +322,11 @@ async fn main() {
             "/messages/:message_id",
             delete(handlers::messages::delete_message),
         )
+        // Single message fetch (needed for reply-bar preview when target is off-screen)
+        .route(
+            "/channels/:channel_id/messages/:message_id",
+            get(handlers::messages::get_message),
+        )
         // Thread routes (protected, nested under channel message)
         .route(
             "/channels/:channel_id/messages/:message_id/thread",
@@ -280,10 +349,35 @@ async fn main() {
             "/channels/:channel_id/messages/:message_id/reactions/:emoji",
             delete(handlers::reactions::remove_reaction),
         )
+        // Pin routes (protected, requires MANAGE_MESSAGES permission)
+        .route(
+            "/channels/:channel_id/pinned-messages",
+            get(handlers::pins::list_pinned_messages),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/pin",
+            post(handlers::pins::pin_message),
+        )
+        .route(
+            "/channels/:channel_id/messages/:message_id/pin",
+            delete(handlers::pins::unpin_message),
+        )
         // Read-state / ack routes
         .route(
             "/channels/:channel_id/ack",
             post(handlers::read_states::ack_channel),
+        )
+        // Bot management routes (user-scoped, protected)
+        .route("/bots", post(handlers::bots::create_bot))
+        .route("/bots", get(handlers::bots::list_bots))
+        // NOTE: /bots/connect must be registered before /bots/:id so the literal
+        // path segment "connect" is not consumed by the :id parameter capture.
+        .route("/bots/connect", post(handlers::bots::bot_connect))
+        .route("/bots/:id", get(handlers::bots::get_bot))
+        .route("/bots/:id", delete(handlers::bots::revoke_bot))
+        .route(
+            "/bots/:id/token/regenerate",
+            post(handlers::bots::regenerate_bot_token),
         )
         // DM routes (protected, user-scoped)
         .route("/dm-channels", post(handlers::dm::open_dm_channel))
@@ -349,7 +443,7 @@ async fn main() {
         .route("/ice-servers", get(handlers::ice::get_ice_servers))
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
-        // ── Global rate limit (10 req/s per IP, burst 20) ──────────────────
+        // ── Global rate limit ──────────────────────────────────────────────
         .layer(GovernorLayer {
             config: governor_conf,
         })
@@ -383,7 +477,10 @@ async fn main() {
         // ── Prometheus + CORS ──────────────────────────────────────────────
         .layer(prometheus_layer)
         .layer(cors)
-        .with_state(app_state);
+        .with_state(app_state)
+        // Merge health routes after all middleware so they are not subject
+        // to rate limiting or other API-only layers.
+        .merge(health_router);
 
     // Start server
     info!("🎧 Server listening on http://{}", addr);

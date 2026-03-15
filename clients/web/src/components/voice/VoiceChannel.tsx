@@ -8,6 +8,10 @@ import {
   PhoneOff,
   Settings,
   X,
+  Video,
+  VideoOff,
+  ScreenShare,
+  ScreenShareOff,
 } from "lucide-react";
 import { useVoiceStore } from "../../stores/voiceStore";
 import { useAuthStore } from "../../stores/authStore";
@@ -18,6 +22,7 @@ import {
 } from "../../stores/voiceSettingsStore";
 import { useWebRTC } from "../../hooks/useWebRTC";
 import { usePushToTalk } from "../../hooks/usePushToTalk";
+import { VideoGrid } from "./VideoGrid";
 import { gateway } from "../../api/websocket";
 import { api } from "../../api/client";
 import type { VoiceParticipant, VoiceStateUpdateEvent } from "../../types";
@@ -52,12 +57,16 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   const isMuted = useVoiceStore((s) => s.isMuted);
   const isDeafened = useVoiceStore((s) => s.isDeafened);
   const isConnecting = useVoiceStore((s) => s.isConnecting);
+  const isCameraOn = useVoiceStore((s) => s.isCameraOn);
+  const isScreenSharing = useVoiceStore((s) => s.isScreenSharing);
   const voiceError = useVoiceStore((s) => s.error);
   const clearVoiceError = useVoiceStore((s) => s.clearError);
   const join = useVoiceStore((s) => s.join);
   const leave = useVoiceStore((s) => s.leave);
   const toggleMute = useVoiceStore((s) => s.toggleMute);
   const toggleDeafen = useVoiceStore((s) => s.toggleDeafen);
+  const toggleCamera = useVoiceStore((s) => s.toggleCamera);
+  const toggleScreen = useVoiceStore((s) => s.toggleScreen);
 
   const [participants, setParticipants] = useState<VoiceParticipant[]>([]);
   // Peer IDs to send WebRTC offers to — captured once at join time
@@ -73,6 +82,9 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   const [micDevices, setMicDevices] = useState<AudioDevice[]>([]);
   const [speakerDevices, setSpeakerDevices] = useState<AudioDevice[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [cameraDeviceId, setCameraDeviceId] = useState<string | null>(null);
+  const [cameraDevices, setCameraDevices] = useState<AudioDevice[]>([]);
+  const [streamVersion, setStreamVersion] = useState(0);
 
   // Voice activity / push-to-talk settings
   const voiceMode = useVoiceSettingsStore((s) => s.mode);
@@ -122,6 +134,14 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
             label: d.label || `Speaker ${i + 1}`,
           })),
       );
+      setCameraDevices(
+        devices
+          .filter((d) => d.kind === "videoinput")
+          .map((d, i) => ({
+            deviceId: d.deviceId,
+            label: d.label || `Camera ${i + 1}`,
+          })),
+      );
     } catch (err) {
       console.warn("[VoiceChannel] enumerateDevices failed", err);
     }
@@ -158,6 +178,8 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                       ...p,
                       self_mute: event.self_mute,
                       self_deaf: event.self_deaf,
+                      self_video: event.self_video,
+                      self_screen: event.self_screen,
                       server_mute: event.server_mute,
                       server_deaf: event.server_deaf,
                     }
@@ -171,12 +193,11 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                 user_id: event.user_id,
                 username: event.username,
                 channel_id: event.channel_id,
-                avatar_url: null,
-                status: "online" as const,
-                nickname: null,
                 joined_at: event.joined_at ?? new Date().toISOString(),
                 self_mute: event.self_mute,
                 self_deaf: event.self_deaf,
+                self_video: event.self_video,
+                self_screen: event.self_screen,
                 server_mute: event.server_mute,
                 server_deaf: event.server_deaf,
               },
@@ -212,7 +233,11 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   };
 
   const handleLeave = async () => {
-    await leave();
+    try {
+      await leave();
+    } catch (err) {
+      console.error("[VoiceChannel] leave failed", err);
+    }
     setInitialPeers([]);
     setSpeakingUsers(new Set());
     await fetchParticipants();
@@ -224,6 +249,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       await toggleMute();
     } catch (err) {
       console.error("[VoiceChannel] toggleMute failed", err);
+      setRtcError("Failed to sync mute state — try again");
     }
   };
 
@@ -233,6 +259,7 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       await toggleDeafen();
     } catch (err) {
       console.error("[VoiceChannel] toggleDeafen failed", err);
+      setRtcError("Failed to sync deafen state — try again");
     }
   };
 
@@ -261,22 +288,50 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
     return () => window.removeEventListener("keydown", capture);
   }, [capturingKey, setPttKey]);
 
+  const handleRemoteStreamsChange = useCallback(() => {
+    setStreamVersion((v) => v + 1);
+  }, []);
+
+  const handleToggleCamera = useCallback(async () => {
+    try {
+      await toggleCamera();
+    } catch (err) {
+      console.error("[VoiceChannel] toggleCamera failed", err);
+      setRtcError("Failed to sync camera state — try again");
+    }
+  }, [toggleCamera]);
+
+  const handleToggleScreen = useCallback(async () => {
+    try {
+      await toggleScreen();
+    } catch (err) {
+      console.error("[VoiceChannel] toggleScreen failed", err);
+      setRtcError("Failed to sync screen share state — try again");
+    }
+  }, [toggleScreen]);
+
   // WebRTC audio — works on localhost and HTTPS; degrades gracefully otherwise
-  useWebRTC({
-    enabled: isConnected,
-    myUserId: user?.id ?? "",
-    participants,
-    initialPeers,
-    isMuted,
-    isDeafened,
-    micDeviceId,
-    speakerDeviceId,
-    onError: setRtcError,
-    onSpeakingChange: handleSpeakingChange,
-    vadThreshold: sensitivityToThreshold(vadSensitivity),
-    pttMode: voiceMode === "ptt",
-    isPttActive,
-  });
+  const { getRemoteVideoStreams, localVideoStreamRef, localScreenStreamRef } =
+    useWebRTC({
+      enabled: isConnected,
+      myUserId: user?.id ?? "",
+      participants,
+      initialPeers,
+      isMuted,
+      isDeafened,
+      micDeviceId,
+      speakerDeviceId,
+      isCameraOn,
+      isScreenSharing,
+      cameraDeviceId,
+      onError: setRtcError,
+      onSpeakingChange: handleSpeakingChange,
+      vadThreshold: sensitivityToThreshold(vadSensitivity),
+      pttMode: voiceMode === "ptt",
+      isPttActive,
+      onRemoteStreamsChange: handleRemoteStreamsChange,
+      onLocalStreamsChange: handleRemoteStreamsChange,
+    });
 
   const activeError = voiceError ?? rtcError;
 
@@ -313,6 +368,16 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       )}
 
       <div className={styles.body}>
+        {isConnected && (
+          <VideoGrid
+            getRemoteStreams={getRemoteVideoStreams}
+            streamVersion={streamVersion}
+            localCameraStream={localVideoStreamRef.current}
+            localScreenStream={localScreenStreamRef.current}
+            localUserId={user?.id ?? ""}
+            localUsername={user?.username ?? ""}
+          />
+        )}
         <section className={styles.participantsSection}>
           <h3 className={styles.sectionTitle}>
             Participants &mdash; {participants.length}
@@ -393,6 +458,30 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                     <HeadphoneOff size={20} />
                   ) : (
                     <Headphones size={20} />
+                  )}
+                </button>
+                <button
+                  className={`${styles.controlBtn} ${isCameraOn ? styles.controlActive : ""}`}
+                  onClick={handleToggleCamera}
+                  title={isCameraOn ? "Turn off camera" : "Turn on camera"}
+                  aria-label={isCameraOn ? "Turn off camera" : "Turn on camera"}
+                >
+                  {isCameraOn ? <VideoOff size={20} /> : <Video size={20} />}
+                </button>
+                <button
+                  className={`${styles.controlBtn} ${isScreenSharing ? styles.controlActive : ""}`}
+                  onClick={handleToggleScreen}
+                  title={
+                    isScreenSharing ? "Stop sharing screen" : "Share screen"
+                  }
+                  aria-label={
+                    isScreenSharing ? "Stop sharing screen" : "Share screen"
+                  }
+                >
+                  {isScreenSharing ? (
+                    <ScreenShareOff size={20} />
+                  ) : (
+                    <ScreenShare size={20} />
                   )}
                 </button>
                 <button
@@ -518,6 +607,23 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                     >
                       <option value="">Default</option>
                       {speakerDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.deviceRow}>
+                    <label className={styles.deviceLabel}>Camera</label>
+                    <select
+                      className={styles.deviceSelect}
+                      value={cameraDeviceId ?? ""}
+                      onChange={(e) =>
+                        setCameraDeviceId(e.target.value || null)
+                      }
+                    >
+                      <option value="">Default</option>
+                      {cameraDevices.map((d) => (
                         <option key={d.deviceId} value={d.deviceId}>
                           {d.label}
                         </option>

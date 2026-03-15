@@ -12,8 +12,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::events::{
-    GatewayMessage, GatewayOp, EVENT_PRESENCE_UPDATE, EVENT_READY, EVENT_VOICE_SIGNAL,
-    EVENT_VOICE_STATE_UPDATE,
+    GatewayMessage, GatewayOp, EVENT_PRESENCE_UPDATE, EVENT_READY, EVENT_TYPING_START,
+    EVENT_VOICE_SIGNAL, EVENT_VOICE_STATE_UPDATE,
 };
 use crate::{
     auth::{validate_token, TokenType},
@@ -40,7 +40,12 @@ struct MentionCount {
 /// short-lived access tokens to limit exposure.
 #[derive(Debug, serde::Deserialize)]
 pub struct WsParams {
-    pub token: String,
+    /// JWT access token for human users.
+    pub token: Option<String>,
+    /// Static bot token for bot connections. Prefer using POST /bots/connect to
+    /// exchange this for a short-lived JWT (`token` param) to avoid the static
+    /// token appearing in server access logs.
+    pub bot_token: Option<String>,
 }
 
 // ============================================================================
@@ -48,31 +53,68 @@ pub struct WsParams {
 // ============================================================================
 
 /// GET /ws?token=<access_token> — upgrade to a WebSocket connection.
+/// GET /ws?bot_token=<static_token> — upgrade as a bot.
 ///
-/// The JWT is validated before the upgrade is accepted; invalid tokens get a
+/// The token is validated before the upgrade is accepted; invalid tokens get a
 /// plain 401 without an upgrade attempt.
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     Query(params): Query<WsParams>,
     State(state): State<AppState>,
 ) -> Response {
-    let claims = match validate_token(&params.token, &state.jwt_secret) {
-        Ok(c) => c,
-        Err(_) => {
-            return (StatusCode::UNAUTHORIZED, "Invalid or expired token").into_response();
+    let user_id = if let Some(jwt) = params.token {
+        // ── Human user: JWT auth ──────────────────────────────────────────
+        let claims = match validate_token(&jwt, &state.jwt_secret) {
+            Ok(c) => c,
+            Err(_) => {
+                return (StatusCode::UNAUTHORIZED, "Invalid or expired token").into_response()
+            }
+        };
+        if claims.token_type != TokenType::Access {
+            return (StatusCode::UNAUTHORIZED, "Access token required").into_response();
         }
-    };
-
-    // Reject refresh tokens used as WebSocket credentials.
-    if claims.token_type != TokenType::Access {
-        return (StatusCode::UNAUTHORIZED, "Access token required").into_response();
-    }
-
-    let user_id = match claims.user_id() {
-        Ok(id) => id,
-        Err(_) => {
-            return (StatusCode::UNAUTHORIZED, "Invalid token subject").into_response();
+        match claims.user_id() {
+            Ok(id) => id,
+            Err(_) => return (StatusCode::UNAUTHORIZED, "Invalid token subject").into_response(),
         }
+    } else if let Some(raw_token) = params.bot_token {
+        // ── Bot: static token auth ────────────────────────────────────────
+        // Note: the per-bot rate limiter (50 req/s) is enforced in the REST
+        // auth extractor but not here, because WebSocket connections are
+        // persistent resources rather than per-request calls. Abuse of the
+        // WS upgrade itself is bounded by connection limits at the TCP/HTTP
+        // layer. Prefer POST /bots/connect → ?token=<jwt> to use the limiter.
+        use crate::bot_auth::hash_bot_token;
+        let token_hash = hash_bot_token(&raw_token);
+
+        #[derive(sqlx::FromRow)]
+        struct BotLookup {
+            user_id: Uuid,
+            revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+        }
+
+        let row = sqlx::query_as::<_, BotLookup>(
+            "SELECT user_id, revoked_at FROM bots WHERE token_hash = $1",
+        )
+        .bind(&token_hash)
+        .fetch_optional(&state.pool)
+        .await;
+
+        match row {
+            Ok(Some(b)) if b.revoked_at.is_none() => b.user_id,
+            Ok(Some(_)) => return (StatusCode::UNAUTHORIZED, "Bot token revoked").into_response(),
+            Ok(None) => return (StatusCode::UNAUTHORIZED, "Invalid bot token").into_response(),
+            Err(e) => {
+                tracing::warn!(error = ?e, "DB error during bot WS auth");
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Auth error").into_response();
+            }
+        }
+    } else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            "token or bot_token query parameter required",
+        )
+            .into_response();
     };
 
     ws.on_upgrade(move |socket| handle_socket(socket, user_id, state))
@@ -185,6 +227,11 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
                 }
                 let custom_status = data["custom_status"].as_str().map(ToOwned::to_owned);
                 set_presence(state, user_id, status, custom_status).await;
+            }
+        }
+        GatewayOp::TypingStart => {
+            if let Some(data) = msg.d {
+                handle_typing_start(user_id, data, state).await;
             }
         }
         GatewayOp::VoiceSignal => match msg.d {
@@ -435,14 +482,10 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
 /// database error occurs. Either case is treated as fatal for this
 /// connection's READY handshake.
 async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
-    let user: UserDto = match sqlx::query_as::<_, User>(
-        "SELECT id, username, email, password_hash, avatar_url, status, custom_status,
-                created_at, updated_at
-         FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.pool)
-    .await
+    let user: UserDto = match sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
     {
         Err(e) => {
             tracing::error!(
@@ -495,9 +538,12 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         recipient_username: String,
         recipient_email: Option<String>,
         recipient_avatar_url: Option<String>,
+        recipient_bio: Option<String>,
+        recipient_pronouns: Option<String>,
         recipient_status: String,
         recipient_custom_status: Option<String>,
         recipient_created_at: chrono::DateTime<chrono::Utc>,
+        recipient_is_admin: bool,
         last_message_at: Option<chrono::DateTime<chrono::Utc>>,
     }
 
@@ -509,9 +555,12 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
             u.username         AS recipient_username,
             u.email            AS recipient_email,
             u.avatar_url       AS recipient_avatar_url,
+            u.bio              AS recipient_bio,
+            u.pronouns         AS recipient_pronouns,
             u.status           AS recipient_status,
             u.custom_status    AS recipient_custom_status,
             u.created_at       AS recipient_created_at,
+            u.is_admin         AS recipient_is_admin,
             (SELECT MAX(dm.created_at)
              FROM direct_messages dm
              WHERE dm.channel_id = dmc.id AND dm.deleted = FALSE
@@ -535,9 +584,12 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
                     username: r.recipient_username,
                     email: r.recipient_email,
                     avatar_url: r.recipient_avatar_url,
+                    bio: r.recipient_bio,
+                    pronouns: r.recipient_pronouns,
                     status: r.recipient_status,
                     custom_status: r.recipient_custom_status,
                     created_at: r.recipient_created_at,
+                    is_admin: r.recipient_is_admin,
                 },
                 created_at: r.channel_created_at,
                 last_message_at: r.last_message_at,
@@ -726,6 +778,124 @@ pub async fn set_presence(
                 error = ?e,
                 "Failed to serialize presence event; this is a programming error"
             );
+        }
+    }
+}
+
+// ============================================================================
+// Typing Indicators
+// ============================================================================
+
+/// Handle a TYPING_START event from a client.
+///
+/// Broadcasts a TYPING_START event to all members of the channel who can see
+/// the typing indicator. The event includes the user ID, username, and channel ID.
+/// Clients should auto-expire the typing indicator after ~10 seconds if no
+/// further TYPING_START events are received.
+async fn handle_typing_start(user_id: Uuid, data: serde_json::Value, state: &AppState) {
+    let channel_id = match data["channel_id"].as_str() {
+        Some(id) => match Uuid::parse_str(id) {
+            Ok(uuid) => uuid,
+            Err(_) => {
+                tracing::debug!(user_id = %user_id, "Invalid channel_id in TYPING_START");
+                return;
+            }
+        },
+        None => {
+            tracing::debug!(user_id = %user_id, "Missing channel_id in TYPING_START");
+            return;
+        }
+    };
+
+    // Verify user is a member of the server that owns this channel
+    let server_id: Option<Uuid> =
+        match sqlx::query_scalar("SELECT server_id FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.pool)
+            .await
+        {
+            Ok(Some(id)) => Some(id),
+            Ok(None) => {
+                tracing::debug!(channel_id = %channel_id, "Channel not found for TYPING_START");
+                return;
+            }
+            Err(e) => {
+                tracing::warn!(error = ?e, "Failed to fetch channel for TYPING_START");
+                return;
+            }
+        };
+
+    let server_id = match server_id {
+        Some(id) => id,
+        None => return,
+    };
+
+    // Verify membership
+    let is_member: bool = match sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM server_members WHERE server_id = $1 AND user_id = $2)",
+    )
+    .bind(server_id)
+    .bind(user_id)
+    .fetch_one(&state.pool)
+    .await
+    {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!(error = ?e, "Failed to verify membership for TYPING_START");
+            return;
+        }
+    };
+
+    if !is_member {
+        tracing::debug!(
+            user_id = %user_id,
+            channel_id = %channel_id,
+            "Non-member attempted TYPING_START"
+        );
+        return;
+    }
+
+    // Get username for the event payload
+    let username: Option<String> = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten();
+
+    // Get all members of the server to broadcast to
+    let member_ids: Vec<Uuid> =
+        match sqlx::query_scalar("SELECT user_id FROM server_members WHERE server_id = $1")
+            .bind(server_id)
+            .fetch_all(&state.pool)
+            .await
+        {
+            Ok(ids) => ids,
+            Err(e) => {
+                tracing::warn!(error = ?e, "Failed to fetch server members for TYPING_START");
+                return;
+            }
+        };
+
+    let event = GatewayMessage::dispatch(
+        EVENT_TYPING_START,
+        json!({
+            "user_id": user_id,
+            "username": username,
+            "channel_id": channel_id,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        }),
+    );
+
+    match serde_json::to_string(&event) {
+        Ok(json) => {
+            state
+                .connections
+                .broadcast_to_users(&member_ids, &json)
+                .await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize TYPING_START event");
         }
     }
 }

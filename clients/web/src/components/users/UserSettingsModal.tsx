@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Modal } from "../common/Modal";
 import { useAuthStore } from "../../stores/authStore";
+import { AdminTab } from "./AdminTab";
 import type { UserStatus } from "../../types";
 import styles from "../servers/ServerModals.module.css";
 
@@ -21,13 +22,28 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const updatePresence = useAuthStore((s) => s.updatePresence);
 
+  const [activeTab, setActiveTab] = useState<"profile" | "admin">("profile");
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || "");
+  const [bio, setBio] = useState(user?.bio || "");
+  const [pronouns, setPronouns] = useState(user?.pronouns || "");
   const [status, setStatus] = useState<UserStatus>(user?.status || "online");
   const [customStatus, setCustomStatus] = useState(user?.custom_status || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // Reset to profile tab whenever the modal opens/closes.
+  useEffect(() => {
+    if (!open) setActiveTab("profile");
+  }, [open]);
+
   if (!user) return null;
+
+  const isAdmin = user.is_admin;
+
+  const handleClose = () => {
+    setActiveTab("profile");
+    onClose();
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -36,12 +52,14 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     try {
       await updateProfile({
         avatar_url: avatarUrl.trim() || null,
+        bio: bio.trim() || null,
+        pronouns: pronouns.trim() || null,
         custom_status: customStatus.trim() || null,
       });
       if (status !== user.status) {
         updatePresence(status, customStatus.trim() || null);
       }
-      onClose();
+      handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update profile");
     } finally {
@@ -50,75 +68,154 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="User Settings">
-      {error && <div className={styles.error}>{error}</div>}
-      <form onSubmit={handleSubmit} className={styles.form}>
-        <div className={styles.field}>
-          <label className={styles.label}>Username</label>
-          <input
-            className={styles.input}
-            type="text"
-            value={user.username}
-            disabled
-            style={{ opacity: 0.6 }}
-          />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="settings-avatar">
-            Avatar URL <span className={styles.optional}>(optional)</span>
-          </label>
-          <input
-            id="settings-avatar"
-            className={styles.input}
-            type="url"
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="https://example.com/avatar.png"
-          />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="settings-status">
-            Status
-          </label>
-          <select
-            id="settings-status"
-            className={styles.select}
-            value={status}
-            onChange={(e) => setStatus(e.target.value as UserStatus)}
+    <Modal open={open} onClose={handleClose} title="User Settings">
+      {isAdmin && (
+        <div
+          role="tablist"
+          aria-label="User settings sections"
+          className={styles.tabs}
+        >
+          <button
+            role="tab"
+            aria-selected={activeTab === "profile"}
+            aria-controls="panel-profile"
+            id="tab-profile"
+            className={`${styles.tab} ${activeTab === "profile" ? styles.tabActive : ""}`}
+            onClick={() => setActiveTab("profile")}
           >
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="settings-custom-status">
-            Custom Status <span className={styles.optional}>(optional)</span>
-          </label>
-          <input
-            id="settings-custom-status"
-            className={styles.input}
-            type="text"
-            value={customStatus}
-            onChange={(e) => setCustomStatus(e.target.value)}
-            placeholder="What are you up to?"
-          />
-        </div>
-        <div className={styles.actions}>
-          <button type="button" className={styles.cancelBtn} onClick={onClose}>
-            Cancel
+            Profile
           </button>
           <button
-            type="submit"
-            className={styles.submitBtn}
-            disabled={isSubmitting}
+            role="tab"
+            aria-selected={activeTab === "admin"}
+            aria-controls="panel-admin"
+            id="tab-admin"
+            className={`${styles.tab} ${activeTab === "admin" ? styles.tabActive : ""}`}
+            onClick={() => setActiveTab("admin")}
           >
-            {isSubmitting ? "Saving..." : "Save Changes"}
+            Admin
           </button>
         </div>
-      </form>
+      )}
+
+      <div
+        role="tabpanel"
+        id="panel-profile"
+        aria-labelledby="tab-profile"
+        hidden={isAdmin && activeTab !== "profile"}
+      >
+        {error && <div className={styles.error}>{error}</div>}
+        <form onSubmit={handleSubmit} className={styles.form}>
+          <div className={styles.field}>
+            <label className={styles.label}>Username</label>
+            <input
+              className={styles.input}
+              type="text"
+              value={user.username}
+              disabled
+              style={{ opacity: 0.6 }}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="settings-avatar">
+              Avatar URL <span className={styles.optional}>(optional)</span>
+            </label>
+            <input
+              id="settings-avatar"
+              className={styles.input}
+              type="url"
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              placeholder="https://example.com/avatar.png"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="settings-bio">
+              Bio <span className={styles.optional}>(optional)</span>
+            </label>
+            <textarea
+              id="settings-bio"
+              className={styles.input}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Tell people a little about yourself"
+              maxLength={500}
+              rows={3}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="settings-pronouns">
+              Pronouns <span className={styles.optional}>(optional)</span>
+            </label>
+            <input
+              id="settings-pronouns"
+              className={styles.input}
+              type="text"
+              value={pronouns}
+              onChange={(e) => setPronouns(e.target.value)}
+              placeholder="e.g. they/them"
+              maxLength={40}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="settings-status">
+              Status
+            </label>
+            <select
+              id="settings-status"
+              className={styles.select}
+              value={status}
+              onChange={(e) => setStatus(e.target.value as UserStatus)}
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="settings-custom-status">
+              Custom Status <span className={styles.optional}>(optional)</span>
+            </label>
+            <input
+              id="settings-custom-status"
+              className={styles.input}
+              type="text"
+              value={customStatus}
+              onChange={(e) => setCustomStatus(e.target.value)}
+              placeholder="What are you up to?"
+            />
+          </div>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.cancelBtn}
+              onClick={handleClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={styles.submitBtn}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {isAdmin && (
+        <div
+          role="tabpanel"
+          id="panel-admin"
+          aria-labelledby="tab-admin"
+          hidden={activeTab !== "admin"}
+        >
+          <AdminTab />
+        </div>
+      )}
     </Modal>
   );
 }

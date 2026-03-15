@@ -7,6 +7,8 @@ import {
   Pencil,
   Trash2,
   SmilePlus,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { useAuthStore } from "../../stores/authStore";
 import { useMessageStore } from "../../stores/messageStore";
@@ -233,8 +235,15 @@ interface MessageItemProps {
   channelId: string;
   replyAuthorName?: string;
   replyContent?: string;
+  replyIsDeleted?: boolean;
+  /** Called when user clicks the reply bar to jump to the original message. */
+  onReplyBarClick?: () => void;
+  /** Registers/unregisters the root DOM element for scroll-jump targeting. */
+  onRegisterRef?: (id: string, el: HTMLDivElement | null) => void;
   /** Called when the user opens the thread panel for this message. */
   onOpenThread?: (messageId: string) => void;
+  /** Whether the current user can pin/unpin messages (MANAGE_MESSAGES or owner). */
+  canPin?: boolean;
 }
 
 export function MessageItem({
@@ -245,7 +254,11 @@ export function MessageItem({
   channelId,
   replyAuthorName,
   replyContent,
+  replyIsDeleted,
+  onReplyBarClick,
+  onRegisterRef,
   onOpenThread,
+  canPin = false,
 }: MessageItemProps) {
   const user = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
@@ -256,6 +269,8 @@ export function MessageItem({
     (s) => s.attachmentCache[message.id] ?? [],
   );
   const updateMessagePoll = useMessageStore((s) => s.updateMessagePoll);
+  const highlightedMessageId = useMessageStore((s) => s.highlightedMessageId);
+  const isHighlighted = highlightedMessageId === message.id;
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
@@ -338,6 +353,18 @@ export function MessageItem({
     [channelId, message.id],
   );
 
+  const handlePin = useCallback(async () => {
+    try {
+      if (message.pinned) {
+        await api.unpinMessage(channelId, message.id);
+      } else {
+        await api.pinMessage(channelId, message.id);
+      }
+    } catch (err: unknown) {
+      console.warn("[MessageItem] pin toggle failed", err);
+    }
+  }, [channelId, message.id, message.pinned]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // `members` is intentionally omitted from the dep array to avoid re-rendering
   // all messages whenever anyone joins/leaves. Mention highlighting can be
@@ -354,7 +381,8 @@ export function MessageItem({
   if (message.deleted) {
     return (
       <div
-        className={`${styles.message} ${styles.deleted} ${isOwnMessage ? styles.own : ""}`}
+        ref={(el) => onRegisterRef?.(message.id, el)}
+        className={`${styles.message} ${styles.deleted} ${isOwnMessage ? styles.own : ""} ${isHighlighted ? styles.highlighted : ""}`}
       >
         <div className={styles.deletedContent}>
           <em>This message has been deleted</em>
@@ -365,16 +393,54 @@ export function MessageItem({
 
   return (
     <div
-      className={`${styles.message} ${isOwnMessage ? styles.own : ""} ${showHeader ? styles.withHeader : styles.compact}`}
+      ref={(el) => onRegisterRef?.(message.id, el)}
+      className={`${styles.message} ${isOwnMessage ? styles.own : ""} ${showHeader ? styles.withHeader : styles.compact} ${isHighlighted ? styles.highlighted : ""}`}
       onMouseLeave={() => setShowPicker(false)}
     >
-      {message.reply_to && replyContent && (
-        <div className={styles.replyBar}>
+      {message.pinned && (
+        <div className={styles.pinnedBar}>
+          <span className={styles.pinnedIcon}>
+            <Pin size={10} />
+          </span>
+          <span className={styles.pinnedLabel}>Pinned Message</span>
+        </div>
+      )}
+
+      {message.reply_to && (
+        <div
+          className={`${styles.replyBar} ${onReplyBarClick ? styles.replyBarClickable : ""}`}
+          onClick={onReplyBarClick}
+          role={onReplyBarClick ? "button" : undefined}
+          tabIndex={onReplyBarClick ? 0 : undefined}
+          onKeyDown={
+            onReplyBarClick
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onReplyBarClick();
+                  }
+                }
+              : undefined
+          }
+          aria-label={onReplyBarClick ? "Jump to original message" : undefined}
+        >
           <span className={styles.replyIcon}>
             <CornerDownRight size={12} />
           </span>
-          <span className={styles.replyAuthor}>{replyAuthorName}</span>
-          <span className={styles.replyText}>{replyContent}</span>
+          {replyAuthorName && (
+            <span className={styles.replyAuthor}>{replyAuthorName}</span>
+          )}
+          {replyIsDeleted ? (
+            <span className={styles.replyTextDeleted}>
+              (original message deleted)
+            </span>
+          ) : replyContent ? (
+            <span className={styles.replyText}>{replyContent}</span>
+          ) : (
+            <span className={styles.replyTextMuted}>
+              {replyAuthorName ? "view original" : "loading preview…"}
+            </span>
+          )}
         </div>
       )}
 
@@ -515,6 +581,16 @@ export function MessageItem({
             >
               <SmilePlus size={14} />
             </button>
+            {canPin && (
+              <button
+                className={`${styles.actionBtn} ${message.pinned ? styles.activeBtn : ""}`}
+                onClick={handlePin}
+                title={message.pinned ? "Unpin Message" : "Pin Message"}
+                aria-label={message.pinned ? "Unpin message" : "Pin message"}
+              >
+                {message.pinned ? <PinOff size={14} /> : <Pin size={14} />}
+              </button>
+            )}
             <button
               className={styles.actionBtn}
               onClick={() => setReplyingTo(message)}
@@ -597,6 +673,17 @@ export function MessageItem({
               }}
             >
               Reply in Thread
+            </button>
+          )}
+          {canPin && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                handlePin();
+                setActionsOpen(false);
+              }}
+            >
+              {message.pinned ? "Unpin Message" : "Pin Message"}
             </button>
           )}
           {isOwnMessage && (

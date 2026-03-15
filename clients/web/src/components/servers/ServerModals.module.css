@@ -215,3 +215,95 @@
   color: var(--text-primary);
   cursor: pointer;
 }
+
+/* ── Settings tabs (shared by UserSettingsModal and ServerSettingsModal) ─── */
+
+.tabRow {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.5rem;
+}
+
+.activeTab {
+  background: rgba(88, 101, 242, 0.2);
+  color: #7289da;
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 16px;
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-primary);
+}
+
+/* ── Admin token box ─────────────────────────────────────────────────── */
+
+.tokenSection {
+  margin-top: 16px;
+}
+
+.tokenBox {
+  font-family: monospace;
+  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  word-break: break-all;
+  user-select: all;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.copyBtn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.copyBtn:hover {
+  background: var(--bg-hover);
+}
+
+.tokenWarning {
+  color: var(--text-warning, #f0a500);
+  font-size: 12px;
+  margin-top: 8px;
+}

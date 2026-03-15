@@ -41,6 +41,8 @@ pub enum GatewayOp {
     HeartbeatAck,
     /// Client → server: update own presence status.
     PresenceUpdate,
+    /// Client → server: user started typing in a channel.
+    TypingStart,
     /// Client → server: relay a WebRTC SDP/ICE signal to another peer in the
     /// same voice channel. The server verifies channel co-membership before
     /// forwarding — signals to users in different channels are silently dropped.
@@ -62,3 +64,7 @@ pub const EVENT_REACTION_ADD: &str = "REACTION_ADD";
 pub const EVENT_REACTION_REMOVE: &str = "REACTION_REMOVE";
 pub const EVENT_THREAD_MESSAGE_CREATE: &str = "THREAD_MESSAGE_CREATE";
 pub const EVENT_POLL_VOTE: &str = "POLL_VOTE";
+pub const EVENT_TYPING_START: &str = "TYPING_START";
+pub const EVENT_TYPING_STOP: &str = "TYPING_STOP";
+pub const EVENT_MESSAGE_PIN: &str = "MESSAGE_PIN";
+pub const EVENT_MESSAGE_UNPIN: &str = "MESSAGE_UNPIN";

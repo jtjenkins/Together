@@ -145,7 +145,7 @@ npx tsc --noEmit
    ```
 2. Make your changes. Write or update tests where appropriate.
 3. Ensure all tests pass and there are no lint/type errors.
-4. Commit with a clear message describing *why* the change is needed, not just what changed.
+4. Commit with a clear message describing _why_ the change is needed, not just what changed.
 5. Open a pull request against `main`. Fill out the PR template with a summary and test plan.
 
 Pull requests are reviewed by the maintainer. Feedback is constructive and meant to improve the

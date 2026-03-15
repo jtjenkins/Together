@@ -27,14 +27,43 @@
   color: var(--text-muted);
 }
 
+.pinnedBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 56px 2px 56px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.pinnedIcon {
+  color: var(--accent, #7c6af7);
+  display: flex;
+  align-items: center;
+}
+
+.pinnedLabel {
+  font-size: 11px;
+  color: var(--accent, #7c6af7);
+  font-weight: 500;
+}
+
+.activeBtn {
+  color: var(--accent, #7c6af7) !important;
+}
+
 .replyBar {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 0 4px 56px;
+  padding: 2px 8px 4px 12px;
+  margin-left: 52px;
   font-size: 12px;
   color: var(--text-muted);
   overflow: hidden;
+  border-left: 2px solid var(--border-color-strong, rgba(255, 255, 255, 0.15));
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .replyIcon {
@@ -52,6 +81,31 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.replyTextDeleted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.replyTextMuted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.replyBarClickable {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.replyBarClickable:hover {
+  background: var(--bg-message-hover);
 }
 
 .body {
@@ -334,7 +388,12 @@
 
 .own .replyBar {
   flex-direction: row-reverse;
-  padding: 2px 56px 4px 0;
+  margin-left: 0;
+  margin-right: 52px;
+  padding: 2px 12px 4px 8px;
+  border-left: none;
+  border-right: 2px solid var(--border-color-strong, rgba(255, 255, 255, 0.15));
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
 
 .own .body {
@@ -531,4 +590,22 @@
   .actions {
     display: none;
   }
+}
+
+/* ── Jump-to-message highlight ─────────────────────────────────────────── */
+
+@keyframes messageHighlight {
+  0% {
+    background: rgba(124, 106, 247, 0.18);
+  }
+  60% {
+    background: rgba(124, 106, 247, 0.18);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.highlighted {
+  animation: messageHighlight 2s ease-out forwards;
 }

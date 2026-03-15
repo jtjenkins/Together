@@ -8,8 +8,10 @@ use serde_json::json;
 use uuid::Uuid;
 use validator::Validate;
 
+use super::automod::check_automod;
 use super::shared::{
-    fetch_channel_by_id, fetch_message, fetch_server, require_member, validation_error,
+    fetch_channel_by_id, fetch_message, fetch_message_including_deleted, fetch_server,
+    require_member, validation_error,
 };
 use crate::{
     auth::AuthUser,
@@ -193,6 +195,18 @@ pub async fn create_message(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
+    // Pre-insert automod check (word filter, duplicate detection, timeout check)
+    check_automod(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        auth.username(),
+        &req.content,
+        None,
+    )
+    .await?;
+
     // Validate reply_to: target must exist in the same channel and not be deleted.
     if let Some(reply_to_id) = req.reply_to {
         let exists: bool = sqlx::query_scalar(
@@ -211,6 +225,7 @@ pub async fn create_message(
         }
     }
 
+    let content = req.content.clone();
     let dto = CreateMessageDto {
         content: req.content,
         reply_to: req.reply_to,
@@ -267,11 +282,24 @@ pub async fn create_message(
     .fetch_one(&state.pool)
     .await?;
 
+    let message_id = message.id;
     let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
     let dto = enriched
         .into_iter()
         .next()
         .ok_or_else(|| AppError::Internal)?;
+
+    // Post-insert automod check (spam detection)
+    check_automod(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        auth.username(),
+        &content,
+        Some(message_id),
+    )
+    .await?;
 
     // Broadcast MESSAGE_CREATE to all connected server members.
     match serde_json::to_value(&dto) {
@@ -317,7 +345,8 @@ pub async fn list_messages(
                        WHERE t.thread_id = m.id AND t.deleted = FALSE),
                       0
                     ) AS thread_reply_count,
-                    m.edited_at, m.deleted, m.created_at
+                    m.edited_at, m.deleted, m.created_at,
+                    m.pinned, m.pinned_by, m.pinned_at
              FROM messages m
              WHERE m.channel_id = $1
                AND m.thread_id IS NULL
@@ -342,7 +371,8 @@ pub async fn list_messages(
                        WHERE t.thread_id = m.id AND t.deleted = FALSE),
                       0
                     ) AS thread_reply_count,
-                    m.edited_at, m.deleted, m.created_at
+                    m.edited_at, m.deleted, m.created_at,
+                    m.pinned, m.pinned_by, m.pinned_at
              FROM messages m
              WHERE m.channel_id = $1 AND m.thread_id IS NULL AND m.deleted = FALSE
              ORDER BY m.created_at DESC, m.id DESC
@@ -506,6 +536,29 @@ pub async fn delete_message(
     .await;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /channels/:channel_id/messages/:message_id — fetch one message (members only).
+///
+/// Returns the full MessageDto including deleted messages (deleted flag is set
+/// to true) so reply-bar previews can show "original message deleted" state.
+pub async fn get_message(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
+) -> AppResult<Json<MessageDto>> {
+    let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
+    require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    let message = fetch_message_including_deleted(&state.pool, message_id, channel_id).await?;
+
+    let enriched = enrich_messages(&state.pool, auth.user_id(), vec![message]).await?;
+    let dto = enriched
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Internal)?;
+
+    Ok(Json(dto))
 }
 
 /// POST /channels/:channel_id/messages/:message_id/thread — post a reply into a thread.

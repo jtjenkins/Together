@@ -25,9 +25,16 @@ import type {
   LinkPreviewDto,
   GifResult,
   PollDto,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
   IceServersResponse,
   SearchQuery,
   SearchResponse,
+  AutomodConfig,
+  UpdateAutomodConfigRequest,
+  AutomodWordFilter,
+  AutomodLog,
+  ServerBan,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -278,6 +285,12 @@ class ApiClient {
     return this.request(`/channels/${channelId}/messages${qs ? `?${qs}` : ""}`);
   }
 
+  getMessage(channelId: string, messageId: string): Promise<Message> {
+    return this.request<Message>(
+      `/channels/${channelId}/messages/${messageId}`,
+    );
+  }
+
   updateMessage(
     messageId: string,
     data: UpdateMessageRequest,
@@ -440,6 +453,24 @@ class ApiClient {
     );
   }
 
+  // ─── Pins ───────────────────────────────────────────────
+
+  pinMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
+      method: "POST",
+    });
+  }
+
+  unpinMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/messages/${messageId}/pin`, {
+      method: "DELETE",
+    });
+  }
+
+  listPinnedMessages(channelId: string): Promise<Message[]> {
+    return this.request(`/channels/${channelId}/pinned-messages`);
+  }
+
   getLinkPreview(url: string): Promise<LinkPreviewDto> {
     return this.request<LinkPreviewDto>(
       `/link-preview?url=${encodeURIComponent(url)}`,
@@ -479,21 +510,40 @@ class ApiClient {
     });
   }
 
+  // ─── Password Reset ──────────────────────────────────────────────────────
+
+  /** Generate a password reset token for a user by email. Admin only. */
+  forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+    return this.request<ForgotPasswordResponse>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /** Reset a user's password using a reset token. */
+  resetPassword(data: ResetPasswordRequest): Promise<void> {
+    return this.request<void>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   // ─── Search ──────────────────────────────────────────────────────────────
 
   /** Search messages in a server or specific channel. */
   searchMessages(
     serverId: string,
     query: SearchQuery,
+    signal?: AbortSignal,
   ): Promise<SearchResponse> {
     const params = new URLSearchParams();
     params.set("q", query.q);
     if (query.channel_id) params.set("channel_id", query.channel_id);
     if (query.before) params.set("before", query.before);
     if (query.limit) params.set("limit", String(query.limit));
-
     return this.request<SearchResponse>(
       `/servers/${serverId}/search?${params.toString()}`,
+      { signal },
     );
   }
 
@@ -502,6 +552,59 @@ class ApiClient {
   /** Get ICE servers for WebRTC peer connections, including TURN credentials. */
   getIceServers(): Promise<IceServersResponse> {
     return this.request<IceServersResponse>("/ice-servers");
+  }
+
+  // ─── Automod ───────────────────────────────────────────────────────────
+
+  getAutomodConfig(serverId: string): Promise<AutomodConfig> {
+    return this.request<AutomodConfig>(`/servers/${serverId}/automod`);
+  }
+
+  updateAutomodConfig(
+    serverId: string,
+    updates: UpdateAutomodConfigRequest,
+  ): Promise<AutomodConfig> {
+    return this.request<AutomodConfig>(`/servers/${serverId}/automod`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+  }
+
+  listWordFilters(serverId: string): Promise<AutomodWordFilter[]> {
+    return this.request<AutomodWordFilter[]>(
+      `/servers/${serverId}/automod/words`,
+    );
+  }
+
+  addWordFilter(serverId: string, word: string): Promise<AutomodWordFilter> {
+    return this.request<AutomodWordFilter>(
+      `/servers/${serverId}/automod/words`,
+      {
+        method: "POST",
+        body: JSON.stringify({ word }),
+      },
+    );
+  }
+
+  removeWordFilter(serverId: string, word: string): Promise<void> {
+    return this.request<void>(
+      `/servers/${serverId}/automod/words/${encodeURIComponent(word)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  listAutomodLogs(serverId: string): Promise<AutomodLog[]> {
+    return this.request<AutomodLog[]>(`/servers/${serverId}/automod/logs`);
+  }
+
+  listBans(serverId: string): Promise<ServerBan[]> {
+    return this.request<ServerBan[]>(`/servers/${serverId}/bans`);
+  }
+
+  removeBan(serverId: string, userId: string): Promise<void> {
+    return this.request<void>(`/servers/${serverId}/bans/${userId}`, {
+      method: "DELETE",
+    });
   }
 }
 

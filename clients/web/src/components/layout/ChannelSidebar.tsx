@@ -227,10 +227,7 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
       )}
 
       {showSearch && (
-        <SearchModal
-          serverId={serverId}
-          onClose={() => setShowSearch(false)}
-        />
+        <SearchModal serverId={serverId} onClose={() => setShowSearch(false)} />
       )}
     </div>
   );

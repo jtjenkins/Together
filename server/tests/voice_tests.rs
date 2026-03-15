@@ -265,6 +265,50 @@ async fn rejoin_same_channel_resets_self_mute() {
     );
 }
 
+/// Re-joining the same channel must reset self_video and self_screen to false.
+/// Without this, a user who crashes mid-call would re-appear as "video on"
+/// to other participants even though no video stream is actually flowing.
+#[tokio::test]
+async fn rejoin_same_channel_resets_video_and_screen() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    // Join and enable video + screen share.
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+    common::patch_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({ "self_video": true, "self_screen": true }),
+    )
+    .await;
+
+    // Re-join the same channel — UPSERT must reset both to false.
+    let (status, body) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(
+        !body["self_video"].as_bool().unwrap(),
+        "self_video should be reset to false on rejoin"
+    );
+    assert!(
+        !body["self_screen"].as_bool().unwrap(),
+        "self_screen should be reset to false on rejoin"
+    );
+}
+
 // ============================================================================
 // DELETE /channels/:channel_id/voice — leave
 // ============================================================================
@@ -829,4 +873,86 @@ async fn server_mute_preserved_across_channel_switch() {
         body["server_mute"].as_bool().unwrap(),
         "server_mute must be preserved when switching voice channels"
     );
+}
+
+#[tokio::test]
+async fn update_self_video_returns_200() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({ "self_video": true }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["self_video"].as_bool().unwrap());
+    assert!(!body["self_screen"].as_bool().unwrap());
+}
+
+#[tokio::test]
+async fn update_self_screen_returns_200() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({ "self_screen": true }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["self_screen"].as_bool().unwrap());
+    assert!(!body["self_video"].as_bool().unwrap());
+}
+
+#[tokio::test]
+async fn participant_list_includes_video_fields() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, body) = common::get_authed(
+        app,
+        &format!("/channels/{}/voice", f.vc1_id),
+        &f.owner_token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let participants = body.as_array().unwrap();
+    assert_eq!(participants.len(), 1);
+    assert!(!participants[0]["self_video"].as_bool().unwrap());
+    assert!(!participants[0]["self_screen"].as_bool().unwrap());
 }

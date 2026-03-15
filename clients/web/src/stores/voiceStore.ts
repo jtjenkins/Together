@@ -6,6 +6,8 @@ interface VoiceStore {
   connectedChannelId: string | null;
   isMuted: boolean;
   isDeafened: boolean;
+  isCameraOn: boolean;
+  isScreenSharing: boolean;
   isConnecting: boolean;
   error: string | null;
 
@@ -13,6 +15,8 @@ interface VoiceStore {
   leave: () => Promise<void>;
   toggleMute: () => Promise<void>;
   toggleDeafen: () => Promise<void>;
+  toggleCamera: () => Promise<void>;
+  toggleScreen: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -20,6 +24,8 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
   connectedChannelId: null,
   isMuted: false,
   isDeafened: false,
+  isCameraOn: false,
+  isScreenSharing: false,
   isConnecting: false,
   error: null,
 
@@ -31,6 +37,8 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
         connectedChannelId: channelId,
         isMuted: vs.self_mute,
         isDeafened: vs.self_deaf,
+        isCameraOn: vs.self_video,
+        isScreenSharing: vs.self_screen,
         isConnecting: false,
       });
       return vs;
@@ -45,8 +53,13 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
   leave: async () => {
     const { connectedChannelId: channelId } = useVoiceStore.getState();
     if (!channelId) return;
-    // Clear local state immediately for snappy UI
-    set({ connectedChannelId: null, isMuted: false, isDeafened: false });
+    set({
+      connectedChannelId: null,
+      isMuted: false,
+      isDeafened: false,
+      isCameraOn: false,
+      isScreenSharing: false,
+    });
     try {
       await api.leaveVoiceChannel(channelId);
     } catch (err) {
@@ -65,7 +78,7 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
         self_mute: newMuted,
       } satisfies UpdateVoiceStateRequest);
     } catch (err) {
-      set({ isMuted: currentMuted }); // revert on failure
+      set({ isMuted: currentMuted });
       throw err;
     }
   },
@@ -81,7 +94,39 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
         self_deaf: newDeafened,
       } satisfies UpdateVoiceStateRequest);
     } catch (err) {
-      set({ isDeafened: currentDeafened }); // revert on failure
+      set({ isDeafened: currentDeafened });
+      throw err;
+    }
+  },
+
+  toggleCamera: async () => {
+    const { connectedChannelId: channelId, isCameraOn: current } =
+      useVoiceStore.getState();
+    if (!channelId) return;
+    const next = !current;
+    set({ isCameraOn: next });
+    try {
+      await api.updateVoiceState(channelId, {
+        self_video: next,
+      } satisfies UpdateVoiceStateRequest);
+    } catch (err) {
+      set({ isCameraOn: current });
+      throw err;
+    }
+  },
+
+  toggleScreen: async () => {
+    const { connectedChannelId: channelId, isScreenSharing: current } =
+      useVoiceStore.getState();
+    if (!channelId) return;
+    const next = !current;
+    set({ isScreenSharing: next });
+    try {
+      await api.updateVoiceState(channelId, {
+        self_screen: next,
+      } satisfies UpdateVoiceStateRequest);
+    } catch (err) {
+      set({ isScreenSharing: current });
       throw err;
     }
   },

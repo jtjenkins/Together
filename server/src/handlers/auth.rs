@@ -9,7 +9,7 @@ use validator::Validate;
 use crate::{
     auth::{
         create_access_token, create_refresh_token, hash_password, hash_refresh_token,
-        validate_token, verify_password, TokenType,
+        validate_token, verify_password, AuthUser, TokenType,
     },
     error::{AppError, AppResult},
     models::{User, UserDto},
@@ -230,4 +230,145 @@ pub async fn refresh_token(
         refresh_token: req.refresh_token,
         user: user.into(),
     }))
+}
+
+// ============================================================================
+// Password Reset
+// ============================================================================
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ForgotPasswordRequest {
+    #[validate(email)]
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ResetPasswordRequest {
+    pub token: String,
+    #[validate(length(min = 8, max = 128))]
+    pub new_password: String,
+}
+
+/// POST /auth/forgot-password — Generate a password reset token for a user.
+///
+/// Admin-only endpoint. Returns the reset token in the response body for
+/// manual delivery (e.g., admin sharing with user out-of-band).
+pub async fn forgot_password(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(req): Json<ForgotPasswordRequest>,
+) -> AppResult<Json<serde_json::Value>> {
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    // Admin-only endpoint — verify via DB lookup
+    let is_admin: bool = sqlx::query_scalar("SELECT is_admin FROM users WHERE id = $1")
+        .bind(auth_user.user_id())
+        .fetch_one(&state.pool)
+        .await?;
+
+    if !is_admin {
+        return Err(AppError::Forbidden("Admin access required".into()));
+    }
+
+    // Find user by email — return 404 since this is admin-only (no enumeration risk)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+        .bind(&req.email)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("No user found with email: {}", req.email)))?;
+
+    // Generate a secure reset token (32 bytes, base64url encoded)
+    let reset_token = {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+        let bytes: [u8; 32] = rand::random();
+        URL_SAFE_NO_PAD.encode(bytes)
+    };
+
+    // Hash the token for storage (same pattern as refresh tokens)
+    let token_hash = hash_refresh_token(&reset_token);
+
+    // Delete any existing reset tokens for this user
+    sqlx::query("DELETE FROM password_reset_tokens WHERE user_id = $1")
+        .bind(user.id)
+        .execute(&state.pool)
+        .await?;
+
+    // Insert new token (expires in 1 hour)
+    sqlx::query(
+        "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) \
+         VALUES ($1, $2, NOW() + INTERVAL '1 hour')",
+    )
+    .bind(user.id)
+    .bind(&token_hash)
+    .execute(&state.pool)
+    .await?;
+
+    info!(
+        "Password reset token created for user: {} ({})",
+        user.username, user.id
+    );
+
+    Ok(Json(serde_json::json!({
+        "message": "Password reset token generated",
+        "token": reset_token,
+        "expires_in_seconds": 3600,
+        "note": "Share this token with the user to reset their password"
+    })))
+}
+
+/// POST /auth/reset-password — Reset password using token.
+///
+/// Validates the reset token and updates the user's password.
+/// Token is single-use and expires after 1 hour.
+pub async fn reset_password(
+    State(state): State<AppState>,
+    Json(req): Json<ResetPasswordRequest>,
+) -> AppResult<Json<serde_json::Value>> {
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    let token_hash = hash_refresh_token(&req.token);
+
+    // Find valid, unused token
+    let token_row = sqlx::query_as::<_, (Uuid, Uuid)>(
+        "SELECT id, user_id FROM password_reset_tokens WHERE token_hash = $1 AND expires_at > NOW() AND used_at IS NULL"
+    )
+    .bind(&token_hash)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| AppError::Auth("Invalid or expired reset token".into()))?;
+
+    let (token_id, user_id) = token_row;
+
+    // Hash new password
+    let password_hash = hash_password(&req.new_password)?;
+
+    // Update password and mark token as used (in transaction)
+    let mut tx = state.pool.begin().await?;
+
+    sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
+        .bind(&password_hash)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    sqlx::query("UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1")
+        .bind(token_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Also invalidate all existing sessions for security
+    sqlx::query("DELETE FROM sessions WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+
+    info!("Password reset completed for user: {}", user_id);
+
+    Ok(Json(serde_json::json!({
+        "message": "Password has been reset successfully"
+    })))
 }

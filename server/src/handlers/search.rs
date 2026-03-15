@@ -55,9 +55,8 @@ pub async fn search_messages(
 
     let limit = params.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
 
-    tracing::info!(
+    tracing::debug!(
         server_id = %server_id,
-        query = %params.q,
         channel_id = ?params.channel_id,
         limit = limit,
         "Message search"
@@ -130,7 +129,7 @@ pub async fn search_messages(
         .await?
     };
 
-    // Get total count (approximate for large result sets)
+    // Get total count — exact COUNT(*), but runs a second full-text query
     let total: i64 = if let Some(channel_id) = params.channel_id {
         sqlx::query_scalar(
             r#"

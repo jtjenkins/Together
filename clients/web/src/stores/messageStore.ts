@@ -8,6 +8,9 @@ import type {
 } from "../types";
 import { api, ApiRequestError } from "../api/client";
 
+/** Tracks message IDs with an in-flight fetch to prevent duplicate requests. */
+const pendingReplyFetches = new Set<string>();
+
 interface MessageState {
   messages: Message[];
   isLoading: boolean;
@@ -16,6 +19,11 @@ interface MessageState {
   replyingTo: Message | null;
   /** Attachments keyed by message ID — populated after upload. */
   attachmentCache: Record<string, Attachment[]>;
+  /** Messages fetched individually for reply-bar preview (keyed by message ID).
+   *  Only populated for messages not in the main `messages` list. */
+  replyTargetCache: Record<string, Message>;
+  /** ID of the message currently highlighted by jump-to-reply. Null = none. */
+  highlightedMessageId: string | null;
 
   // ── Thread state ──────────────────────────────────────────
   /** Thread replies keyed by root message ID. */
@@ -40,6 +48,8 @@ interface MessageState {
   removeMessage: (event: MessageDeleteEvent) => void;
   setReplyingTo: (message: Message | null) => void;
   cacheAttachments: (messageId: string, attachments: Attachment[]) => void;
+  ensureReplyTarget: (channelId: string, messageId: string) => Promise<void>;
+  setHighlightedMessageId: (id: string | null) => void;
   updateMessagePoll: (pollId: string, poll: PollDto) => void;
   clearMessages: () => void;
   clearError: () => void;
@@ -55,6 +65,8 @@ interface MessageState {
   ) => Promise<void>;
   /** Called when a THREAD_MESSAGE_CREATE WebSocket event arrives. */
   addThreadMessage: (msg: Message) => void;
+  /** Update the pinned status of a message in the store. Called on MESSAGE_PIN/UNPIN events. */
+  updatePinnedStatus: (messageId: string, pinned: boolean) => void;
 }
 
 export const useMessageStore = create<MessageState>((set) => ({
@@ -64,6 +76,8 @@ export const useMessageStore = create<MessageState>((set) => ({
   error: null,
   replyingTo: null,
   attachmentCache: {},
+  replyTargetCache: {},
+  highlightedMessageId: null,
   threadCache: {},
   activeThreadId: null,
   isThreadLoading: false,
@@ -210,12 +224,39 @@ export const useMessageStore = create<MessageState>((set) => ({
       attachmentCache: { ...state.attachmentCache, [messageId]: attachments },
     })),
 
+  ensureReplyTarget: async (channelId, messageId) => {
+    // Skip fetch if message is already in main list, reply cache, or in-flight
+    const { messages, replyTargetCache } = useMessageStore.getState();
+    if (
+      messages.some((m) => m.id === messageId) ||
+      replyTargetCache[messageId] ||
+      pendingReplyFetches.has(messageId)
+    ) {
+      return;
+    }
+    pendingReplyFetches.add(messageId);
+    try {
+      const msg = await api.getMessage(channelId, messageId);
+      set((s) => ({
+        replyTargetCache: { ...s.replyTargetCache, [messageId]: msg },
+      }));
+    } catch {
+      // Non-fatal: reply bar will show without content preview
+    } finally {
+      pendingReplyFetches.delete(messageId);
+    }
+  },
+
+  setHighlightedMessageId: (id) => set({ highlightedMessageId: id }),
+
   clearMessages: () =>
     set({
       messages: [],
       hasMore: true,
       replyingTo: null,
       attachmentCache: {},
+      replyTargetCache: {},
+      highlightedMessageId: null,
       threadCache: {},
       activeThreadId: null,
     }),
@@ -314,5 +355,20 @@ export const useMessageStore = create<MessageState>((set) => ({
 
       return { threadCache: updatedCache, messages: updatedMessages };
     });
+  },
+
+  updatePinnedStatus: (messageId, pinned) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId
+          ? {
+              ...m,
+              pinned,
+              pinned_by: pinned ? m.pinned_by : null,
+              pinned_at: pinned ? m.pinned_at : null,
+            }
+          : m,
+      ),
+    }));
   },
 }));

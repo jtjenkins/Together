@@ -5,11 +5,11 @@ no complex infrastructure — just Docker and a `.env` file.
 
 `docker compose up -d` starts three containers:
 
-| Container | Role |
-|---|---|
-| **postgres** | Database |
-| **server** | Rust API backend |
-| **web** | Nginx serving the React frontend + reverse-proxying the API |
+| Container    | Role                                                        |
+| ------------ | ----------------------------------------------------------- |
+| **postgres** | Database                                                    |
+| **server**   | Rust API backend                                            |
+| **web**      | Nginx serving the React frontend + reverse-proxying the API |
 
 The web container is the only one that needs to be publicly reachable. The backend and database
 containers are internal to the Docker network.
@@ -55,16 +55,16 @@ cp .env.example .env
 
 Open `.env` and fill in every variable:
 
-| Variable            | Required | Description                                                                              | Example               |
-|---------------------|----------|------------------------------------------------------------------------------------------|-----------------------|
-| `POSTGRES_USER`     | Yes      | PostgreSQL username                                                                      | `together`            |
-| `POSTGRES_PASSWORD` | Yes      | PostgreSQL password — **change this**                                                    | `s3cur3-p@ssword`     |
-| `POSTGRES_DB`       | Yes      | Database name                                                                            | `together_prod`       |
-| `JWT_SECRET`        | Yes      | Secret used to sign JWTs — must be 32+ characters. Generate: `openssl rand -hex 32`     | _(random hex string)_ |
-| `BIND_PORT`         | No       | Host port the **web** container listens on (default `80`)                               | `80`                  |
-| `GIPHY_API_KEY`     | No       | Enables the GIF picker. Get a free key at [giphy.com/developers](https://developers.giphy.com) | _(api key)_ |
-| `ALLOWED_ORIGINS`   | No       | Only needed if you expose the backend directly. Leave empty when using the web container | —                     |
-| `RUST_LOG`          | No       | Log level (default: `together_server=info,tower_http=info,sqlx=warn`)                   | —                     |
+| Variable            | Required | Description                                                                                    | Example               |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------- | --------------------- |
+| `POSTGRES_USER`     | Yes      | PostgreSQL username                                                                            | `together`            |
+| `POSTGRES_PASSWORD` | Yes      | PostgreSQL password — **change this**                                                          | `s3cur3-p@ssword`     |
+| `POSTGRES_DB`       | Yes      | Database name                                                                                  | `together_prod`       |
+| `JWT_SECRET`        | Yes      | Secret used to sign JWTs — must be 32+ characters. Generate: `openssl rand -hex 32`            | _(random hex string)_ |
+| `BIND_PORT`         | No       | Host port the **web** container listens on (default `80`)                                      | `80`                  |
+| `GIPHY_API_KEY`     | No       | Enables the GIF picker. Get a free key at [giphy.com/developers](https://developers.giphy.com) | _(api key)_           |
+| `ALLOWED_ORIGINS`   | No       | Only needed if you expose the backend directly. Leave empty when using the web container       | —                     |
+| `RUST_LOG`          | No       | Log level (default: `together_server=info,tower_http=info,sqlx=warn`)                          | —                     |
 
 > **Security note**: `JWT_SECRET` must be kept secret and must never be committed to version
 > control. If it leaks, rotate it immediately — all active sessions will be invalidated.
@@ -234,15 +234,15 @@ server {
 
 ## Environment variable reference
 
-| Variable            | Required | Default                        | Description                                       |
-|---------------------|----------|--------------------------------|---------------------------------------------------|
-| `POSTGRES_USER`     | Yes      | —                              | PostgreSQL username                               |
-| `POSTGRES_PASSWORD` | Yes      | —                              | PostgreSQL password                               |
-| `POSTGRES_DB`       | Yes      | —                              | PostgreSQL database name                          |
-| `DATABASE_URL`      | Auto     | _(set by compose)_             | Full connection URL; Compose sets this            |
-| `JWT_SECRET`        | Yes      | —                              | JWT signing secret (32+ chars)                    |
-| `APP_ENV`           | No       | `development`                  | Set to `production` for JSON logs + strict CORS   |
-| `ALLOWED_ORIGINS`   | No       | _(empty)_                      | CORS origins — only needed if bypassing Nginx     |
-| `BIND_PORT`         | No       | `80`                           | Host port for the Nginx web container             |
-| `GIPHY_API_KEY`     | No       | _(GIF picker disabled)_        | Giphy API key for the GIF search feature          |
-| `RUST_LOG`          | No       | `together_server=info,...`     | Log level filter                                  |
+| Variable            | Required | Default                    | Description                                     |
+| ------------------- | -------- | -------------------------- | ----------------------------------------------- |
+| `POSTGRES_USER`     | Yes      | —                          | PostgreSQL username                             |
+| `POSTGRES_PASSWORD` | Yes      | —                          | PostgreSQL password                             |
+| `POSTGRES_DB`       | Yes      | —                          | PostgreSQL database name                        |
+| `DATABASE_URL`      | Auto     | _(set by compose)_         | Full connection URL; Compose sets this          |
+| `JWT_SECRET`        | Yes      | —                          | JWT signing secret (32+ chars)                  |
+| `APP_ENV`           | No       | `development`              | Set to `production` for JSON logs + strict CORS |
+| `ALLOWED_ORIGINS`   | No       | _(empty)_                  | CORS origins — only needed if bypassing Nginx   |
+| `BIND_PORT`         | No       | `80`                       | Host port for the Nginx web container           |
+| `GIPHY_API_KEY`     | No       | _(GIF picker disabled)_    | Giphy API key for the GIF search feature        |
+| `RUST_LOG`          | No       | `together_server=info,...` | Log level filter                                |

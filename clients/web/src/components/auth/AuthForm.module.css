@@ -151,3 +151,14 @@
 .toggleBtn:hover {
   text-decoration: underline;
 }
+
+.success {
+  background: rgba(59, 165, 93, 0.1);
+  border: 1px solid rgba(59, 165, 93, 0.3);
+  color: var(--status-online, #3ba55d);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: 16px;
+  text-align: center;
+}

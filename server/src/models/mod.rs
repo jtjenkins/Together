@@ -17,10 +17,13 @@ pub struct User {
     pub email: Option<String>,
     pub password_hash: String,
     pub avatar_url: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,9 +40,12 @@ pub struct UserDto {
     pub username: String,
     pub email: Option<String>,
     pub avatar_url: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub is_admin: bool,
 }
 
 impl From<User> for UserDto {
@@ -49,9 +55,12 @@ impl From<User> for UserDto {
             username: user.username,
             email: user.email,
             avatar_url: user.avatar_url,
+            bio: user.bio,
+            pronouns: user.pronouns,
             status: user.status,
             custom_status: user.custom_status,
             created_at: user.created_at,
+            is_admin: user.is_admin,
         }
     }
 }
@@ -59,6 +68,8 @@ impl From<User> for UserDto {
 #[derive(Debug, Deserialize)]
 pub struct UpdateUserDto {
     pub avatar_url: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub status: Option<String>,
     pub custom_status: Option<String>,
 }
@@ -203,6 +214,16 @@ pub struct Message {
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted: bool,
     pub created_at: DateTime<Utc>,
+    /// Whether this message has been pinned in its channel.
+    /// Defaults to false; not included in some validation-only queries.
+    #[sqlx(default)]
+    pub pinned: bool,
+    /// The user who pinned this message, if pinned.
+    #[sqlx(default)]
+    pub pinned_by: Option<Uuid>,
+    /// When this message was pinned, if pinned.
+    #[sqlx(default)]
+    pub pinned_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -236,6 +257,8 @@ pub struct VoiceState {
     pub channel_id: Uuid,
     pub self_mute: bool,
     pub self_deaf: bool,
+    pub self_video: bool,
+    pub self_screen: bool,
     pub server_mute: bool,
     pub server_deaf: bool,
     pub joined_at: DateTime<Utc>,
@@ -253,6 +276,8 @@ pub struct VoiceStateDto {
     pub channel_id: Option<Uuid>,
     pub self_mute: bool,
     pub self_deaf: bool,
+    pub self_video: bool,
+    pub self_screen: bool,
     pub server_mute: bool,
     pub server_deaf: bool,
     pub joined_at: Option<DateTime<Utc>>,
@@ -265,6 +290,8 @@ impl From<VoiceState> for VoiceStateDto {
             channel_id: Some(vs.channel_id),
             self_mute: vs.self_mute,
             self_deaf: vs.self_deaf,
+            self_video: vs.self_video,
+            self_screen: vs.self_screen,
             server_mute: vs.server_mute,
             server_deaf: vs.server_deaf,
             joined_at: Some(vs.joined_at),
@@ -285,6 +312,8 @@ impl VoiceStateDto {
             channel_id: None,
             self_mute: false,
             self_deaf: false,
+            self_video: false,
+            self_screen: false,
             server_mute: false,
             server_deaf: false,
             joined_at: None,
@@ -302,6 +331,8 @@ impl VoiceStateDto {
 pub struct UpdateVoiceStateRequest {
     pub self_mute: Option<bool>,
     pub self_deaf: Option<bool>,
+    pub self_video: Option<bool>,
+    pub self_screen: Option<bool>,
 }
 
 // ============================================================================
@@ -447,6 +478,9 @@ pub struct MessageDto {
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted: bool,
     pub created_at: DateTime<Utc>,
+    pub pinned: bool,
+    pub pinned_by: Option<Uuid>,
+    pub pinned_at: Option<DateTime<Utc>>,
     /// Some when the message was created by /poll
     pub poll: Option<PollDto>,
     /// Some when the message was created by /event
@@ -468,6 +502,9 @@ impl MessageDto {
             edited_at: msg.edited_at,
             deleted: msg.deleted,
             created_at: msg.created_at,
+            pinned: msg.pinned,
+            pinned_by: msg.pinned_by,
+            pinned_at: msg.pinned_at,
             poll: None,
             event: None,
         }
@@ -538,6 +575,76 @@ pub struct GifResult {
     pub height: u32,
 }
 
+// ── Audit Logging ───────────────────────────────────────────────────────────
+
+/// Audit log entry for admin actions.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct AuditLog {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub actor_id: Option<Uuid>,
+    pub action: String,
+    pub target_type: Option<String>,
+    pub target_id: Option<Uuid>,
+    pub details: serde_json::Value,
+    pub ip_address: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// DTO for creating an audit log entry.
+#[derive(Debug, Clone)]
+pub struct CreateAuditLog {
+    pub server_id: Uuid,
+    pub actor_id: Uuid,
+    pub action: AuditAction,
+    pub target_type: Option<String>,
+    pub target_id: Option<Uuid>,
+    pub details: serde_json::Value,
+    pub ip_address: Option<String>,
+}
+
+/// Audit action types.
+#[derive(Debug, Clone, Copy, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum AuditAction {
+    // Server actions
+    ServerCreate,
+    ServerUpdate,
+    ServerDelete,
+
+    // Channel actions
+    ChannelCreate,
+    ChannelUpdate,
+    ChannelDelete,
+
+    // Member actions
+    MemberKick,
+    MemberBan,
+    MemberUnban,
+    MemberRoleAdd,
+    MemberRoleRemove,
+
+    // Role actions
+    RoleCreate,
+    RoleUpdate,
+    RoleDelete,
+}
+
+/// Query parameters for listing audit logs.
+#[derive(Debug, Deserialize)]
+pub struct ListAuditLogsQuery {
+    /// Filter by action type.
+    pub action: Option<String>,
+    /// Filter by actor user ID.
+    pub actor_id: Option<Uuid>,
+    /// Filter by target type.
+    pub target_type: Option<String>,
+    /// Cursor for pagination (created_at).
+    pub before: Option<DateTime<Utc>>,
+    /// Maximum results (default 50, max 100).
+    pub limit: Option<i64>,
+}
+
 // ── Search ───────────────────────────────────────────────────────────────────
 
 /// Query parameters for message search.
@@ -579,4 +686,140 @@ pub struct SearchResponse {
     pub has_more: bool,
     /// Cursor for next page (message ID).
     pub next_cursor: Option<Uuid>,
+}
+
+// ── Bot Models ──────────────────────────────────────────────────────────────
+
+/// Internal database row for a registered bot.
+/// Never serialized to clients — use BotDto.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct Bot {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub token_hash: String,
+    pub created_by: Option<Uuid>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Public bot shape returned by REST API responses.
+/// token_hash is intentionally excluded.
+#[derive(Debug, Serialize)]
+pub struct BotDto {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<Bot> for BotDto {
+    fn from(b: Bot) -> Self {
+        BotDto {
+            id: b.id,
+            user_id: b.user_id,
+            name: b.name,
+            description: b.description,
+            created_by: b.created_by,
+            revoked_at: b.revoked_at,
+            created_at: b.created_at,
+        }
+    }
+}
+
+/// Request body for POST /bots.
+#[derive(Debug, Deserialize)]
+pub struct CreateBotDto {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+/// Response for POST /bots and POST /bots/:id/token/regenerate.
+/// Token is shown exactly once and never stored in plaintext.
+#[derive(Debug, Serialize)]
+pub struct BotCreatedResponse {
+    pub bot: BotDto,
+    /// Plaintext token — shown once at creation/regeneration only.
+    pub token: String,
+}
+
+// ── Automod Models ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct AutomodConfig {
+    pub server_id: Uuid,
+    pub enabled: bool,
+    pub spam_enabled: bool,
+    pub spam_max_messages: i32,
+    pub spam_window_secs: i32,
+    pub spam_action: String,
+    pub duplicate_enabled: bool,
+    pub word_filter_enabled: bool,
+    pub word_filter_action: String,
+    pub timeout_minutes: i32,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAutomodConfigRequest {
+    pub enabled: Option<bool>,
+    pub spam_enabled: Option<bool>,
+    pub spam_max_messages: Option<i32>,
+    pub spam_window_secs: Option<i32>,
+    pub spam_action: Option<String>,
+    pub duplicate_enabled: Option<bool>,
+    pub word_filter_enabled: Option<bool>,
+    pub word_filter_action: Option<String>,
+    pub timeout_minutes: Option<i32>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct AutomodWordFilter {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub word: String,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddWordFilterRequest {
+    pub word: String,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct AutomodLog {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub channel_id: Option<Uuid>,
+    pub user_id: Option<Uuid>,
+    pub username: Option<String>,
+    pub rule_type: String,
+    pub action_taken: String,
+    pub matched_term: Option<String>,
+    pub message_content: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct ServerBan {
+    pub user_id: Uuid,
+    pub server_id: Uuid,
+    pub banned_by: Option<Uuid>,
+    pub reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct AutomodTimeout {
+    pub user_id: Uuid,
+    pub server_id: Uuid,
+    pub expires_at: DateTime<Utc>,
+    pub reason: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
 }
