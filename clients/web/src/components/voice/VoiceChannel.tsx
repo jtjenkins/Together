@@ -237,8 +237,9 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   };
 
   // Push-to-talk key listener — browser-scoped (only fires when tab is focused).
+  // Disabled while capturing a new key binding to prevent accidental transmission.
   usePushToTalk({
-    enabled: isConnected && voiceMode === "ptt",
+    enabled: isConnected && voiceMode === "ptt" && !capturingKey,
     pttKey,
     onPress: () => setIsPttActive(true),
     onRelease: () => setIsPttActive(false),
