@@ -3,6 +3,7 @@ import { SmilePlus } from "lucide-react";
 import { api } from "../../api/client";
 import type { ReactionCount } from "../../types";
 import { EmojiPicker } from "./EmojiPicker";
+import { useCustomEmojiStore } from "../../stores/customEmojiStore";
 import styles from "./ReactionBar.module.css";
 
 interface ReactionBarProps {
@@ -11,6 +12,38 @@ interface ReactionBarProps {
   reactions: ReactionCount[];
   onReactionsChange: (reactions: ReactionCount[]) => void;
   serverId?: string;
+}
+
+function EmojiDisplay({
+  emoji,
+  serverId,
+}: {
+  emoji: string;
+  serverId?: string;
+}) {
+  const customEmojis = useCustomEmojiStore((s) =>
+    serverId ? s.getEmojis(serverId) : [],
+  );
+  if (emoji.startsWith("c:")) {
+    const id = emoji.slice(2);
+    const ce = customEmojis.find((e) => e.id === id);
+    if (ce) {
+      return (
+        <img
+          src={ce.url}
+          alt={`:${ce.name}:`}
+          title={`:${ce.name}:`}
+          className={styles.customEmojiReaction}
+        />
+      );
+    }
+    return (
+      <span className={styles.emoji} title={emoji}>
+        ?
+      </span>
+    );
+  }
+  return <span className={styles.emoji}>{emoji}</span>;
 }
 
 export function ReactionBar({
@@ -77,7 +110,7 @@ export function ReactionBar({
           onClick={() => toggleReaction(r.emoji)}
           title={`${r.count} reaction${r.count !== 1 ? "s" : ""}`}
         >
-          <span className={styles.emoji}>{r.emoji}</span>
+          <EmojiDisplay emoji={r.emoji} serverId={serverId} />
           <span className={styles.count}>{r.count}</span>
         </button>
       ))}
