@@ -301,26 +301,17 @@ pub async fn delete_custom_emoji(
     .ok_or_else(|| AppError::NotFound("Emoji not found".into()))?;
 
     // Best-effort file cleanup — log a warning on failure but do not fail the response.
-    let file_path = state
-        .upload_dir
-        .join("custom_emojis")
-        .join(row.id.to_string())
-        .join(&row.filename);
-
-    let dir_path: PathBuf = state
+    let dir = state
         .upload_dir
         .join("custom_emojis")
         .join(row.id.to_string());
-
-    tokio::spawn(async move {
-        if let Err(e) = tokio::fs::remove_file(&file_path).await {
-            tracing::warn!(error = ?e, path = ?file_path, "Failed to remove emoji image file during deletion");
-        }
-        // Also attempt to remove the now-empty directory.
-        if let Err(e) = tokio::fs::remove_dir(&dir_path).await {
-            tracing::warn!(error = ?e, path = ?dir_path, "Failed to remove emoji directory during deletion");
-        }
-    });
+    let file_path = dir.join(&row.filename);
+    if let Err(e) = tokio::fs::remove_file(&file_path).await {
+        tracing::warn!(error = ?e, path = ?file_path, "Failed to delete custom emoji file");
+    }
+    if let Err(e) = tokio::fs::remove_dir(&dir).await {
+        tracing::warn!(error = ?e, path = ?dir, "Failed to remove custom emoji dir");
+    }
 
     broadcast_to_server(
         &state,
