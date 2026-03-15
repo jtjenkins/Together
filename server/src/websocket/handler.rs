@@ -482,14 +482,10 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
 /// database error occurs. Either case is treated as fatal for this
 /// connection's READY handshake.
 async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
-    let user: UserDto = match sqlx::query_as::<_, User>(
-        "SELECT id, username, email, password_hash, avatar_url, status, custom_status,
-                created_at, updated_at
-         FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.pool)
-    .await
+    let user: UserDto = match sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
     {
         Err(e) => {
             tracing::error!(
