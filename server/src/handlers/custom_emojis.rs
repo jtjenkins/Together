@@ -33,8 +33,7 @@ const MAX_EMOJIS_PER_SERVER: i64 = 50;
 const MAX_EMOJI_IMAGE_SIZE: usize = 262_144;
 
 /// Allowed MIME types for emoji images.
-const ALLOWED_EMOJI_MIME_TYPES: &[&str] =
-    &["image/jpeg", "image/png", "image/gif", "image/webp"];
+const ALLOWED_EMOJI_MIME_TYPES: &[&str] = &["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 // ============================================================================
 // Handlers
@@ -83,11 +82,10 @@ pub async fn upload_custom_emoji(
     require_manage_emojis(&state.pool, server.id, auth.user_id()).await?;
 
     // Check the server hasn't already hit the emoji cap.
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM custom_emojis WHERE server_id = $1")
-            .bind(server_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM custom_emojis WHERE server_id = $1")
+        .bind(server_id)
+        .fetch_one(&state.pool)
+        .await?;
 
     if count >= MAX_EMOJIS_PER_SERVER {
         return Err(AppError::Validation(format!(
@@ -133,7 +131,9 @@ pub async fn upload_custom_emoji(
         ));
     }
 
-    if !name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
     {
         return Err(AppError::Validation(
             "Emoji name may only contain lowercase letters, digits, underscores, and hyphens"
@@ -143,8 +143,7 @@ pub async fn upload_custom_emoji(
 
     // ── Validate image ────────────────────────────────────────────────────────
 
-    let data =
-        image_bytes.ok_or_else(|| AppError::Validation("Missing 'image' field".into()))?;
+    let data = image_bytes.ok_or_else(|| AppError::Validation("Missing 'image' field".into()))?;
 
     if data.is_empty() {
         return Err(AppError::Validation("Image must not be empty".into()));
@@ -157,9 +156,7 @@ pub async fn upload_custom_emoji(
     }
 
     let mime_type = match infer::get(&data) {
-        Some(t) if ALLOWED_EMOJI_MIME_TYPES.contains(&t.mime_type()) => {
-            t.mime_type().to_string()
-        }
+        Some(t) if ALLOWED_EMOJI_MIME_TYPES.contains(&t.mime_type()) => t.mime_type().to_string(),
         Some(t) => {
             return Err(AppError::Validation(format!(
                 "Image type '{}' is not allowed. Use JPEG, PNG, GIF, or WebP.",

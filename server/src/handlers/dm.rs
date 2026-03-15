@@ -126,8 +126,6 @@ async fn build_channel_dto(
             avatar_url: row.recipient_avatar_url,
             bio: row.recipient_bio,
             pronouns: row.recipient_pronouns,
-            bio: None,
-            pronouns: None,
 
             status: row.recipient_status,
             custom_status: row.recipient_custom_status,
@@ -333,8 +331,6 @@ pub async fn list_dm_channels(
                 avatar_url: r.recipient_avatar_url,
                 bio: r.recipient_bio,
                 pronouns: r.recipient_pronouns,
-                bio: None,
-                pronouns: None,
 
                 status: r.recipient_status,
                 custom_status: r.recipient_custom_status,

@@ -36,7 +36,6 @@ export function ServerSettingsModal({
     if (open) loadEmojis(server.id);
   }, [open, server.id, loadEmojis]);
 
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -143,16 +142,18 @@ export function ServerSettingsModal({
         </>
       )}
       {tab === "automod" && isOwner && <AutomodSettings serverId={server.id} />}
-      </form>
-      <hr
-        style={{
-          border: "none",
-          borderTop: "1px solid var(--bg-secondary, #2f3136)",
-          margin: "16px 0",
-        }}
-      />
-      <CustomEmojiManager server={server} />
-
+      {tab === "general" && (
+        <>
+          <hr
+            style={{
+              border: "none",
+              borderTop: "1px solid var(--bg-secondary, #2f3136)",
+              margin: "16px 0",
+            }}
+          />
+          <CustomEmojiManager server={server} />
+        </>
+      )}
     </Modal>
   );
 }

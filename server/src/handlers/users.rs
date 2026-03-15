@@ -80,8 +80,6 @@ pub async fn update_current_user(
         avatar_url: req.avatar_url,
         bio: req.bio,
         pronouns: req.pronouns,
-        bio: None,
-        pronouns: None,
 
         status: req.status,
         custom_status: req.custom_status,

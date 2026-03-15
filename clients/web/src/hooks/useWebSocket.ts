@@ -20,7 +20,6 @@ import type {
   PollVoteEvent,
   TypingStartEvent,
   CustomEmoji,
-
 } from "../types";
 
 export function useWebSocket() {
@@ -135,7 +134,6 @@ export function useWebSocket() {
             .removeEmoji(data.server_id, data.emoji_id);
         },
       ),
-
 
       gateway.on("connected", () => {
         if (activeServerId) {
