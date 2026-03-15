@@ -236,6 +236,7 @@ async fn main() {
         // User routes (protected)
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
+        .route("/users/:id", get(handlers::users::get_user_profile))
         // Server routes (protected)
         .route("/servers", post(handlers::servers::create_server))
         .route("/servers", get(handlers::servers::list_servers))
@@ -422,6 +423,20 @@ async fn main() {
             post(handlers::events::create_event),
         )
         .route("/servers/:id/events", get(handlers::events::list_events))
+        // Custom emoji routes (protected, nested under server)
+        .route(
+            "/servers/:id/emojis",
+            get(handlers::custom_emojis::list_custom_emojis)
+                .post(handlers::custom_emojis::upload_custom_emoji),
+        )
+        .route(
+            "/servers/:id/emojis/:emoji_id",
+            delete(handlers::custom_emojis::delete_custom_emoji),
+        )
+        .route(
+            "/emojis/:emoji_id",
+            get(handlers::custom_emojis::serve_custom_emoji_image),
+        )
         // Voice routes (protected, nested under channel)
         .route(
             "/channels/:channel_id/voice",
