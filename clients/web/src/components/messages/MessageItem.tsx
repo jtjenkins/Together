@@ -25,7 +25,14 @@ import { EmojiPicker } from "./EmojiPicker";
 import { LinkPreview } from "./LinkPreview";
 import { PollCard } from "./PollCard";
 import { EventCard } from "./EventCard";
-import type { MemberDto, Message, PollDto, ReactionCount } from "../../types";
+import type {
+  CustomEmoji,
+  MemberDto,
+  Message,
+  PollDto,
+  ReactionCount,
+} from "../../types";
+import { useCustomEmojiStore } from "../../stores/customEmojiStore";
 import styles from "./MessageItem.module.css";
 
 interface RenderedContent {
@@ -56,11 +63,43 @@ function SpoilerText({ children }: { children: React.ReactNode }) {
   );
 }
 
+function splitCustomEmoji(
+  text: string,
+  customEmojis: CustomEmoji[],
+  keyPrefix: string,
+): React.ReactNode[] {
+  if (customEmojis.length === 0) return [text];
+  const nameMap = new Map(customEmojis.map((e) => [e.name, e]));
+  const pattern = /:([a-z0-9_-]+):/g;
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let idx = 0;
+  while ((match = pattern.exec(text)) !== null) {
+    const ce = nameMap.get(match[1]);
+    if (!ce) continue;
+    if (match.index > last) nodes.push(text.slice(last, match.index));
+    nodes.push(
+      <img
+        key={`${keyPrefix}-ce${idx++}`}
+        src={ce.url}
+        alt={`:${ce.name}:`}
+        title={`:${ce.name}:`}
+        className={styles.customEmojiInline}
+      />,
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
 function renderTextLeaf(
   text: string,
   members: MemberDto[],
   currentUserId: string | null,
   keyPrefix: string,
+  customEmojis: CustomEmoji[] = [],
 ): React.ReactNode[] {
   const processed = parseEmoji(text);
   const urlPattern = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
@@ -95,7 +134,9 @@ function renderTextLeaf(
             return;
           }
         }
-        result.push(chunk);
+        result.push(
+          ...splitCustomEmoji(chunk, customEmojis, `${keyPrefix}-t${i}-${j}`),
+        );
       });
     }
     const url = urlMatches[i];
@@ -136,6 +177,7 @@ function renderSegments(
   members: MemberDto[],
   currentUserId: string | null,
   keyPrefix: string,
+  customEmojis: CustomEmoji[] = [],
 ): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
 
@@ -143,13 +185,21 @@ function renderSegments(
     const key = `${keyPrefix}-${i}`;
 
     if (seg.type === "text") {
-      nodes.push(...renderTextLeaf(seg.content, members, currentUserId, key));
+      nodes.push(
+        ...renderTextLeaf(
+          seg.content,
+          members,
+          currentUserId,
+          key,
+          customEmojis,
+        ),
+      );
       return;
     }
 
     const inner =
       "content" in seg && Array.isArray(seg.content)
-        ? renderSegments(seg.content, members, currentUserId, key)
+        ? renderSegments(seg.content, members, currentUserId, key, customEmojis)
         : null;
 
     switch (seg.type) {
@@ -204,6 +254,7 @@ function renderContent(
   content: string,
   members: MemberDto[],
   currentUserId: string | null,
+  customEmojis: CustomEmoji[] = [],
 ): RenderedContent {
   const segments = parseMarkdown(content);
 
@@ -223,7 +274,13 @@ function renderContent(
   }
 
   const firstLinkUrl = findFirstLinkUrl(segments);
-  const nodes = renderSegments(segments, members, currentUserId, "root");
+  const nodes = renderSegments(
+    segments,
+    members,
+    currentUserId,
+    "root",
+    customEmojis,
+  );
   return { nodes, firstLinkUrl };
 }
 
@@ -263,6 +320,9 @@ export function MessageItem({
   const user = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
   const activeServerId = useServerStore((s) => s.activeServerId);
+  const customEmojis = useCustomEmojiStore((s) =>
+    activeServerId ? s.getEmojis(activeServerId) : [],
+  );
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
   const setReplyingTo = useMessageStore((s) => s.setReplyingTo);
@@ -373,10 +433,15 @@ export function MessageItem({
   const { nodes: contentNodes, firstLinkUrl } = useMemo(
     () =>
       message.content !== "\u200b"
-        ? renderContent(message.content, members, user?.id ?? null)
+        ? renderContent(
+            message.content,
+            members,
+            user?.id ?? null,
+            customEmojis,
+          )
         : { nodes: [], firstLinkUrl: null },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [message.content, message.id, user?.id],
+    [message.content, message.id, user?.id, customEmojis],
   );
 
   if (message.deleted) {
