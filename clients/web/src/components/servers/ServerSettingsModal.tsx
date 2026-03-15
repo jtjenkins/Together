@@ -1,7 +1,10 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Modal } from "../common/Modal";
 import { useServerStore } from "../../stores/serverStore";
 import { useAuthStore } from "../../stores/authStore";
+import { CustomEmojiManager } from "./CustomEmojiManager";
+import { useCustomEmojiStore } from "../../stores/customEmojiStore";
+
 import type { ServerDto } from "../../types";
 import styles from "./ServerModals.module.css";
 import { AutomodSettings } from "./AutomodSettings";
@@ -28,6 +31,11 @@ export function ServerSettingsModal({
   const updateServer = useServerStore((s) => s.updateServer);
   const currentUser = useAuthStore((s) => s.user);
   const isOwner = currentUser?.id === server.owner_id;
+  const { loadEmojis } = useCustomEmojiStore();
+  useEffect(() => {
+    if (open) loadEmojis(server.id);
+  }, [open, server.id, loadEmojis]);
+
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -135,6 +143,16 @@ export function ServerSettingsModal({
         </>
       )}
       {tab === "automod" && isOwner && <AutomodSettings serverId={server.id} />}
+      </form>
+      <hr
+        style={{
+          border: "none",
+          borderTop: "1px solid var(--bg-secondary, #2f3136)",
+          margin: "16px 0",
+        }}
+      />
+      <CustomEmojiManager server={server} />
+
     </Modal>
   );
 }
