@@ -261,6 +261,20 @@ pub fn create_test_app(pool: PgPool) -> Router {
             post(handlers::auth::forgot_password),
         )
         .route("/auth/reset-password", post(handlers::auth::reset_password))
+        // Custom emoji routes
+        .route(
+            "/servers/:id/emojis",
+            get(handlers::custom_emojis::list_custom_emojis)
+                .post(handlers::custom_emojis::upload_custom_emoji),
+        )
+        .route(
+            "/servers/:id/emojis/:emoji_id",
+            delete(handlers::custom_emojis::delete_custom_emoji),
+        )
+        .route(
+            "/emojis/:emoji_id",
+            get(handlers::custom_emojis::serve_custom_emoji_image),
+        )
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)
