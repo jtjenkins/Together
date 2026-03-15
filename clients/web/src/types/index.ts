@@ -7,6 +7,8 @@ export interface UserDto {
   username: string;
   email: string | null;
   avatar_url: string | null;
+  bio: string | null;
+  pronouns: string | null;
   status: UserStatus;
   custom_status: string | null;
   created_at: string;
@@ -15,6 +17,8 @@ export interface UserDto {
 
 export interface UpdateUserDto {
   avatar_url?: string | null;
+  bio?: string | null;
+  pronouns?: string | null;
   status?: UserStatus;
   custom_status?: string | null;
 }

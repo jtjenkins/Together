@@ -17,6 +17,8 @@ pub struct User {
     pub email: Option<String>,
     pub password_hash: String,
     pub avatar_url: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -38,6 +40,8 @@ pub struct UserDto {
     pub username: String,
     pub email: Option<String>,
     pub avatar_url: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -51,6 +55,8 @@ impl From<User> for UserDto {
             username: user.username,
             email: user.email,
             avatar_url: user.avatar_url,
+            bio: user.bio,
+            pronouns: user.pronouns,
             status: user.status,
             custom_status: user.custom_status,
             created_at: user.created_at,
@@ -62,6 +68,8 @@ impl From<User> for UserDto {
 #[derive(Debug, Deserialize)]
 pub struct UpdateUserDto {
     pub avatar_url: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub status: Option<String>,
     pub custom_status: Option<String>,
 }

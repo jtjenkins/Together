@@ -24,6 +24,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
 
   const [activeTab, setActiveTab] = useState<"profile" | "admin">("profile");
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || "");
+  const [bio, setBio] = useState(user?.bio || "");
+  const [pronouns, setPronouns] = useState(user?.pronouns || "");
   const [status, setStatus] = useState<UserStatus>(user?.status || "online");
   const [customStatus, setCustomStatus] = useState(user?.custom_status || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,6 +52,8 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
     try {
       await updateProfile({
         avatar_url: avatarUrl.trim() || null,
+        bio: bio.trim() || null,
+        pronouns: pronouns.trim() || null,
         custom_status: customStatus.trim() || null,
       });
       if (status !== user.status) {
@@ -123,6 +127,34 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
               value={avatarUrl}
               onChange={(e) => setAvatarUrl(e.target.value)}
               placeholder="https://example.com/avatar.png"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="settings-bio">
+              Bio <span className={styles.optional}>(optional)</span>
+            </label>
+            <textarea
+              id="settings-bio"
+              className={styles.input}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Tell people a little about yourself"
+              maxLength={500}
+              rows={3}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="settings-pronouns">
+              Pronouns <span className={styles.optional}>(optional)</span>
+            </label>
+            <input
+              id="settings-pronouns"
+              className={styles.input}
+              type="text"
+              value={pronouns}
+              onChange={(e) => setPronouns(e.target.value)}
+              placeholder="e.g. they/them"
+              maxLength={40}
             />
           </div>
           <div className={styles.field}>
