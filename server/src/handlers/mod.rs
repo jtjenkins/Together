@@ -4,6 +4,7 @@ pub mod auth;
 pub mod automod;
 pub mod bots;
 pub mod channels;
+pub mod custom_emojis;
 pub mod dm;
 pub mod events;
 pub mod giphy;
