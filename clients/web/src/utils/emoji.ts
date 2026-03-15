@@ -2,6 +2,8 @@ export interface EmojiEntry {
   emoji: string;
   name: string;
   aliases?: string[];
+  imageUrl?: string;
+  customEmojiId?: string;
 }
 
 export interface EmojiCategory {
@@ -845,4 +847,34 @@ export function searchEmoji(query: string, limit = 20): EmojiEntry[] {
     }
   }
   return results;
+}
+
+/**
+ * Search custom + standard emojis combined. Custom emojis appear first.
+ *
+ * Custom emoji EmojiEntry: emoji=':name:', imageUrl=url, customEmojiId=uuid.
+ * Standard emoji EmojiEntry: emoji=unicode char (unchanged).
+ */
+export function searchAllEmoji(
+  query: string,
+  customEmojis: { id: string; name: string; url: string }[],
+  limit = 20,
+): EmojiEntry[] {
+  const q = query.toLowerCase();
+  const results: EmojiEntry[] = [];
+
+  for (const ce of customEmojis) {
+    if (ce.name.includes(q)) {
+      results.push({
+        emoji: `:${ce.name}:`,
+        name: ce.name,
+        imageUrl: ce.url,
+        customEmojiId: ce.id,
+      });
+      if (results.length >= limit) return results;
+    }
+  }
+
+  const remaining = limit - results.length;
+  return [...results, ...searchEmoji(q, remaining)].slice(0, limit);
 }
