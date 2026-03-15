@@ -12,11 +12,28 @@ import {
 import { useVoiceStore } from "../../stores/voiceStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useChannelStore } from "../../stores/channelStore";
+import {
+  useVoiceSettingsStore,
+  sensitivityToThreshold,
+} from "../../stores/voiceSettingsStore";
 import { useWebRTC } from "../../hooks/useWebRTC";
+import { usePushToTalk } from "../../hooks/usePushToTalk";
 import { gateway } from "../../api/websocket";
 import { api } from "../../api/client";
 import type { VoiceParticipant, VoiceStateUpdateEvent } from "../../types";
 import styles from "./VoiceChannel.module.css";
+
+/** Convert a KeyboardEvent.code to a human-readable label. */
+function formatKeyCode(code: string): string {
+  if (code === "Space") return "Space";
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  if (code === "AltLeft" || code === "AltRight") return "Alt";
+  if (code === "ControlLeft" || code === "ControlRight") return "Ctrl";
+  if (code === "ShiftLeft" || code === "ShiftRight") return "Shift";
+  if (code === "MetaLeft" || code === "MetaRight") return "Meta";
+  return code;
+}
 
 interface AudioDevice {
   deviceId: string;
@@ -56,6 +73,19 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
   const [micDevices, setMicDevices] = useState<AudioDevice[]>([]);
   const [speakerDevices, setSpeakerDevices] = useState<AudioDevice[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Voice activity / push-to-talk settings
+  const voiceMode = useVoiceSettingsStore((s) => s.mode);
+  const vadSensitivity = useVoiceSettingsStore((s) => s.vadSensitivity);
+  const pttKey = useVoiceSettingsStore((s) => s.pttKey);
+  const setVoiceMode = useVoiceSettingsStore((s) => s.setMode);
+  const setVadSensitivity = useVoiceSettingsStore((s) => s.setVadSensitivity);
+  const setPttKey = useVoiceSettingsStore((s) => s.setPttKey);
+
+  // PTT active state — true while the PTT key is held
+  const [isPttActive, setIsPttActive] = useState(false);
+  // Key capture mode — true while waiting for the user to press a new PTT key
+  const [capturingKey, setCapturingKey] = useState(false);
 
   const channel = channels.find((c) => c.id === channelId);
   const isConnected = connectedChannelId === channelId;
@@ -206,6 +236,30 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
     }
   };
 
+  // Push-to-talk key listener — browser-scoped (only fires when tab is focused).
+  usePushToTalk({
+    enabled: isConnected && voiceMode === "ptt",
+    pttKey,
+    onPress: () => setIsPttActive(true),
+    onRelease: () => setIsPttActive(false),
+  });
+
+  // Key-capture mode: intercept the next keydown to set a new PTT key.
+  useEffect(() => {
+    if (!capturingKey) return;
+    const capture = (e: KeyboardEvent) => {
+      e.preventDefault();
+      if (e.code === "Escape") {
+        setCapturingKey(false);
+        return;
+      }
+      setPttKey(e.code);
+      setCapturingKey(false);
+    };
+    window.addEventListener("keydown", capture, { once: true });
+    return () => window.removeEventListener("keydown", capture);
+  }, [capturingKey, setPttKey]);
+
   // WebRTC audio — works on localhost and HTTPS; degrades gracefully otherwise
   useWebRTC({
     enabled: isConnected,
@@ -218,6 +272,9 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
     speakerDeviceId,
     onError: setRtcError,
     onSpeakingChange: handleSpeakingChange,
+    vadThreshold: sensitivityToThreshold(vadSensitivity),
+    pttMode: voiceMode === "ptt",
+    isPttActive,
   });
 
   const activeError = voiceError ?? rtcError;
@@ -360,6 +417,78 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
 
               {showSettings && (
                 <div className={styles.deviceSettings}>
+                  {/* ── Voice mode ── */}
+                  <div className={styles.deviceRow}>
+                    <label className={styles.deviceLabel}>Input Mode</label>
+                    <div className={styles.voiceModeRow}>
+                      <button
+                        className={`${styles.voiceModeBtn} ${voiceMode === "vad" ? styles.voiceModeBtnActive : ""}`}
+                        onClick={() => setVoiceMode("vad")}
+                      >
+                        Voice Activity
+                      </button>
+                      <button
+                        className={`${styles.voiceModeBtn} ${voiceMode === "ptt" ? styles.voiceModeBtnActive : ""}`}
+                        onClick={() => setVoiceMode("ptt")}
+                      >
+                        Push to Talk
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── VAD sensitivity (only in VAD mode) ── */}
+                  {voiceMode === "vad" && (
+                    <div className={styles.deviceRow}>
+                      <div className={styles.sensitivityHeader}>
+                        <label className={styles.deviceLabel}>
+                          Sensitivity
+                        </label>
+                        <span className={styles.sensitivityValue}>
+                          {vadSensitivity}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={vadSensitivity}
+                        onChange={(e) =>
+                          setVadSensitivity(Number(e.target.value))
+                        }
+                        className={styles.sensitivitySlider}
+                        aria-label="VAD sensitivity"
+                      />
+                    </div>
+                  )}
+
+                  {/* ── PTT key binding (only in PTT mode) ── */}
+                  {voiceMode === "ptt" && (
+                    <div className={styles.deviceRow}>
+                      <label className={styles.deviceLabel}>
+                        Push to Talk Key
+                      </label>
+                      <div className={styles.pttKeyRow}>
+                        <span
+                          className={`${styles.pttKeyDisplay} ${capturingKey ? styles.pttKeyCapturing : ""}`}
+                        >
+                          {capturingKey
+                            ? "Press any key…"
+                            : formatKeyCode(pttKey)}
+                        </span>
+                        <button
+                          className={styles.pttChangeBtn}
+                          onClick={() => setCapturingKey((v) => !v)}
+                        >
+                          {capturingKey ? "Cancel" : "Change"}
+                        </button>
+                      </div>
+                      <p className={styles.pttHint}>
+                        Works when browser tab is focused.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ── Microphone device ── */}
                   <div className={styles.deviceRow}>
                     <label className={styles.deviceLabel}>Microphone</label>
                     <select
@@ -375,6 +504,8 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                       ))}
                     </select>
                   </div>
+
+                  {/* ── Speaker device ── */}
                   <div className={styles.deviceRow}>
                     <label className={styles.deviceLabel}>Speaker</label>
                     <select
@@ -392,6 +523,24 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                       ))}
                     </select>
                   </div>
+                </div>
+              )}
+
+              {/* PTT active indicator shown outside the settings panel */}
+              {voiceMode === "ptt" && (
+                <div
+                  className={`${styles.pttIndicator} ${isPttActive ? styles.pttIndicatorActive : ""}`}
+                  aria-live="polite"
+                  aria-label={
+                    isPttActive
+                      ? "Transmitting"
+                      : `PTT: ${formatKeyCode(pttKey)}`
+                  }
+                >
+                  <span className={styles.pttDot} />
+                  {isPttActive
+                    ? "Transmitting"
+                    : `PTT: ${formatKeyCode(pttKey)}`}
                 </div>
               )}
             </div>

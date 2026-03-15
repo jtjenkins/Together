@@ -299,3 +299,147 @@
   outline: none;
   border-color: var(--accent-primary);
 }
+
+/* ── Voice Mode Toggle ────────────────────── */
+
+.voiceModeRow {
+  display: flex;
+  gap: 4px;
+}
+
+.voiceModeBtn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  text-align: center;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.voiceModeBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.voiceModeBtnActive {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+.voiceModeBtnActive:hover {
+  background: var(--accent-primary);
+}
+
+/* ── VAD Sensitivity Slider ───────────────── */
+
+.sensitivityHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.sensitivityValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.sensitivitySlider {
+  width: 100%;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+/* ── PTT Key Binding ──────────────────────── */
+
+.pttKeyRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pttKeyDisplay {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  font-family: monospace;
+  transition: border-color 0.15s;
+}
+
+.pttKeyCapturing {
+  border-color: var(--accent-primary);
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.pttChangeBtn {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.pttChangeBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.pttHint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ── PTT Active Indicator ─────────────────── */
+
+.pttIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition:
+    color 0.1s,
+    border-color 0.1s,
+    background 0.1s;
+}
+
+.pttIndicatorActive {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+}
+
+.pttDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
