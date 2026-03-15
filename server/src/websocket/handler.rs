@@ -586,6 +586,9 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
                     avatar_url: r.recipient_avatar_url,
                     bio: r.recipient_bio,
                     pronouns: r.recipient_pronouns,
+                    bio: None,
+                    pronouns: None,
+
                     status: r.recipient_status,
                     custom_status: r.recipient_custom_status,
                     created_at: r.recipient_created_at,

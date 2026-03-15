@@ -236,7 +236,6 @@ async fn main() {
         // User routes (protected)
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
-        .route("/users/:id", get(handlers::users::get_user_profile))
         // Server routes (protected)
         .route("/servers", post(handlers::servers::create_server))
         .route("/servers", get(handlers::servers::list_servers))
