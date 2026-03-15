@@ -208,6 +208,12 @@ pub async fn upload_custom_emoji(
     let file_path = dir.join(&stored_filename);
     if let Err(e) = tokio::fs::write(&file_path, &data).await {
         tracing::error!(error = ?e, path = ?file_path, "Failed to write emoji image file");
+        if let Err(e) = tokio::fs::remove_file(&file_path).await {
+            tracing::warn!(error = ?e, "Failed to cleanup emoji file");
+        }
+        if let Err(e) = tokio::fs::remove_dir(&dir).await {
+            tracing::warn!(error = ?e, "Failed to cleanup emoji dir");
+        }
         return Err(AppError::Internal);
     }
 
@@ -224,7 +230,7 @@ pub async fn upload_custom_emoji(
 
     let file_size = data.len() as i64;
 
-    let row = sqlx::query_as::<_, CustomEmoji>(
+    let row = match sqlx::query_as::<_, CustomEmoji>(
         "INSERT INTO custom_emojis (id, server_id, created_by, name, filename, content_type, file_size)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, server_id, created_by, name, filename, content_type, file_size, created_at",
@@ -238,23 +244,23 @@ pub async fn upload_custom_emoji(
     .bind(file_size)
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| {
-        // On unique constraint violation for (server_id, name) report a friendly 400.
-        if let sqlx::Error::Database(ref db_err) = e {
-            let constraint = db_err.constraint().unwrap_or("");
-            if constraint == "custom_emojis_server_name_unique" {
-                return AppError::Validation(format!(
-                    "An emoji named '{name}' already exists in this server"
-                ));
+    {
+        Ok(row) => row,
+        Err(e) => {
+            // On unique constraint violation for (server_id, name) report a friendly 400.
+            if let sqlx::Error::Database(ref db_err) = e {
+                let constraint = db_err.constraint().unwrap_or("");
+                if constraint == "custom_emojis_server_name_unique" {
+                    return Err(AppError::Validation(format!(
+                        "An emoji named '{name}' already exists in this server"
+                    )));
+                }
             }
+            // For any other DB error clean up the written file first.
+            cleanup_files(&[file_path]).await;
+            return Err(AppError::from(e));
         }
-        // For any other DB error clean up the written file first.
-        let paths = vec![file_path.clone()];
-        tokio::spawn(async move {
-            cleanup_files(&paths).await;
-        });
-        AppError::from(e)
-    })?;
+    };
 
     let dto = CustomEmojiDto::from_row(row);
 
@@ -262,7 +268,10 @@ pub async fn upload_custom_emoji(
         &state,
         server_id,
         EVENT_CUSTOM_EMOJI_CREATE,
-        serde_json::to_value(&dto).unwrap_or_default(),
+        serde_json::to_value(&dto).unwrap_or_else(|e| {
+            tracing::error!(error = ?e, "Failed to serialize CustomEmojiDto for broadcast");
+            serde_json::Value::Null
+        }),
     )
     .await;
 
