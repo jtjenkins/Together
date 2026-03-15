@@ -43,7 +43,7 @@ Send a `PRESENCE_UPDATE` op with the desired status and optional custom status t
 
 ```json
 {
-  "op": 3,
+  "op": "PRESENCE_UPDATE",
   "d": {
     "status": "dnd",
     "custom_status": "In a voice call"
@@ -53,7 +53,7 @@ Send a `PRESENCE_UPDATE` op with the desired status and optional custom status t
 
 **Allowed `status` values:** `online`, `away`, `dnd`, `offline`
 
-Sending an unrecognized status value is silently ignored. `custom_status` may be omitted or `null` to leave the current value unchanged when set via explicit null.
+Sending an unrecognized status value is silently ignored. Omitting `custom_status` leaves the current value unchanged. Sending `custom_status: null` explicitly clears the custom status.
 
 ### Receiving status updates (server → client)
 
@@ -61,7 +61,7 @@ When any user's status changes, the server broadcasts a `PRESENCE_UPDATE` dispat
 
 ```json
 {
-  "op": 0,
+  "op": "DISPATCH",
   "t": "PRESENCE_UPDATE",
   "d": {
     "user_id": "uuid",
@@ -110,9 +110,9 @@ Custom status is:
 The web and desktop clients implement auto-away detection locally using the `presenceStore`:
 
 1. A 5-minute inactivity timer starts when the page loads or the user last interacted (mouse, keyboard, click, touch).
-2. If the timer expires without activity, the client sends `PRESENCE_UPDATE` with `status: "away"` and saves the previous status in memory.
+2. If the timer expires without activity, `presenceStore` records the previous status in memory, then calls `authStore.updatePresence("away")` which sends `PRESENCE_UPDATE` over the WebSocket.
 3. If the browser tab is hidden (`visibilitychange` event), auto-away fires immediately without waiting for the timer.
-4. When the user returns (any interaction, or the tab becomes visible again), the client restores the saved status.
+4. When the user returns (any interaction, or the tab becomes visible again), `presenceStore` retrieves the saved status and calls `authStore.updatePresence(savedStatus)` to restore it.
 
 Auto-away only activates if the current status is `online`. If the user has manually set `away`, `dnd`, or `offline`, the inactivity timer does not override it. Similarly, if the user manually changes their status while auto-away is active, the restore step is skipped.
 

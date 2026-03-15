@@ -20,7 +20,7 @@ Each rule fires independently. If multiple rules would trigger on the same messa
 
 ## Required Permission
 
-All configuration and log endpoints require `MANAGE_SERVER` permission. Members without this permission can read the top-level enabled/disabled state (so the UI can show a notice), but cannot modify settings or view logs.
+`PATCH /servers/:id/automod`, word filter endpoints, and log endpoints require `MANAGE_SERVER` permission. `GET /servers/:id/automod` (read-only config) is accessible to all server members. Members without `MANAGE_SERVER` can read the top-level enabled/disabled state (so the UI can show a notice), but cannot modify settings or view logs.
 
 ---
 
@@ -171,6 +171,12 @@ Content-Type: application/json
 Remove a word from the blocklist. Requires `MANAGE_SERVER`.
 
 **Response:** `204 No Content`
+
+**Errors**
+
+| Status | Reason                    |
+| ------ | ------------------------- |
+| 404    | Word ID not found         |
 
 ---
 
