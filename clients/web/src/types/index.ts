@@ -11,6 +11,8 @@ export interface UserDto {
   pronouns: string | null;
   status: UserStatus;
   custom_status: string | null;
+  bio: string | null;
+  pronouns: string | null;
   created_at: string;
   is_admin: boolean;
 }
@@ -21,6 +23,19 @@ export interface UpdateUserDto {
   pronouns?: string | null;
   status?: UserStatus;
   custom_status?: string | null;
+  bio?: string | null;
+  pronouns?: string | null;
+}
+
+export interface PublicProfileDto {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  status: UserStatus;
+  custom_status: string | null;
+  bio: string | null;
+  pronouns: string | null;
+  created_at: string;
 }
 
 // ─── Auth Types ──────────────────────────────────────────────
@@ -253,6 +268,18 @@ export interface ReactionCount {
   emoji: string;
   count: number;
   me: boolean;
+}
+
+export interface CustomEmoji {
+  id: string;
+  server_id: string;
+  created_by: string;
+  name: string;
+  /** Absolute path served by the API: /emojis/{id} */
+  url: string;
+  content_type: string;
+  file_size: number;
+  created_at: string;
 }
 
 // ─── Unread Types ─────────────────────────────────────────

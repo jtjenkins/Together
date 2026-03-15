@@ -4,6 +4,7 @@ import type {
   LoginRequest,
   UserDto,
   UpdateUserDto,
+  PublicProfileDto,
   ServerDto,
   CreateServerRequest,
   UpdateServerRequest,
@@ -22,6 +23,7 @@ import type {
   DirectMessageChannel,
   DirectMessage,
   ReactionCount,
+  CustomEmoji,
   LinkPreviewDto,
   GifResult,
   PollDto,
@@ -179,6 +181,10 @@ class ApiClient {
       method: "PATCH",
       body: JSON.stringify(data),
     });
+  }
+
+  getUserProfile(userId: string): Promise<PublicProfileDto> {
+    return this.request(`/users/${userId}`);
   }
 
   // ─── Servers ───────────────────────────────────────────────
@@ -417,6 +423,34 @@ class ApiClient {
     return this.request(`/channels/${channelId}/messages/${messageId}/thread`, {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  // ── Custom Emojis ────────────────────────────────────────────────────────────
+
+  listCustomEmojis(serverId: string): Promise<CustomEmoji[]> {
+    return this.request(`/servers/${serverId}/emojis`);
+  }
+
+  async uploadCustomEmoji(
+    serverId: string,
+    name: string,
+    file: File,
+  ): Promise<CustomEmoji> {
+    const form = new FormData();
+    form.append("name", name);
+    form.append("image", file);
+    // Do NOT set Content-Type — browser sets it with the multipart boundary automatically.
+    return this.request<CustomEmoji>(`/servers/${serverId}/emojis`, {
+      method: "POST",
+      body: form,
+      skipContentType: true,
+    });
+  }
+
+  deleteCustomEmoji(serverId: string, emojiId: string): Promise<void> {
+    return this.request(`/servers/${serverId}/emojis/${emojiId}`, {
+      method: "DELETE",
     });
   }
 

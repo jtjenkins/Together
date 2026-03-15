@@ -7,6 +7,8 @@ import { useChannelStore } from "../stores/channelStore";
 import { useDmStore } from "../stores/dmStore";
 import { useReadStateStore } from "../stores/readStateStore";
 import { useTypingStore } from "../stores/typingStore";
+import { useCustomEmojiStore } from "../stores/customEmojiStore";
+
 import type {
   ReadyEvent,
   Message,
@@ -17,6 +19,8 @@ import type {
   ReactionEvent,
   PollVoteEvent,
   TypingStartEvent,
+  CustomEmoji,
+
 } from "../types";
 
 export function useWebSocket() {
@@ -118,6 +122,20 @@ export function useWebSocket() {
           event.channel_id,
         );
       }),
+
+      gateway.on("CUSTOM_EMOJI_CREATE", (emoji: CustomEmoji) => {
+        useCustomEmojiStore.getState().addEmoji(emoji);
+      }),
+
+      gateway.on(
+        "CUSTOM_EMOJI_DELETE",
+        (data: { server_id: string; emoji_id: string }) => {
+          useCustomEmojiStore
+            .getState()
+            .removeEmoji(data.server_id, data.emoji_id);
+        },
+      ),
+
 
       gateway.on("connected", () => {
         if (activeServerId) {

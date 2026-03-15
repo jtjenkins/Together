@@ -12,6 +12,7 @@ import type {
   ReactionEvent,
   PollVoteEvent,
   TypingStartEvent,
+  CustomEmoji,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -32,6 +33,9 @@ interface EventHandlers {
   THREAD_MESSAGE_CREATE: EventHandler<Message>;
   POLL_VOTE: EventHandler<PollVoteEvent>;
   TYPING_START: EventHandler<TypingStartEvent>;
+  CUSTOM_EMOJI_CREATE: EventHandler<CustomEmoji>;
+  CUSTOM_EMOJI_DELETE: EventHandler<{ server_id: string; emoji_id: string }>;
+
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
 }

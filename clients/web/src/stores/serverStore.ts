@@ -6,6 +6,7 @@ import type {
   MemberDto,
 } from "../types";
 import { api, ApiRequestError } from "../api/client";
+import { useCustomEmojiStore } from "./customEmojiStore";
 
 interface ServerState {
   servers: ServerDto[];
@@ -51,6 +52,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
     set({ activeServerId: id, members: [] });
     if (id) {
       get().fetchMembers(id);
+      useCustomEmojiStore.getState().loadEmojis(id);
     }
   },
 
