@@ -10,6 +10,7 @@ interface ReactionBarProps {
   channelId: string;
   reactions: ReactionCount[];
   onReactionsChange: (reactions: ReactionCount[]) => void;
+  serverId?: string;
 }
 
 export function ReactionBar({
@@ -17,6 +18,7 @@ export function ReactionBar({
   channelId,
   reactions,
   onReactionsChange,
+  serverId,
 }: ReactionBarProps) {
   const [showPicker, setShowPicker] = useState(false);
 
@@ -93,6 +95,7 @@ export function ReactionBar({
           <EmojiPicker
             onSelect={toggleReaction}
             onClose={() => setShowPicker(false)}
+            serverId={serverId}
           />
         )}
       </div>

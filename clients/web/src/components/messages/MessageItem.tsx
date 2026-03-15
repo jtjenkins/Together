@@ -262,6 +262,7 @@ export function MessageItem({
 }: MessageItemProps) {
   const user = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
+  const activeServerId = useServerStore((s) => s.activeServerId);
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
   const setReplyingTo = useMessageStore((s) => s.setReplyingTo);
@@ -641,6 +642,7 @@ export function MessageItem({
                 <EmojiPicker
                   onSelect={handleQuickReact}
                   onClose={() => setShowPicker(false)}
+                  serverId={activeServerId ?? undefined}
                 />
               </div>
             )}
@@ -726,6 +728,7 @@ export function MessageItem({
             channelId={channelId}
             reactions={reactions}
             onReactionsChange={setReactions}
+            serverId={activeServerId ?? undefined}
           />
         </div>
       )}
