@@ -134,9 +134,7 @@ export function ServerSettingsModal({
           </form>
         </>
       )}
-      {tab === "automod" && isOwner && (
-        <AutomodSettings serverId={server.id} />
-      )}
+      {tab === "automod" && isOwner && <AutomodSettings serverId={server.id} />}
     </Modal>
   );
 }

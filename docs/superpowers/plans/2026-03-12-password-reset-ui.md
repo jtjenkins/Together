@@ -17,6 +17,7 @@
 ### Task 1: Add `is_admin` migration
 
 **Files:**
+
 - Create: `server/migrations/20240312000003_is_admin.sql`
 
 - [ ] **Step 1: Write the migration file**
@@ -53,6 +54,7 @@ git commit -m "feat(db): add is_admin column to users table"
 ### Task 2: Add `is_admin` to `User` and `UserDto`
 
 **Files:**
+
 - Modify: `server/src/models/mod.rs` (lines 13–56)
 
 - [ ] **Step 1: Add `is_admin` to the `User` struct**
@@ -136,11 +138,13 @@ git commit -m "feat(models): add is_admin field to User and UserDto"
 ### Task 3: Protect `forgot_password` with admin gate and fix unknown-email handling
 
 **Files:**
+
 - Modify: `server/tests/common/mod.rs` (add routes)
 - Create: `server/tests/auth_tests.rs`
 - Modify: `server/src/handlers/auth.rs` (bottom of file — the `forgot_password` function)
 
 The current `forgot_password` handler:
+
 1. Is unauthenticated (no `AuthUser` extractor) — anyone can call it
 2. Returns a silent 200 for unknown emails (enumeration prevention — not needed on an admin-only endpoint)
 
@@ -316,6 +320,7 @@ git commit -m "feat(auth): gate forgot-password behind admin check"
 ### Task 4: Update TypeScript types
 
 **Files:**
+
 - Modify: `clients/web/src/types/index.ts`
 
 - [ ] **Step 1: Add `is_admin` to `UserDto`**
@@ -342,7 +347,7 @@ export interface UserDto {
 
 export interface ForgotPasswordResponse {
   message: string;
-  token: string;        // always present — admin-only endpoint, no enumeration risk
+  token: string; // always present — admin-only endpoint, no enumeration risk
   expires_in_seconds: number;
   note: string;
 }
@@ -418,6 +423,7 @@ git commit -m "feat(types): add is_admin, password-reset types; restore search+I
 ### Task 5: Update API client
 
 **Files:**
+
 - Modify: `clients/web/src/api/client.ts`
 
 - [ ] **Step 1: Add imports for new types**
@@ -505,6 +511,7 @@ git commit -m "feat(api): add forgotPassword, resetPassword; restore search+ICE 
 ### Task 6: Extend `AuthForm` with reset view
 
 **Files:**
+
 - Modify: `clients/web/src/components/auth/AuthForm.tsx`
 - Modify: `clients/web/src/components/auth/AuthForm.module.css`
 - Modify: `clients/web/src/__tests__/auth-form.test.tsx`
@@ -528,7 +535,12 @@ vi.mock("../api/client", () => ({
     setSessionExpiredCallback: vi.fn(),
   },
   ApiRequestError: class extends Error {
-    constructor(public status: number, message: string) { super(message); }
+    constructor(
+      public status: number,
+      message: string,
+    ) {
+      super(message);
+    }
   },
 }));
 ```
@@ -700,7 +712,9 @@ export function AuthForm() {
         switchView("login");
       }, 2000);
     } catch (err) {
-      setResetError(err instanceof Error ? err.message : "Password reset failed");
+      setResetError(
+        err instanceof Error ? err.message : "Password reset failed",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -888,7 +902,9 @@ export function AuthForm() {
               <button
                 type="button"
                 className={styles.toggleBtn}
-                onClick={() => switchView(view === "login" ? "register" : "login")}
+                onClick={() =>
+                  switchView(view === "login" ? "register" : "login")
+                }
               >
                 {view === "login" ? "Register" : "Sign In"}
               </button>
@@ -961,6 +977,7 @@ git commit -m "feat(auth): add password reset view to AuthForm"
 ### Task 7: Create `AdminTab` component
 
 **Files:**
+
 - Create: `clients/web/src/components/users/AdminTab.tsx`
 - Create: `clients/web/src/__tests__/AdminTab.test.tsx`
 - Modify: `clients/web/src/components/servers/ServerModals.module.css`
@@ -984,7 +1001,12 @@ vi.mock("../api/client", () => ({
     setSessionExpiredCallback: vi.fn(),
   },
   ApiRequestError: class extends Error {
-    constructor(public status: number, message: string) { super(message); }
+    constructor(
+      public status: number,
+      message: string,
+    ) {
+      super(message);
+    }
   },
 }));
 
@@ -1004,7 +1026,7 @@ describe("AdminTab", () => {
     render(<AdminTab />);
     expect(screen.getByLabelText("User's Email Address")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Generate Reset Token" })
+      screen.getByRole("button", { name: "Generate Reset Token" }),
     ).toBeInTheDocument();
   });
 
@@ -1017,10 +1039,15 @@ describe("AdminTab", () => {
     });
     render(<AdminTab />);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("User's Email Address"), "user@example.com");
-    await user.click(screen.getByRole("button", { name: "Generate Reset Token" }));
+    await user.type(
+      screen.getByLabelText("User's Email Address"),
+      "user@example.com",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Generate Reset Token" }),
+    );
     await waitFor(() =>
-      expect(screen.getByText("abc123token")).toBeInTheDocument()
+      expect(screen.getByText("abc123token")).toBeInTheDocument(),
     );
     expect(screen.getByText(/expires in 1 hour/i)).toBeInTheDocument();
   });
@@ -1034,9 +1061,16 @@ describe("AdminTab", () => {
     });
     render(<AdminTab />);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("User's Email Address"), "user@example.com");
-    await user.click(screen.getByRole("button", { name: "Generate Reset Token" }));
-    await waitFor(() => expect(screen.getByText("abc123token")).toBeInTheDocument());
+    await user.type(
+      screen.getByLabelText("User's Email Address"),
+      "user@example.com",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Generate Reset Token" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("abc123token")).toBeInTheDocument(),
+    );
     await user.click(screen.getByRole("button", { name: "Copy" }));
     expect(mockClipboard.writeText).toHaveBeenCalledWith("abc123token");
   });
@@ -1050,24 +1084,36 @@ describe("AdminTab", () => {
     });
     render(<AdminTab />);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("User's Email Address"), "user@example.com");
-    await user.click(screen.getByRole("button", { name: "Generate Reset Token" }));
-    await waitFor(() => expect(screen.getByText("abc123token")).toBeInTheDocument());
+    await user.type(
+      screen.getByLabelText("User's Email Address"),
+      "user@example.com",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Generate Reset Token" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("abc123token")).toBeInTheDocument(),
+    );
     await user.type(screen.getByLabelText("User's Email Address"), "x");
     expect(screen.queryByText("abc123token")).not.toBeInTheDocument();
   });
 
   it("shows error on API failure", async () => {
     vi.mocked(api.forgotPassword).mockRejectedValueOnce(
-      new Error("No user found with email: bad@example.com")
+      new Error("No user found with email: bad@example.com"),
     );
     render(<AdminTab />);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("User's Email Address"), "bad@example.com");
-    await user.click(screen.getByRole("button", { name: "Generate Reset Token" }));
-    expect(
-      await screen.findByRole("alert")
-    ).toHaveTextContent("No user found with email");
+    await user.type(
+      screen.getByLabelText("User's Email Address"),
+      "bad@example.com",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Generate Reset Token" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No user found with email",
+    );
   });
 });
 ```
@@ -1161,11 +1207,7 @@ export function AdminTab() {
       {result && (
         <div className={styles.tokenSection}>
           <div className={styles.tokenBox}>{result.token}</div>
-          <button
-            type="button"
-            className={styles.copyBtn}
-            onClick={handleCopy}
-          >
+          <button type="button" className={styles.copyBtn} onClick={handleCopy}>
             Copy
           </button>
           <p className={styles.tokenWarning}>
@@ -1200,7 +1242,9 @@ Append to `clients/web/src/components/servers/ServerModals.module.css`:
   color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .tab:hover {
@@ -1276,6 +1320,7 @@ git commit -m "feat(admin): add AdminTab component for password reset token gene
 ### Task 8: Update `UserSettingsModal` with Admin tab
 
 **Files:**
+
 - Modify: `clients/web/src/components/users/UserSettingsModal.tsx`
 
 - [ ] **Step 1: Write failing tests**
@@ -1296,7 +1341,11 @@ vi.mock("../components/users/AdminTab", () => ({
   AdminTab: () => <div data-testid="admin-tab-content">AdminTab</div>,
 }));
 vi.mock("../api/client", () => ({
-  api: { setToken: vi.fn(), getToken: vi.fn(), setSessionExpiredCallback: vi.fn() },
+  api: {
+    setToken: vi.fn(),
+    getToken: vi.fn(),
+    setSessionExpiredCallback: vi.fn(),
+  },
   ApiRequestError: class extends Error {},
 }));
 
@@ -1324,7 +1373,9 @@ function setupMock(overrides: Partial<typeof baseUser> = {}) {
   });
 }
 
-beforeEach(() => { setupMock(); });
+beforeEach(() => {
+  setupMock();
+});
 
 describe("UserSettingsModal", () => {
   it("does not render tab bar for non-admin user", () => {
@@ -1352,15 +1403,16 @@ describe("UserSettingsModal", () => {
     setupMock({ is_admin: true });
     const onClose = vi.fn();
     const { rerender } = render(
-      <UserSettingsModal open={true} onClose={onClose} />
+      <UserSettingsModal open={true} onClose={onClose} />,
     );
     const user = userEvent.setup();
     await user.click(screen.getByRole("tab", { name: "Admin" }));
     rerender(<UserSettingsModal open={false} onClose={onClose} />);
     rerender(<UserSettingsModal open={true} onClose={onClose} />);
-    expect(
-      screen.getByRole("tab", { name: "Profile" })
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });
 ```
@@ -1447,7 +1499,11 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
   return (
     <Modal open={open} onClose={handleClose} title="User Settings">
       {isOwner && (
-        <div role="tablist" aria-label="User settings sections" className={styles.tabs}>
+        <div
+          role="tablist"
+          aria-label="User settings sections"
+          className={styles.tabs}
+        >
           <button
             role="tab"
             aria-selected={activeTab === "profile"}
@@ -1533,7 +1589,11 @@ export function UserSettingsModal({ open, onClose }: UserSettingsModalProps) {
             />
           </div>
           <div className={styles.actions}>
-            <button type="button" className={styles.cancelBtn} onClick={handleClose}>
+            <button
+              type="button"
+              className={styles.cancelBtn}
+              onClick={handleClose}
+            >
               Cancel
             </button>
             <button

@@ -42,7 +42,9 @@
   border: none;
   background: transparent;
   color: var(--text-muted, #72767d);
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .tab:hover {

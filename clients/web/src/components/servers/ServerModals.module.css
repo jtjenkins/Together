@@ -235,7 +235,9 @@
   font-weight: 500;
   cursor: pointer;
   border: none;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .tabs {

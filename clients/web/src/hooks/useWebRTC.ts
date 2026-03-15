@@ -21,8 +21,8 @@ import { gateway } from "../api/websocket";
 import { api } from "../api/client";
 import type { VoiceParticipant } from "../types";
 
-/** Average frequency amplitude (0-255) above which a user is considered speaking. */
-const SPEAKING_THRESHOLD = 15;
+/** Default average frequency amplitude (0–255) above which a user is considered speaking. */
+const DEFAULT_SPEAKING_THRESHOLD = 15;
 
 // Cache ICE servers for the TTL duration (24 hours by default)
 let iceServersCache: { servers: RTCIceServer[]; expiresAt: number } | null =
@@ -83,6 +83,16 @@ interface UseWebRTCOptions {
   onError?: (message: string) => void;
   /** Called whenever a participant starts or stops speaking. */
   onSpeakingChange?: (userId: string, isSpeaking: boolean) => void;
+  /**
+   * RMS amplitude threshold (0–255) for VAD speaking detection.
+   * Lower = more sensitive. Defaults to DEFAULT_SPEAKING_THRESHOLD (15).
+   * Can be updated between renders without restarting the detector.
+   */
+  vadThreshold?: number;
+  /** When true, mic transmission is gated by isPttActive rather than audio level. */
+  pttMode?: boolean;
+  /** Whether the PTT key is currently held. Only used when pttMode is true. */
+  isPttActive?: boolean;
   onRemoteStreamsChange?: () => void;
   /** Called when a local camera or screen stream is acquired or released. */
   onLocalStreamsChange?: () => void;
@@ -90,15 +100,14 @@ interface UseWebRTCOptions {
 
 /**
  * Start an AudioContext-based speaking detector for the given stream.
- * Accepts a shared AudioContext so callers can reuse a single context across
- * multiple detectors (Chrome limits concurrent AudioContexts to ~6).
- * Returns a cleanup function that disconnects the analyser and clears the
- * interval — it does NOT close the AudioContext (the caller owns that).
+ * `getThreshold` is called each interval so callers can update sensitivity
+ * without restarting the detector — just update a ref and pass its getter.
  */
 function startSpeakingDetector(
   ctx: AudioContext,
   stream: MediaStream,
   onSpeaking: (speaking: boolean) => void,
+  getThreshold: () => number = () => DEFAULT_SPEAKING_THRESHOLD,
 ): () => void {
   try {
     const analyser = ctx.createAnalyser();
@@ -111,7 +120,7 @@ function startSpeakingDetector(
     const id = setInterval(() => {
       analyser.getByteFrequencyData(data);
       const avg = data.reduce((s, v) => s + v, 0) / data.length;
-      const speaking = avg > SPEAKING_THRESHOLD;
+      const speaking = avg > getThreshold();
       if (speaking !== current) {
         current = speaking;
         onSpeaking(speaking);
@@ -143,6 +152,9 @@ export function useWebRTC({
   cameraDeviceId,
   onError,
   onSpeakingChange,
+  vadThreshold,
+  pttMode = false,
+  isPttActive = false,
   onRemoteStreamsChange,
   onLocalStreamsChange,
 }: UseWebRTCOptions) {
@@ -188,6 +200,12 @@ export function useWebRTC({
   onSpeakingChangeRef.current = onSpeakingChange;
   const isMutedRef = useRef(isMuted);
   isMutedRef.current = isMuted;
+  const vadThresholdRef = useRef(vadThreshold ?? DEFAULT_SPEAKING_THRESHOLD);
+  vadThresholdRef.current = vadThreshold ?? DEFAULT_SPEAKING_THRESHOLD;
+  const pttModeRef = useRef(pttMode);
+  pttModeRef.current = pttMode;
+  const isPttActiveRef = useRef(isPttActive);
+  isPttActiveRef.current = isPttActive;
   const onRemoteStreamsChangeRef = useRef(onRemoteStreamsChange);
   onRemoteStreamsChangeRef.current = onRemoteStreamsChange;
   const onLocalStreamsChangeRef = useRef(onLocalStreamsChange);
@@ -457,12 +475,13 @@ export function useWebRTC({
           audioCtxRef.current,
           stream,
           (speaking) => {
+            // In PTT mode local speaking is driven by key state, not audio level.
+            if (pttModeRef.current) return;
             // Never report local user as speaking while muted.
-            if (isMutedRef.current) {
-              if (speaking) return;
-            }
+            if (isMutedRef.current && speaking) return;
             onSpeakingChangeRef.current?.(myUserId, speaking);
           },
+          () => vadThresholdRef.current,
         );
         speakingStopRef.current.set(myUserId, stop);
       })
@@ -678,12 +697,25 @@ export function useWebRTC({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, isScreenSharing]);
 
-  // Mute / unmute local tracks
+  // Enable/disable local mic track.
+  // In VAD mode: track is enabled whenever not muted.
+  // In PTT mode: track is enabled only while the PTT key is held (and not muted).
   useEffect(() => {
+    const micEnabled = pttMode ? isPttActive && !isMuted : !isMuted;
     localStreamRef.current?.getAudioTracks().forEach((track) => {
-      track.enabled = !isMuted;
+      track.enabled = micEnabled;
     });
-  }, [isMuted]);
+  }, [isMuted, pttMode, isPttActive]);
+
+  // In PTT mode, derive local speaking indicator from key state rather than
+  // audio level (the audio-based detector skips local reporting in PTT mode).
+  const myUserIdRef = useRef(myUserId);
+  myUserIdRef.current = myUserId;
+  useEffect(() => {
+    if (!pttMode) return;
+    const speaking = isPttActive && !isMuted;
+    onSpeakingChangeRef.current?.(myUserIdRef.current, speaking);
+  }, [pttMode, isPttActive, isMuted]);
 
   // Deafen: mute all remote audio elements
   useEffect(() => {

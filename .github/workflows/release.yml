@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -151,19 +151,19 @@ jobs:
           GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
         run: |
           cd clients/desktop/src-tauri/target/release/bundle
-          
+
           # Sign .deb package
           for deb in deb/*.deb; do
             echo "Signing $deb..."
             dpkg-sig --sign builder -k "$GPG_KEY_ID" "$deb"
           done
-          
+
           # Sign .rpm package
           for rpm in rpm/*.rpm; do
             echo "Signing $rpm..."
             rpm --addsign "$rpm"
           done
-          
+
           # Create detached signature for AppImage
           for appimage in appimage/*.AppImage; do
             echo "Signing $appimage..."
@@ -299,7 +299,7 @@ jobs:
           generate_release_notes: true
           body: |
             ## Together — Pre-release
-            
+
             Connect to your own self-hosted Together server. See the [self-hosting guide](https://github.com/jtjenkins/Together/blob/main/docs/self-hosting.md).
 
             | Platform | File | Notes |

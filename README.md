@@ -29,21 +29,21 @@ Rocket.Chat instead.
 
 ## Features
 
-| Feature | Status |
-|---|---|
-| Servers, channels, roles & permissions | ✅ |
-| Real-time text chat with threads | ✅ |
-| Direct messages | ✅ |
-| Voice channels (WebRTC SFU) | ✅ |
-| File & image uploads (up to 50 MB) | ✅ |
-| Emoji reactions, polls, server events | ✅ |
-| GIF picker (Giphy integration) | ✅ |
-| Slash commands & Discord-style markdown | ✅ |
-| Desktop app (Tauri — macOS, Windows, Linux) | ✅ |
-| Web app (any browser) | ✅ |
-| Mobile app (Tauri — Android & iOS) | ✅ |
-| Link previews | ✅ |
-| Rate limiting & basic security hardening | ✅ |
+| Feature                                     | Status |
+| ------------------------------------------- | ------ |
+| Servers, channels, roles & permissions      | ✅     |
+| Real-time text chat with threads            | ✅     |
+| Direct messages                             | ✅     |
+| Voice channels (WebRTC SFU)                 | ✅     |
+| File & image uploads (up to 50 MB)          | ✅     |
+| Emoji reactions, polls, server events       | ✅     |
+| GIF picker (Giphy integration)              | ✅     |
+| Slash commands & Discord-style markdown     | ✅     |
+| Desktop app (Tauri — macOS, Windows, Linux) | ✅     |
+| Web app (any browser)                       | ✅     |
+| Mobile app (Tauri — Android & iOS)          | ✅     |
+| Link previews                               | ✅     |
+| Rate limiting & basic security hardening    | ✅     |
 
 ---
 
@@ -174,15 +174,15 @@ For the full contribution guide (code style, PR process, project structure), see
 
 ## Documentation
 
-| Document | Description |
-|---|---|
-| [docs/self-hosting.md](docs/self-hosting.md) | Full deployment guide (TLS, backup, upgrade) |
-| [docs/openapi.yaml](docs/openapi.yaml) | OpenAPI 3.1 spec for all REST endpoints |
-| [docs/websocket-protocol.md](docs/websocket-protocol.md) | WebSocket gateway event reference |
-| [docs/architecture.md](docs/architecture.md) | Component design and database schema |
-| [docs/ios-voice.md](docs/ios-voice.md) | TURN server setup for iOS voice |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to set up a dev environment and submit PRs |
-| [SECURITY.md](SECURITY.md) | Security policy and pre-production disclaimer |
+| Document                                                 | Description                                    |
+| -------------------------------------------------------- | ---------------------------------------------- |
+| [docs/self-hosting.md](docs/self-hosting.md)             | Full deployment guide (TLS, backup, upgrade)   |
+| [docs/openapi.yaml](docs/openapi.yaml)                   | OpenAPI 3.1 spec for all REST endpoints        |
+| [docs/websocket-protocol.md](docs/websocket-protocol.md) | WebSocket gateway event reference              |
+| [docs/architecture.md](docs/architecture.md)             | Component design and database schema           |
+| [docs/ios-voice.md](docs/ios-voice.md)                   | TURN server setup for iOS voice                |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                       | How to set up a dev environment and submit PRs |
+| [SECURITY.md](SECURITY.md)                               | Security policy and pre-production disclaimer  |
 
 ---
 
