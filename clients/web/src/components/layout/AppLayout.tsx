@@ -112,6 +112,7 @@ export function AppLayout() {
             ) : (
               <ChatArea
                 channelId={activeChannelId}
+                serverId={activeServerId ?? undefined}
                 onOpenThread={openThread}
                 onBack={isMobile ? () => setMobilePanel("channels") : undefined}
               />

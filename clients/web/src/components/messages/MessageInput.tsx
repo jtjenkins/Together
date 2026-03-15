@@ -11,8 +11,9 @@ import { Paperclip, ImageIcon, FileText, ArrowUp } from "lucide-react";
 import { useMessageStore } from "../../stores/messageStore";
 import { useChannelStore } from "../../stores/channelStore";
 import { useServerStore } from "../../stores/serverStore";
+import { useCustomEmojiStore } from "../../stores/customEmojiStore";
 import { extractUrls, isImageUrl } from "../../utils/links";
-import { searchEmoji } from "../../utils/emoji";
+import { searchAllEmoji } from "../../utils/emoji";
 import { formatBytes } from "../../utils/formatBytes";
 import {
   detectSlashTrigger,
@@ -31,9 +32,10 @@ import styles from "./MessageInput.module.css";
 
 interface MessageInputProps {
   channelId: string;
+  serverId?: string;
 }
 
-export function MessageInput({ channelId }: MessageInputProps) {
+export function MessageInput({ channelId, serverId }: MessageInputProps) {
   const [content, setContent] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -270,7 +272,10 @@ export function MessageInput({ channelId }: MessageInputProps) {
 
     // Emoji navigation
     if (emojiQuery !== null) {
-      const results = searchEmoji(emojiQuery, 8);
+      const customEmojis = useCustomEmojiStore
+        .getState()
+        .getEmojis(serverId ?? "");
+      const results = searchAllEmoji(emojiQuery, customEmojis, 8);
       if (results.length > 0) {
         if (e.key === "ArrowDown") {
           setEmojiActiveIdx((i) => Math.min(i + 1, results.length - 1));
@@ -481,6 +486,7 @@ export function MessageInput({ channelId }: MessageInputProps) {
             activeIndex={emojiActiveIdx}
             onSelect={applyEmoji}
             onClose={() => setEmojiQuery(null)}
+            serverId={serverId}
           />
         )}
         {mentionQuery !== null && (
