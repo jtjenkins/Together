@@ -21,6 +21,8 @@ pub struct User {
     pub pronouns: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub is_admin: bool,
@@ -44,6 +46,8 @@ pub struct UserDto {
     pub pronouns: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub created_at: DateTime<Utc>,
     pub is_admin: bool,
 }
@@ -59,6 +63,8 @@ impl From<User> for UserDto {
             pronouns: user.pronouns,
             status: user.status,
             custom_status: user.custom_status,
+            bio: user.bio,
+            pronouns: user.pronouns,
             created_at: user.created_at,
             is_admin: user.is_admin,
         }
@@ -72,6 +78,36 @@ pub struct UpdateUserDto {
     pub pronouns: Option<String>,
     pub status: Option<String>,
     pub custom_status: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
+}
+
+/// Public profile shape for GET /users/:id — omits private fields like email.
+#[derive(Debug, Serialize)]
+pub struct PublicProfileDto {
+    pub id: Uuid,
+    pub username: String,
+    pub avatar_url: Option<String>,
+    pub status: String,
+    pub custom_status: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<User> for PublicProfileDto {
+    fn from(user: User) -> Self {
+        PublicProfileDto {
+            id: user.id,
+            username: user.username,
+            avatar_url: user.avatar_url,
+            status: user.status,
+            custom_status: user.custom_status,
+            bio: user.bio,
+            pronouns: user.pronouns,
+            created_at: user.created_at,
+        }
+    }
 }
 
 // ============================================================================
@@ -351,6 +387,49 @@ pub struct Attachment {
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub created_at: DateTime<Utc>,
+}
+
+// ── Custom Emojis ────────────────────────────────────────────────────────────
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct CustomEmoji {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub created_by: Uuid,
+    pub name: String,
+    pub filename: String,
+    pub content_type: String,
+    pub file_size: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CustomEmojiDto {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub created_by: Uuid,
+    pub name: String,
+    /// URL to fetch the image: `/emojis/{id}`
+    pub url: String,
+    pub content_type: String,
+    pub file_size: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+impl CustomEmojiDto {
+    pub fn from_row(row: CustomEmoji) -> Self {
+        let url = format!("/emojis/{}", row.id);
+        Self {
+            url,
+            id: row.id,
+            server_id: row.server_id,
+            created_by: row.created_by,
+            name: row.name,
+            content_type: row.content_type,
+            file_size: row.file_size,
+            created_at: row.created_at,
+        }
+    }
 }
 
 // ============================================================================
