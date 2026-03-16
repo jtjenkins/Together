@@ -9,11 +9,17 @@ import styles from "./ChatArea.module.css";
 
 interface ChatAreaProps {
   channelId: string;
+  serverId?: string;
   onOpenThread?: (messageId: string) => void;
   onBack?: () => void;
 }
 
-export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
+export function ChatArea({
+  channelId,
+  serverId,
+  onOpenThread,
+  onBack,
+}: ChatAreaProps) {
   const fetchMessages = useMessageStore((s) => s.fetchMessages);
   const messages = useMessageStore((s) => s.messages);
   const hasMore = useMessageStore((s) => s.hasMore);
@@ -206,7 +212,7 @@ export function ChatArea({ channelId, onOpenThread, onBack }: ChatAreaProps) {
         )}
       </div>
 
-      <MessageInput channelId={channelId} />
+      <MessageInput channelId={channelId} serverId={serverId} />
     </div>
   );
 }

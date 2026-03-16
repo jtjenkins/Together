@@ -108,3 +108,10 @@
 .pickerEmoji:hover {
   background: var(--bg-modifier-hover);
 }
+
+.customEmojiReaction {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: middle;
+}

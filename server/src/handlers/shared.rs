@@ -177,3 +177,47 @@ pub async fn require_manage_messages(
         ))
     }
 }
+
+/// Verify the user can manage custom emojis for the server.
+///
+/// Grants access if the user is the server owner, or if any of their roles
+/// carry the ADMINISTRATOR (bit 13) permission.
+pub async fn require_manage_emojis(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    user_id: Uuid,
+) -> AppResult<()> {
+    let is_owner: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM servers WHERE id = $1 AND owner_id = $2)")
+            .bind(server_id)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
+
+    if is_owner {
+        return Ok(());
+    }
+
+    let has_perm: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM member_roles mr
+             JOIN roles r ON r.id = mr.role_id
+             WHERE mr.user_id = $1
+               AND mr.server_id = $2
+               AND (r.permissions & $3 != 0)
+         )",
+    )
+    .bind(user_id)
+    .bind(server_id)
+    .bind(PERMISSION_ADMINISTRATOR)
+    .fetch_one(pool)
+    .await?;
+
+    if has_perm {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "You need the Administrator permission to manage custom emojis".into(),
+        ))
+    }
+}

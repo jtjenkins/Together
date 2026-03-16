@@ -422,6 +422,20 @@ async fn main() {
             post(handlers::events::create_event),
         )
         .route("/servers/:id/events", get(handlers::events::list_events))
+        // Custom emoji routes (protected, nested under server)
+        .route(
+            "/servers/:id/emojis",
+            get(handlers::custom_emojis::list_custom_emojis)
+                .post(handlers::custom_emojis::upload_custom_emoji),
+        )
+        .route(
+            "/servers/:id/emojis/:emoji_id",
+            delete(handlers::custom_emojis::delete_custom_emoji),
+        )
+        .route(
+            "/emojis/:emoji_id",
+            get(handlers::custom_emojis::serve_custom_emoji_image),
+        )
         // Voice routes (protected, nested under channel)
         .route(
             "/channels/:channel_id/voice",

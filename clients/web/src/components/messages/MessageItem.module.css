@@ -609,3 +609,13 @@
 .highlighted {
   animation: messageHighlight 2s ease-out forwards;
 }
+
+/* ── Custom emoji inline images ──────────────────────────────────────────── */
+
+.customEmojiInline {
+  display: inline;
+  width: 1.375em;
+  height: 1.375em;
+  vertical-align: -0.3em;
+  object-fit: contain;
+}
