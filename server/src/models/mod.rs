@@ -811,6 +811,21 @@ pub struct CreateBotDto {
     pub description: Option<String>,
 }
 
+/// Request body for PATCH /bots/:id.
+#[derive(Debug, Deserialize)]
+pub struct UpdateBotDto {
+    pub name: Option<String>,
+    pub description: Option<Option<String>>,
+}
+
+/// A single entry in a bot's activity log.
+#[derive(Debug, Serialize)]
+pub struct BotLogEntry {
+    pub timestamp: DateTime<Utc>,
+    pub event: String,
+    pub detail: Option<String>,
+}
+
 /// Response for POST /bots and POST /bots/:id/token/regenerate.
 /// Token is shown exactly once and never stored in plaintext.
 #[derive(Debug, Serialize)]

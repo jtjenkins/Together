@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::Utc;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -10,7 +11,7 @@ use crate::{
     auth::{create_access_token, AuthUser},
     bot_auth::{generate_bot_token, hash_bot_token},
     error::AppError,
-    models::{Bot, BotCreatedResponse, BotDto, CreateBotDto},
+    models::{Bot, BotCreatedResponse, BotDto, BotLogEntry, CreateBotDto, UpdateBotDto},
     state::AppState,
 };
 
@@ -247,6 +248,172 @@ pub async fn regenerate_bot_token(
         bot: updated_bot.into(),
         token: raw_token,
     }))
+}
+
+/// PATCH /bots/:id — Update bot name and/or description.
+pub async fn update_bot(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(bot_id): Path<Uuid>,
+    Json(payload): Json<UpdateBotDto>,
+) -> Result<Json<BotDto>, AppError> {
+    if auth.is_bot() {
+        return Err(AppError::Forbidden("Bots cannot update bots".into()));
+    }
+
+    let bot = sqlx::query_as::<_, Bot>(
+        "SELECT id, user_id, name, description, token_hash, created_by, revoked_at, created_at
+         FROM bots WHERE id = $1 AND created_by = $2",
+    )
+    .bind(bot_id)
+    .bind(auth.user_id())
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "Failed to fetch bot for update");
+        AppError::Internal
+    })?
+    .ok_or_else(|| AppError::NotFound("Bot not found".into()))?;
+
+    if bot.revoked_at.is_some() {
+        return Err(AppError::Validation(
+            "Cannot update a revoked bot".into(),
+        ));
+    }
+
+    let new_name = match &payload.name {
+        Some(n) => {
+            let trimmed = n.trim().to_string();
+            if trimmed.is_empty() || trimmed.chars().count() > 64 {
+                return Err(AppError::Validation(
+                    "Bot name must be 1–64 characters".into(),
+                ));
+            }
+            if !trimmed.chars().any(|c| c.is_alphanumeric()) {
+                return Err(AppError::Validation(
+                    "Bot name must contain at least one alphanumeric character".into(),
+                ));
+            }
+            trimmed
+        }
+        None => bot.name.clone(),
+    };
+
+    let new_desc = match &payload.description {
+        Some(d) => {
+            if d.as_deref().map(|s| s.chars().count()).unwrap_or(0) > 512 {
+                return Err(AppError::Validation(
+                    "Bot description must be ≤512 characters".into(),
+                ));
+            }
+            d.clone()
+        }
+        None => bot.description.clone(),
+    };
+
+    let updated = sqlx::query_as::<_, Bot>(
+        "UPDATE bots SET name = $1, description = $2
+         WHERE id = $3 AND created_by = $4
+         RETURNING id, user_id, name, description, token_hash, created_by, revoked_at, created_at",
+    )
+    .bind(&new_name)
+    .bind(new_desc.as_deref())
+    .bind(bot_id)
+    .bind(auth.user_id())
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "Failed to update bot");
+        AppError::Internal
+    })?;
+
+    tracing::info!(bot_id = %bot_id, "Bot updated");
+    Ok(Json(updated.into()))
+}
+
+/// GET /bots/:id/logs — Retrieve recent activity for a bot.
+///
+/// Synthesises a log from existing data: creation, messages sent, and
+/// revocation (if applicable).
+pub async fn bot_logs(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(bot_id): Path<Uuid>,
+) -> Result<Json<Value>, AppError> {
+    if auth.is_bot() {
+        return Err(AppError::Forbidden(
+            "Bots cannot access bot management endpoints".into(),
+        ));
+    }
+
+    let bot = sqlx::query_as::<_, Bot>(
+        "SELECT id, user_id, name, description, token_hash, created_by, revoked_at, created_at
+         FROM bots WHERE id = $1 AND created_by = $2",
+    )
+    .bind(bot_id)
+    .bind(auth.user_id())
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "Failed to fetch bot for logs");
+        AppError::Internal
+    })?
+    .ok_or_else(|| AppError::NotFound("Bot not found".into()))?;
+
+    let mut logs: Vec<BotLogEntry> = Vec::new();
+
+    // 1. Bot creation event
+    logs.push(BotLogEntry {
+        timestamp: bot.created_at,
+        event: "bot_created".to_string(),
+        detail: Some(format!("Bot \"{}\" was created", bot.name)),
+    });
+
+    // 2. Messages sent by the bot (last 50)
+    let rows: Vec<(chrono::DateTime<Utc>, String, Uuid)> = sqlx::query_as(
+        "SELECT m.created_at, m.content, m.channel_id
+         FROM messages m
+         WHERE m.author_id = $1 AND m.deleted = FALSE
+         ORDER BY m.created_at DESC
+         LIMIT 50",
+    )
+    .bind(bot.user_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "Failed to fetch bot messages for logs");
+        AppError::Internal
+    })?;
+
+    for row in rows {
+        let ts = row.0;
+        let content: String = row.1;
+        let channel_id = row.2;
+        let preview = if content.chars().count() > 80 {
+            format!("{}…", content.chars().take(80).collect::<String>())
+        } else {
+            content
+        };
+        logs.push(BotLogEntry {
+            timestamp: ts,
+            event: "message_sent".to_string(),
+            detail: Some(format!("[channel {}] {}", channel_id, preview)),
+        });
+    }
+
+    // 3. Revocation event
+    if let Some(revoked_at) = bot.revoked_at {
+        logs.push(BotLogEntry {
+            timestamp: revoked_at,
+            event: "bot_revoked".to_string(),
+            detail: Some("Bot token was revoked".to_string()),
+        });
+    }
+
+    // Sort by timestamp descending (newest first)
+    logs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+    Ok(Json(json!({ "logs": logs })))
 }
 
 /// POST /bots/connect — Exchange a static bot token for a short-lived JWT.

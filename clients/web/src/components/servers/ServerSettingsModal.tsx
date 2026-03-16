@@ -3,6 +3,7 @@ import { Modal } from "../common/Modal";
 import { useServerStore } from "../../stores/serverStore";
 import { useAuthStore } from "../../stores/authStore";
 import { CustomEmojiManager } from "./CustomEmojiManager";
+import { BotManager } from "./BotManager";
 import { useCustomEmojiStore } from "../../stores/customEmojiStore";
 
 import type { ServerDto } from "../../types";
@@ -152,6 +153,14 @@ export function ServerSettingsModal({
             }}
           />
           <CustomEmojiManager server={server} />
+          <hr
+            style={{
+              border: "none",
+              borderTop: "1px solid var(--bg-secondary, #2f3136)",
+              margin: "16px 0",
+            }}
+          />
+          <BotManager serverId={server.id} />
         </>
       )}
     </Modal>

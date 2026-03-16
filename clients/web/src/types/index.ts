@@ -402,6 +402,40 @@ export interface ResetPasswordRequest {
   new_password: string;
 }
 
+// ─── Bot Types ────────────────────────────────────────────────────────────
+
+export interface BotDto {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  created_by: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+export interface CreateBotRequest {
+  name: string;
+  description?: string;
+}
+
+export interface BotCreatedResponse {
+  bot: BotDto;
+  /** Plaintext token — shown once at creation/regeneration. */
+  token: string;
+}
+
+export interface UpdateBotRequest {
+  name?: string;
+  description?: string | null;
+}
+
+export interface BotLogEntry {
+  timestamp: string;
+  event: string;
+  detail: string | null;
+}
+
 // ─── ICE Servers (WebRTC) ─────────────────────────────────────────────────
 
 export interface IceServer {
