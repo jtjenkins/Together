@@ -1,0 +1,126 @@
+{
+  "scan_date": "2026-03-12",
+  "total": 19,
+  "critical": 1,
+  "high": 6,
+  "medium": 6,
+  "low": 6,
+  "fixed": 0,
+  "open": 19,
+  "findings": [
+    {
+      "id": "C1",
+      "severity": "critical",
+      "status": "open",
+      "title": "Stored XSS in search highlight rendering"
+    },
+    {
+      "id": "H1",
+      "severity": "high",
+      "status": "open",
+      "title": "JWT algorithm not pinned"
+    },
+    {
+      "id": "H2",
+      "severity": "high",
+      "status": "open",
+      "title": "Access token in WebSocket URL query parameter"
+    },
+    {
+      "id": "H3",
+      "severity": "high",
+      "status": "open",
+      "title": "Tokens stored in localStorage (XSS-accessible)"
+    },
+    {
+      "id": "H4",
+      "severity": "high",
+      "status": "open",
+      "title": "No account-level login failure tracking"
+    },
+    {
+      "id": "H5",
+      "severity": "high",
+      "status": "open",
+      "title": "Giphy API key in outbound URL (logged)"
+    },
+    {
+      "id": "H6",
+      "severity": "high",
+      "status": "open",
+      "title": "Docker container runs as root"
+    },
+    {
+      "id": "M1",
+      "severity": "medium",
+      "status": "open",
+      "title": "SSRF: IPv4-mapped IPv6 not blocked"
+    },
+    {
+      "id": "M2",
+      "severity": "medium",
+      "status": "open",
+      "title": "No rate limiting on WebSocket messages"
+    },
+    {
+      "id": "M3",
+      "severity": "medium",
+      "status": "open",
+      "title": "Upload directory permissions 0o755"
+    },
+    {
+      "id": "M4",
+      "severity": "medium",
+      "status": "open",
+      "title": "No audit logging"
+    },
+    {
+      "id": "M5",
+      "severity": "medium",
+      "status": "open",
+      "title": "text/plain fallback for UTF-8 binary files"
+    },
+    {
+      "id": "M6",
+      "severity": "medium",
+      "status": "open",
+      "title": "No server/user membership limits"
+    },
+    {
+      "id": "L1",
+      "severity": "low",
+      "status": "open",
+      "title": "JWT errors logged at WARN with full details"
+    },
+    {
+      "id": "L2",
+      "severity": "low",
+      "status": "open",
+      "title": "No Cache-Control on auth responses"
+    },
+    {
+      "id": "L3",
+      "severity": "low",
+      "status": "open",
+      "title": "Email field unverified"
+    },
+    {
+      "id": "L4",
+      "severity": "low",
+      "status": "open",
+      "title": "Content-Disposition with unsanitized original filename"
+    },
+    {
+      "id": "L5",
+      "severity": "low",
+      "status": "open",
+      "title": "Dockerfile missing HEALTHCHECK"
+    },
+    {
+      "id": "L6",
+      "severity": "low",
+      "status": "open",
+      "title": "No max session count per user"
+    }
+  ]
+}
