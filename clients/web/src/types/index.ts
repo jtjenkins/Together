@@ -73,6 +73,24 @@ export interface CreateServerRequest {
   name: string;
   icon_url?: string;
   is_public?: boolean;
+  template_id?: string;
+}
+
+export interface TemplateChannel {
+  name: string;
+  type: "text" | "voice";
+  category: string | null;
+  position: number;
+}
+
+export interface ServerTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: "gaming" | "community" | "study" | "custom";
+  channels: TemplateChannel[];
+  is_builtin: boolean;
+  created_at: string;
 }
 
 export interface UpdateServerRequest {
