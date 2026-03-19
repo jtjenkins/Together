@@ -124,11 +124,15 @@ export class WebSocketClient {
     this.cleanup();
   }
 
-  sendPresenceUpdate(status: string, customStatus: string | null = null) {
+  sendPresenceUpdate(
+    status: string,
+    customStatus: string | null = null,
+    activity: string | null = null,
+  ) {
     this.send({
       op: "PRESENCE_UPDATE" as GatewayOp,
       t: null,
-      d: { status, custom_status: customStatus },
+      d: { status, custom_status: customStatus, activity },
     });
   }
 
