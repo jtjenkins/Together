@@ -13,6 +13,8 @@ import type {
   PollVoteEvent,
   TypingStartEvent,
   CustomEmoji,
+  GoLiveStartEvent,
+  GoLiveStopEvent,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -35,6 +37,8 @@ interface EventHandlers {
   TYPING_START: EventHandler<TypingStartEvent>;
   CUSTOM_EMOJI_CREATE: EventHandler<CustomEmoji>;
   CUSTOM_EMOJI_DELETE: EventHandler<{ server_id: string; emoji_id: string }>;
+  GO_LIVE_START: EventHandler<GoLiveStartEvent>;
+  GO_LIVE_STOP: EventHandler<GoLiveStopEvent>;
 
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
@@ -137,11 +141,18 @@ export class WebSocketClient {
     type: "offer" | "answer" | "candidate",
     sdp?: string,
     candidate?: string,
+    streamType?: "voice" | "go_live",
   ) {
     this.send({
       op: "VOICE_SIGNAL" as GatewayOp,
       t: null,
-      d: { to_user_id: toUserId, type, sdp, candidate },
+      d: {
+        to_user_id: toUserId,
+        type,
+        sdp,
+        candidate,
+        stream_type: streamType,
+      },
     });
   }
 

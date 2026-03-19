@@ -199,6 +199,8 @@ export interface VoiceStateUpdateEvent {
 type VoiceSignalBase = {
   to_user_id?: string;
   from_user_id?: string;
+  /** Distinguishes audio voice signals ("voice") from Go Live video signals ("go_live"). */
+  stream_type?: "voice" | "go_live";
 };
 
 // Discriminated union so callers must provide sdp for offer/answer
@@ -207,6 +209,33 @@ export type VoiceSignalData =
   | (VoiceSignalBase & { type: "offer"; sdp: string })
   | (VoiceSignalBase & { type: "answer"; sdp: string })
   | (VoiceSignalBase & { type: "candidate"; candidate: string });
+
+// ─── Go Live Types ────────────────────────────────────────────
+
+export type GoLiveQuality = "480p" | "720p" | "1080p";
+
+export interface GoLiveSession {
+  channel_id: string;
+  broadcaster_id: string;
+  quality: GoLiveQuality;
+  started_at: string;
+}
+
+export interface StartGoLiveRequest {
+  quality?: GoLiveQuality;
+}
+
+export interface GoLiveStartEvent {
+  channel_id: string;
+  broadcaster_id: string;
+  quality: GoLiveQuality;
+  started_at: string;
+}
+
+export interface GoLiveStopEvent {
+  channel_id: string;
+  broadcaster_id: string;
+}
 
 // ─── Attachment Types ─────────────────────────────────────────
 
