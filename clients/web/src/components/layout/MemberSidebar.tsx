@@ -1,8 +1,10 @@
+import { useRef, useState } from "react";
 import { useAuthStore } from "../../stores/authStore";
 import { Mail } from "lucide-react";
 import { useServerStore } from "../../stores/serverStore";
 import { useDmStore } from "../../stores/dmStore";
 import type { MemberDto, UserStatus } from "../../types";
+import { UserProfileCard } from "../users/UserProfileCard";
 import styles from "./MemberSidebar.module.css";
 
 function StatusIndicator({ status }: { status: UserStatus }) {
@@ -15,45 +17,72 @@ function MemberItem({ member }: { member: MemberDto }) {
   const setActiveDmChannel = useDmStore((s) => s.setActiveDmChannel);
   const setActiveServer = useServerStore((s) => s.setActiveServer);
 
-  const handleMessage = async () => {
+  const [showProfile, setShowProfile] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  const handleMessage = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     const channel = await openOrCreateDm(member.user_id);
     setActiveDmChannel(channel.id);
     setActiveServer(null);
   };
 
+  const handleRowClick = () => {
+    setShowProfile((prev) => !prev);
+  };
+
   return (
-    <div
-      className={`${styles.member} ${member.status === "offline" ? styles.offline : ""}`}
-    >
-      <div className={styles.avatarWrapper}>
-        {member.avatar_url ? (
-          <img src={member.avatar_url} alt="" className={styles.avatar} />
-        ) : (
-          <div className={styles.avatarFallback}>
-            {member.username.charAt(0).toUpperCase()}
-          </div>
+    <>
+      <div
+        ref={rowRef}
+        className={`${styles.member} ${member.status === "offline" ? styles.offline : ""}`}
+        onClick={handleRowClick}
+        style={{ cursor: "pointer" }}
+        role="button"
+        tabIndex={0}
+        aria-label={`View profile of ${member.nickname || member.username}`}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") handleRowClick();
+        }}
+      >
+        <div className={styles.avatarWrapper}>
+          {member.avatar_url ? (
+            <img src={member.avatar_url} alt="" className={styles.avatar} />
+          ) : (
+            <div className={styles.avatarFallback}>
+              {member.username.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <StatusIndicator status={member.status} />
+        </div>
+        <div className={styles.info}>
+          <span className={styles.username}>
+            {member.nickname || member.username}
+          </span>
+          {member.activity && (
+            <span className={styles.activity}>{member.activity}</span>
+          )}
+        </div>
+        {currentUserId !== member.user_id && (
+          <button
+            className={styles.dmBtn}
+            onClick={handleMessage}
+            title={`Message ${member.nickname || member.username}`}
+            aria-label={`Message ${member.nickname || member.username}`}
+          >
+            <Mail size={14} />
+          </button>
         )}
-        <StatusIndicator status={member.status} />
       </div>
-      <div className={styles.info}>
-        <span className={styles.username}>
-          {member.nickname || member.username}
-        </span>
-        {member.activity && (
-          <span className={styles.activity}>{member.activity}</span>
-        )}
-      </div>
-      {currentUserId !== member.user_id && (
-        <button
-          className={styles.dmBtn}
-          onClick={handleMessage}
-          title={`Message ${member.nickname || member.username}`}
-          aria-label={`Message ${member.nickname || member.username}`}
-        >
-          <Mail size={14} />
-        </button>
+
+      {showProfile && (
+        <UserProfileCard
+          userId={member.user_id}
+          anchorRef={rowRef}
+          onClose={() => setShowProfile(false)}
+        />
       )}
-    </div>
+    </>
   );
 }
 
