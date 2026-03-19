@@ -915,3 +915,83 @@ pub struct AutomodTimeout {
     pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
+
+// ── Webhook Models ──────────────────────────────────────────────────────────
+
+/// Internal database row for a webhook.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct Webhook {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub created_by: Uuid,
+    pub name: String,
+    pub url: String,
+    pub secret: String,
+    pub event_types: serde_json::Value,
+    pub enabled: bool,
+    pub delivery_failures: i32,
+    pub last_used_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Public webhook shape returned by REST API responses.
+/// `secret` is intentionally excluded — shown only at creation.
+#[derive(Debug, Serialize)]
+pub struct WebhookDto {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub created_by: Uuid,
+    pub name: String,
+    pub url: String,
+    pub event_types: Vec<String>,
+    pub enabled: bool,
+    pub delivery_failures: i32,
+    pub last_used_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<Webhook> for WebhookDto {
+    fn from(w: Webhook) -> Self {
+        let event_types: Vec<String> = serde_json::from_value(w.event_types).unwrap_or_default();
+        WebhookDto {
+            id: w.id,
+            server_id: w.server_id,
+            created_by: w.created_by,
+            name: w.name,
+            url: w.url,
+            event_types,
+            enabled: w.enabled,
+            delivery_failures: w.delivery_failures,
+            last_used_at: w.last_used_at,
+            created_at: w.created_at,
+            updated_at: w.updated_at,
+        }
+    }
+}
+
+/// Response for POST /servers/:id/webhooks — includes the secret (shown once).
+#[derive(Debug, Serialize)]
+pub struct WebhookCreatedResponse {
+    pub webhook: WebhookDto,
+    /// Plaintext HMAC signing secret — shown once at creation only.
+    pub secret: String,
+}
+
+/// Request body for POST /servers/:id/webhooks.
+#[derive(Debug, Deserialize)]
+pub struct CreateWebhookDto {
+    pub name: String,
+    pub url: String,
+    pub event_types: Vec<String>,
+}
+
+/// Request body for PATCH /servers/:id/webhooks/:webhook_id.
+#[derive(Debug, Deserialize)]
+pub struct UpdateWebhookDto {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub event_types: Option<Vec<String>>,
+    pub enabled: Option<bool>,
+}

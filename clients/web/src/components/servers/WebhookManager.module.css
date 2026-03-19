@@ -1,0 +1,319 @@
+.manager {
+  margin-top: 20px;
+}
+
+.heading {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #72767d);
+  margin: 0 0 8px;
+}
+
+.hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #72767d);
+  margin: 0 0 12px;
+}
+
+/* ── Create form ─────────────────────────────────────────────── */
+
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.formRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nameInput,
+.urlInput {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border, #202225);
+  background: var(--input-bg, #40444b);
+  color: var(--text-normal, #dcddde);
+  font-size: 0.875rem;
+}
+
+.nameInput {
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.urlInput {
+  flex: 1;
+  min-width: 200px;
+}
+
+.eventCheckboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 6px 0 2px;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8125rem;
+  color: var(--text-muted, #72767d);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkboxLabel input[type="checkbox"] {
+  accent-color: var(--brand, #5865f2);
+  cursor: pointer;
+}
+
+.createBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  background: var(--brand, #5865f2);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+
+.createBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Secret reveal banner ────────────────────────────────────── */
+
+.secretBanner {
+  background: rgba(88, 101, 242, 0.08);
+  border: 1px solid rgba(88, 101, 242, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.secretLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-normal, #dcddde);
+  margin: 0 0 8px;
+}
+
+.secretRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.secretBox {
+  flex: 1;
+  font-family: monospace;
+  background: var(--bg-tertiary, #202225);
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color, #444);
+  word-break: break-all;
+  user-select: all;
+  font-size: 0.8125rem;
+  color: var(--text-normal, #dcddde);
+}
+
+.copyBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary, #2f3136);
+  border: 1px solid var(--border-color, #444);
+  color: var(--text-muted, #72767d);
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.copyBtn:hover {
+  color: var(--text-normal, #dcddde);
+  background: var(--bg-modifier-hover, #36393f);
+}
+
+.secretWarning {
+  font-size: 0.75rem;
+  color: var(--text-muted, #72767d);
+  margin: 8px 0 0;
+}
+
+/* ── Error / status ──────────────────────────────────────────── */
+
+.error {
+  color: var(--status-danger, #ed4245);
+  font-size: 0.8125rem;
+  margin-bottom: 8px;
+}
+
+/* ── Webhook list ────────────────────────────────────────────── */
+
+.empty {
+  color: var(--text-muted, #72767d);
+  font-size: 0.875rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.webhookRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-secondary, #2f3136);
+}
+
+.webhookRow.disabled {
+  opacity: 0.55;
+}
+
+.webhookInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.webhookHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+  flex-wrap: wrap;
+}
+
+.webhookName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-normal, #dcddde);
+}
+
+.disabledBadge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 165, 0, 0.15);
+  color: #ffa500;
+}
+
+.failureBadge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(237, 66, 69, 0.15);
+  color: var(--status-danger, #ed4245);
+}
+
+.webhookUrl {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #72767d);
+  font-family: monospace;
+  word-break: break-all;
+  margin: 0 0 4px;
+}
+
+.webhookMeta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #72767d);
+  margin: 2px 0 0;
+}
+
+.eventTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.eventTag {
+  font-size: 0.6875rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(88, 101, 242, 0.15);
+  color: var(--brand, #5865f2);
+  font-family: monospace;
+}
+
+/* ── Per-webhook actions ─────────────────────────────────────── */
+
+.webhookActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.testBtn,
+.toggleBtn,
+.deleteBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+}
+
+.testBtn {
+  background: var(--bg-tertiary, #202225);
+  color: var(--text-muted, #72767d);
+}
+
+.testBtn:hover:not(:disabled) {
+  color: var(--text-normal, #dcddde);
+  background: var(--bg-modifier-hover, #36393f);
+}
+
+.toggleBtn {
+  background: rgba(88, 101, 242, 0.1);
+  color: var(--brand, #5865f2);
+}
+
+.toggleBtn:hover:not(:disabled) {
+  background: rgba(88, 101, 242, 0.2);
+}
+
+.deleteBtn {
+  background: rgba(237, 66, 69, 0.1);
+  color: var(--status-danger, #ed4245);
+}
+
+.deleteBtn:hover:not(:disabled) {
+  background: rgba(237, 66, 69, 0.2);
+}
+
+.testBtn:disabled,
+.toggleBtn:disabled,
+.deleteBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

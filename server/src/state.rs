@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::handlers::link_preview::LinkPreviewCacheEntry;
+use crate::webhook_delivery::WebhookQueue;
 use crate::websocket::ConnectionManager;
 
 /// An active Go Live broadcast session within a voice channel.
@@ -65,6 +66,8 @@ pub struct AppState {
     /// At most one session per channel. Protected by a `RwLock` so the common
     /// read path (viewer fetch) is non-exclusive while start/stop are exclusive.
     pub go_live_sessions: Arc<RwLock<HashMap<Uuid, GoLiveSession>>>,
+    /// In-memory webhook delivery queue. Enqueue jobs via `webhook_queue.send()`.
+    pub webhook_queue: WebhookQueue,
 }
 
 impl AppState {

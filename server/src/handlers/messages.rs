@@ -13,6 +13,7 @@ use super::shared::{
     fetch_channel_by_id, fetch_message, fetch_message_including_deleted, fetch_server,
     require_member, validation_error,
 };
+use super::webhooks::dispatch_event;
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -304,7 +305,14 @@ pub async fn create_message(
     // Broadcast MESSAGE_CREATE to all connected server members.
     match serde_json::to_value(&dto) {
         Ok(payload) => {
-            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_CREATE, payload).await;
+            broadcast_to_server(
+                &state,
+                channel.server_id,
+                EVENT_MESSAGE_CREATE,
+                payload.clone(),
+            )
+            .await;
+            dispatch_event(&state, channel.server_id, "message.created", payload).await;
         }
         Err(e) => {
             tracing::error!(error = ?e, "Failed to serialize MessageDto for broadcast");
@@ -479,7 +487,14 @@ pub async fn update_message(
     // Broadcast MESSAGE_UPDATE to all connected server members.
     match serde_json::to_value(&dto) {
         Ok(payload) => {
-            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_UPDATE, payload).await;
+            broadcast_to_server(
+                &state,
+                channel.server_id,
+                EVENT_MESSAGE_UPDATE,
+                payload.clone(),
+            )
+            .await;
+            dispatch_event(&state, channel.server_id, "message.updated", payload).await;
         }
         Err(e) => {
             tracing::error!(error = ?e, "Failed to serialize MessageDto for broadcast");
@@ -527,13 +542,15 @@ pub async fn delete_message(
     }
 
     // Broadcast MESSAGE_DELETE to all connected server members.
+    let delete_payload = json!({ "id": message_id, "channel_id": message.channel_id });
     broadcast_to_server(
         &state,
         channel.server_id,
         EVENT_MESSAGE_DELETE,
-        json!({ "id": message_id, "channel_id": message.channel_id }),
+        delete_payload.clone(),
     )
     .await;
+    dispatch_event(&state, channel.server_id, "message.deleted", delete_payload).await;
 
     Ok(StatusCode::NO_CONTENT)
 }

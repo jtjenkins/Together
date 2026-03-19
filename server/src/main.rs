@@ -22,6 +22,7 @@ use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 
 use together_server::config::Config;
 use together_server::state::AppState;
+use together_server::webhook_delivery;
 use together_server::websocket::ConnectionManager;
 use together_server::{db, handlers, websocket};
 
@@ -142,6 +143,10 @@ async fn main() {
         .ok()
         .map(|k| Arc::from(k.as_str()));
 
+    // Start the webhook delivery background worker.
+    let webhook_queue = webhook_delivery::start_worker(pool.clone(), http_client.clone());
+    info!("📬 Webhook delivery worker started");
+
     let app_state = AppState {
         pool,
         jwt_secret: config.jwt_secret.clone(),
@@ -153,6 +158,7 @@ async fn main() {
         config: Arc::new(config.clone()),
         bot_rate_limiter: AppState::new_bot_rate_limiter(),
         go_live_sessions: Arc::new(RwLock::new(HashMap::new())),
+        webhook_queue,
     };
 
     // Prometheus metrics layer
@@ -440,6 +446,21 @@ async fn main() {
         .route(
             "/emojis/:emoji_id",
             get(handlers::custom_emojis::serve_custom_emoji_image),
+        )
+        // Webhook routes (protected, admin/owner only)
+        .route(
+            "/servers/:id/webhooks",
+            get(handlers::webhooks::list_webhooks).post(handlers::webhooks::create_webhook),
+        )
+        .route(
+            "/servers/:id/webhooks/:webhook_id",
+            get(handlers::webhooks::get_webhook)
+                .patch(handlers::webhooks::update_webhook)
+                .delete(handlers::webhooks::delete_webhook),
+        )
+        .route(
+            "/servers/:id/webhooks/:webhook_id/test",
+            post(handlers::webhooks::test_webhook),
         )
         // Voice routes (protected, nested under channel)
         .route(

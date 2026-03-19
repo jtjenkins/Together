@@ -604,3 +604,45 @@ export interface AutoModActionEvent {
   action_taken: string;
   matched_term?: string;
 }
+
+// ─── Webhook Types ───────────────────────────────────────────────────────────
+
+export type WebhookEventType =
+  | "message.created"
+  | "message.updated"
+  | "message.deleted"
+  | "member.joined"
+  | "member.left";
+
+export interface WebhookDto {
+  id: string;
+  server_id: string;
+  created_by: string;
+  name: string;
+  url: string;
+  event_types: WebhookEventType[];
+  enabled: boolean;
+  delivery_failures: number;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateWebhookRequest {
+  name: string;
+  url: string;
+  event_types: WebhookEventType[];
+}
+
+export interface UpdateWebhookRequest {
+  name?: string;
+  url?: string;
+  event_types?: WebhookEventType[];
+  enabled?: boolean;
+}
+
+export interface WebhookCreatedResponse {
+  webhook: WebhookDto;
+  /** Plaintext HMAC signing secret — shown once at creation only. */
+  secret: string;
+}

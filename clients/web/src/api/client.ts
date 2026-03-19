@@ -45,6 +45,10 @@ import type {
   GoLiveSession,
   StartGoLiveRequest,
   ServerTemplate,
+  WebhookDto,
+  CreateWebhookRequest,
+  WebhookCreatedResponse,
+  UpdateWebhookRequest,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -738,6 +742,54 @@ class ApiClient {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  // ─── Webhooks ─────────────────────────────────────────────────────────────
+
+  listWebhooks(serverId: string): Promise<{ webhooks: WebhookDto[] }> {
+    return this.request<{ webhooks: WebhookDto[] }>(
+      `/servers/${serverId}/webhooks`,
+    );
+  }
+
+  createWebhook(
+    serverId: string,
+    data: CreateWebhookRequest,
+  ): Promise<WebhookCreatedResponse> {
+    return this.request<WebhookCreatedResponse>(
+      `/servers/${serverId}/webhooks`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  updateWebhook(
+    serverId: string,
+    webhookId: string,
+    data: UpdateWebhookRequest,
+  ): Promise<WebhookDto> {
+    return this.request<WebhookDto>(
+      `/servers/${serverId}/webhooks/${webhookId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  deleteWebhook(serverId: string, webhookId: string): Promise<void> {
+    return this.request<void>(`/servers/${serverId}/webhooks/${webhookId}`, {
+      method: "DELETE",
+    });
+  }
+
+  testWebhook(serverId: string, webhookId: string): Promise<void> {
+    return this.request<void>(
+      `/servers/${serverId}/webhooks/${webhookId}/test`,
+      { method: "POST" },
+    );
   }
 }
 

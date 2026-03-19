@@ -4,6 +4,7 @@ import { useServerStore } from "../../stores/serverStore";
 import { useAuthStore } from "../../stores/authStore";
 import { CustomEmojiManager } from "./CustomEmojiManager";
 import { BotManager } from "./BotManager";
+import { WebhookManager } from "./WebhookManager";
 import { useCustomEmojiStore } from "../../stores/customEmojiStore";
 import { api } from "../../api/client";
 
@@ -179,6 +180,14 @@ export function ServerSettingsModal({
           <BotManager serverId={server.id} />
           {isOwner && (
             <>
+              <hr
+                style={{
+                  border: "none",
+                  borderTop: "1px solid var(--bg-secondary, #2f3136)",
+                  margin: "16px 0",
+                }}
+              />
+              <WebhookManager serverId={server.id} />
               <hr
                 style={{
                   border: "none",
