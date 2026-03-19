@@ -276,9 +276,7 @@ pub async fn update_bot(
     .ok_or_else(|| AppError::NotFound("Bot not found".into()))?;
 
     if bot.revoked_at.is_some() {
-        return Err(AppError::Validation(
-            "Cannot update a revoked bot".into(),
-        ));
+        return Err(AppError::Validation("Cannot update a revoked bot".into()));
     }
 
     let new_name = match &payload.name {
