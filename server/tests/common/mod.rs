@@ -20,6 +20,7 @@ use tower::ServiceExt;
 use together_server::{
     handlers,
     state::AppState,
+    webhook_delivery,
     websocket::{websocket_handler, ConnectionManager},
 };
 
@@ -66,6 +67,8 @@ pub fn create_test_app(pool: PgPool) -> Router {
         }
     });
 
+    let webhook_queue = webhook_delivery::start_worker(pool.clone(), http_client.clone());
+
     let state = AppState {
         pool,
         jwt_secret: Arc::from(TEST_JWT_SECRET),
@@ -77,6 +80,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
         config: Arc::new(config),
         bot_rate_limiter: AppState::new_bot_rate_limiter(),
         go_live_sessions: Arc::new(RwLock::new(HashMap::new())),
+        webhook_queue,
     };
     Router::new()
         .route("/health", get(handlers::health_check))
