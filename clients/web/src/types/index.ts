@@ -22,6 +22,7 @@ export interface UpdateUserDto {
   pronouns?: string | null;
   status?: UserStatus;
   custom_status?: string | null;
+  activity?: string | null;
 }
 
 export interface PublicProfileDto {
@@ -30,6 +31,7 @@ export interface PublicProfileDto {
   avatar_url: string | null;
   status: UserStatus;
   custom_status: string | null;
+  activity: string | null;
   bio: string | null;
   pronouns: string | null;
   created_at: string;
