@@ -216,6 +216,54 @@
   cursor: pointer;
 }
 
+/* ── Template picker ─────────────────────────────────────────── */
+
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+}
+
+.templateCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px;
+  background: var(--bg-secondary);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.templateCard:hover {
+  background: var(--bg-hover);
+}
+
+.templateCardSelected {
+  border-color: var(--accent-primary);
+  background: var(--bg-hover);
+}
+
+.templateIcon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.templateName {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 /* ── Settings tabs (shared by UserSettingsModal and ServerSettingsModal) ─── */
 
 .tabRow {

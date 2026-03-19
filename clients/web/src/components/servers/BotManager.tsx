@@ -180,9 +180,7 @@ export function BotManager({ serverId: _serverId }: BotManagerProps) {
       setBots((prev) => prev.map((b) => (b.id === botId ? updated : b)));
       setEditError("");
     } catch (err) {
-      setEditError(
-        err instanceof Error ? err.message : "Failed to update bot",
-      );
+      setEditError(err instanceof Error ? err.message : "Failed to update bot");
     } finally {
       setEditing(false);
     }
@@ -194,9 +192,7 @@ export function BotManager({ serverId: _serverId }: BotManagerProps) {
       const res = await api.getBotLogs(botId);
       setLogs(res.logs);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load bot logs",
-      );
+      setError(err instanceof Error ? err.message : "Failed to load bot logs");
     } finally {
       setLogsLoading(false);
     }
@@ -297,8 +293,7 @@ export function BotManager({ serverId: _serverId }: BotManagerProps) {
             </div>
             <div className={styles.formField}>
               <label className={styles.fieldLabel} htmlFor="bot-desc">
-                Description{" "}
-                <span className={styles.optional}>(optional)</span>
+                Description <span className={styles.optional}>(optional)</span>
               </label>
               <input
                 id="bot-desc"
@@ -530,9 +525,7 @@ export function BotManager({ serverId: _serverId }: BotManagerProps) {
                                 <button
                                   type="button"
                                   className={styles.revokeBtn}
-                                  onClick={() =>
-                                    handleRevoke(bot.id, bot.name)
-                                  }
+                                  onClick={() => handleRevoke(bot.id, bot.name)}
                                   disabled={busy}
                                   title="Revoke bot"
                                 >

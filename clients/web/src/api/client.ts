@@ -44,6 +44,7 @@ import type {
   BotLogEntry,
   GoLiveSession,
   StartGoLiveRequest,
+  ServerTemplate,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -232,6 +233,10 @@ class ApiClient {
 
   browseServers(): Promise<ServerDto[]> {
     return this.request("/servers/browse");
+  }
+
+  listTemplates(): Promise<ServerTemplate[]> {
+    return this.request("/server-templates");
   }
 
   listMembers(serverId: string): Promise<MemberDto[]> {
