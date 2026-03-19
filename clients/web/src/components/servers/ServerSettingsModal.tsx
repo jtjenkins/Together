@@ -5,6 +5,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { CustomEmojiManager } from "./CustomEmojiManager";
 import { BotManager } from "./BotManager";
 import { useCustomEmojiStore } from "../../stores/customEmojiStore";
+import { api } from "../../api/client";
 
 import type { ServerDto } from "../../types";
 import styles from "./ServerModals.module.css";
@@ -28,6 +29,7 @@ export function ServerSettingsModal({
   const [iconUrl, setIconUrl] = useState(server.icon_url || "");
   const [isPublic, setIsPublic] = useState(server.is_public);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState("");
   const updateServer = useServerStore((s) => s.updateServer);
   const currentUser = useAuthStore((s) => s.user);
@@ -54,6 +56,20 @@ export function ServerSettingsModal({
       setError(err instanceof Error ? err.message : "Failed to update server");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    setError("");
+    try {
+      await api.exportServer(server.id);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to export server data",
+      );
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -161,6 +177,38 @@ export function ServerSettingsModal({
             }}
           />
           <BotManager serverId={server.id} />
+          {isOwner && (
+            <>
+              <hr
+                style={{
+                  border: "none",
+                  borderTop: "1px solid var(--bg-secondary, #2f3136)",
+                  margin: "16px 0",
+                }}
+              />
+              <div>
+                <h3 style={{ margin: "0 0 8px" }}>Export Server Data</h3>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "var(--text-muted, #72767d)",
+                    margin: "0 0 12px",
+                  }}
+                >
+                  Download a ZIP archive containing channels, members, roles,
+                  and message history.
+                </p>
+                <button
+                  type="button"
+                  className={styles.submitBtn}
+                  onClick={handleExport}
+                  disabled={isExporting}
+                >
+                  {isExporting ? "Exporting..." : "Export as ZIP"}
+                </button>
+              </div>
+            </>
+          )}
         </>
       )}
     </Modal>

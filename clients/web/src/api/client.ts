@@ -679,6 +679,37 @@ class ApiClient {
   getBotLogs(botId: string): Promise<{ logs: BotLogEntry[] }> {
     return this.request<{ logs: BotLogEntry[] }>(`/bots/${botId}/logs`);
   }
+
+  /** Download a server data export as a ZIP file and trigger a browser download. */
+  async exportServer(serverId: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
+    }
+
+    const res = await fetch(`${this.apiBase}/servers/${serverId}/export`, {
+      headers,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "Export failed");
+      throw new ApiRequestError(res.status, text);
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+    const filename = filenameMatch ? filenameMatch[1] : `server-export.zip`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 }
 
 export class ApiRequestError extends Error {
