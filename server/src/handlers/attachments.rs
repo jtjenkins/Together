@@ -337,13 +337,14 @@ pub async fn serve_file(
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
+    let safe_name = sanitize_header_filename(&attachment.filename);
     let disposition = if attachment.mime_type.starts_with("image/")
         || attachment.mime_type.starts_with("video/")
         || attachment.mime_type.starts_with("audio/")
     {
-        format!("inline; filename=\"{}\"", attachment.filename)
+        format!("inline; filename=\"{safe_name}\"")
     } else {
-        format!("attachment; filename=\"{}\"", attachment.filename)
+        format!("attachment; filename=\"{safe_name}\"")
     };
 
     let response = Response::builder()
@@ -384,6 +385,15 @@ async fn cleanup_files(paths: &[PathBuf]) {
             tracing::warn!(error = ?e, path = ?p, "Failed to clean up orphaned upload file");
         }
     }
+}
+
+/// Sanitize a filename for use inside a `Content-Disposition` header value.
+/// Strips characters that could inject headers (`"`, `\r`, `\n`, `\0`).
+fn sanitize_header_filename(name: &str) -> String {
+    name.replace('"', "'")
+        .replace('\r', "")
+        .replace('\n', "")
+        .replace('\0', "")
 }
 
 /// Replace any character that is not alphanumeric, dot, underscore, or hyphen

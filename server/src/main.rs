@@ -546,10 +546,21 @@ async fn main() {
     // request extensions, needed by:
     //  - GovernorLayer's PeerIpKeyExtractor (per-IP rate limiting)
     //  - require_loopback middleware on /metrics
-    axum::serve(
+    let server = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .await
-    .expect("Server failed to start");
+    .with_graceful_shutdown(shutdown_signal());
+
+    server.await.expect("Server failed to start");
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = tokio::signal::ctrl_c();
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("failed to install SIGTERM handler");
+    tokio::select! {
+        _ = ctrl_c => { tracing::info!("Received SIGINT, starting graceful shutdown"); }
+        _ = sigterm.recv() => { tracing::info!("Received SIGTERM, starting graceful shutdown"); }
+    }
 }

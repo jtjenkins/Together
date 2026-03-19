@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { memo, useState, useEffect, useCallback, useMemo } from "react";
 import {
   CornerDownRight,
   FileText,
@@ -303,7 +303,7 @@ interface MessageItemProps {
   canPin?: boolean;
 }
 
-export function MessageItem({
+export const MessageItem = memo(function MessageItem({
   message,
   showHeader,
   authorName,
@@ -814,4 +814,4 @@ export function MessageItem({
       )}
     </div>
   );
-}
+});

@@ -24,7 +24,7 @@ use std::time::Duration;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{self, Receiver, Sender};
 use uuid::Uuid;
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -55,13 +55,22 @@ impl DeliveryJob {
 
 /// Cheap handle for enqueuing delivery jobs from anywhere in the server.
 #[derive(Clone)]
-pub struct WebhookQueue(UnboundedSender<DeliveryJob>);
+pub struct WebhookQueue(Sender<DeliveryJob>);
 
 impl WebhookQueue {
-    /// Enqueue a delivery job.  Never blocks; silently drops if the worker has
-    /// stopped (which only happens on shutdown).
+    /// Enqueue a delivery job.  Uses `try_send` to avoid blocking the caller.
+    /// Logs a warning if the queue is full (back-pressure).
     pub fn send(&self, job: DeliveryJob) {
-        let _ = self.0.send(job);
+        if let Err(e) = self.0.try_send(job) {
+            match e {
+                tokio::sync::mpsc::error::TrySendError::Full(_) => {
+                    tracing::warn!("Webhook delivery queue is full; dropping job");
+                }
+                tokio::sync::mpsc::error::TrySendError::Closed(_) => {
+                    // Worker has stopped (shutdown); silently drop.
+                }
+            }
+        }
     }
 }
 
@@ -69,7 +78,7 @@ impl WebhookQueue {
 ///
 /// Call once in `main` after the DB pool and HTTP client are ready.
 pub fn start_worker(pool: PgPool, http_client: reqwest::Client) -> WebhookQueue {
-    let (tx, rx) = mpsc::unbounded_channel();
+    let (tx, rx) = mpsc::channel(10_000);
     tokio::spawn(run_worker(rx, pool, http_client));
     WebhookQueue(tx)
 }
@@ -80,11 +89,7 @@ const MAX_ATTEMPTS: u8 = 3;
 /// Delay before attempt N (0-indexed): 5 s before attempt 2, 15 s before attempt 3.
 const RETRY_DELAYS_SECS: [u64; 2] = [5, 15];
 
-async fn run_worker(
-    mut rx: UnboundedReceiver<DeliveryJob>,
-    pool: PgPool,
-    http_client: reqwest::Client,
-) {
+async fn run_worker(mut rx: Receiver<DeliveryJob>, pool: PgPool, http_client: reqwest::Client) {
     while let Some(job) = rx.recv().await {
         let pool = pool.clone();
         let client = http_client.clone();
@@ -120,23 +125,29 @@ async fn run_job(job: DeliveryJob, pool: PgPool, client: reqwest::Client) {
 
     if last_success {
         tracing::debug!(webhook_id = %job.webhook_id, "Webhook delivered successfully");
-        let _ = sqlx::query(
+        if let Err(e) = sqlx::query(
             "UPDATE webhooks SET delivery_failures = 0, last_used_at = NOW() WHERE id = $1",
         )
         .bind(job.webhook_id)
         .execute(&pool)
-        .await;
+        .await
+        {
+            tracing::warn!(webhook_id = %job.webhook_id, error = ?e, "Failed to update webhook delivery stats");
+        }
     } else {
         tracing::warn!(
             webhook_id = %job.webhook_id,
             "Webhook delivery exhausted all retries"
         );
-        let _ = sqlx::query(
+        if let Err(e) = sqlx::query(
             "UPDATE webhooks SET delivery_failures = delivery_failures + 1 WHERE id = $1",
         )
         .bind(job.webhook_id)
         .execute(&pool)
-        .await;
+        .await
+        {
+            tracing::warn!(webhook_id = %job.webhook_id, error = ?e, "Failed to update webhook delivery stats");
+        }
     }
 }
 

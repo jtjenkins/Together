@@ -215,6 +215,12 @@ pub async fn get_link_preview(
     })?;
 
     // Cap response body at 1 MB to prevent memory exhaustion from large/streaming responses.
+    // Reject obviously oversized responses before downloading the full body
+    if let Some(cl) = response.content_length() {
+        if cl > 1_048_576 {
+            return Err(AppError::Validation("Response too large".into()));
+        }
+    }
     let bytes = response.bytes().await.map_err(|e| {
         tracing::warn!(
             error = ?e,

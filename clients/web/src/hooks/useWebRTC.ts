@@ -18,45 +18,11 @@
  */
 import { useEffect, useRef, useCallback } from "react";
 import { gateway } from "../api/websocket";
-import { api } from "../api/client";
+import { getIceServers } from "../utils/iceCache";
 import type { VoiceParticipant } from "../types";
 
 /** Default average frequency amplitude (0–255) above which a user is considered speaking. */
 const DEFAULT_SPEAKING_THRESHOLD = 15;
-
-// Cache ICE servers for the TTL duration (24 hours by default)
-let iceServersCache: { servers: RTCIceServer[]; expiresAt: number } | null =
-  null;
-
-async function getIceServers(): Promise<RTCIceServer[]> {
-  // Return cached servers if still valid
-  if (iceServersCache && Date.now() < iceServersCache.expiresAt) {
-    return iceServersCache.servers;
-  }
-
-  try {
-    const response = await api.getIceServers();
-    // Convert to RTCIceServer format and cache for TTL - 60 seconds buffer
-    const servers: RTCIceServer[] = response.iceServers.map((s) => ({
-      urls: s.urls,
-      username: s.username,
-      credential: s.credential,
-    }));
-    const ttlMs = (response.ttl - 60) * 1000;
-    iceServersCache = {
-      servers,
-      expiresAt: Date.now() + ttlMs,
-    };
-    return servers;
-  } catch (err) {
-    console.warn("[WebRTC] Failed to fetch ICE servers, using STUN only", err);
-    // Fallback to public STUN servers if API fails
-    return [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-    ];
-  }
-}
 
 export interface RemoteStreams {
   camera?: MediaStream;
