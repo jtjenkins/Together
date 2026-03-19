@@ -23,6 +23,7 @@ pub mod servers;
 pub mod shared;
 pub mod users;
 pub mod voice;
+pub mod webhooks;
 
 // Re-export health handlers for convenience
 pub use health::{health_check, liveness_check, readiness_check};
