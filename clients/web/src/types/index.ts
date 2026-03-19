@@ -532,3 +532,23 @@ export interface ServerBan {
   reason: string | null;
   created_at: string;
 }
+
+// ─── AutoMod aliases (capital-M convenience re-exports) ──────────────────
+
+export type AutoModAction = AutomodConfig["spam_action"];
+
+export type AutoModConfig = AutomodConfig;
+export type UpdateAutoModConfigRequest = UpdateAutomodConfigRequest;
+export type AutoModWordFilter = AutomodWordFilter;
+export type AutoModLog = AutomodLog;
+
+/** Payload sent over WebSocket for real-time automod action events. */
+export interface AutoModActionEvent {
+  server_id: string;
+  channel_id?: string;
+  user_id: string;
+  username: string;
+  rule_type: string;
+  action_taken: string;
+  matched_term?: string;
+}
