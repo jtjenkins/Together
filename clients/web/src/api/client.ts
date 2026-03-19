@@ -37,6 +37,11 @@ import type {
   AutomodWordFilter,
   AutomodLog,
   ServerBan,
+  BotDto,
+  CreateBotRequest,
+  BotCreatedResponse,
+  UpdateBotRequest,
+  BotLogEntry,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -639,6 +644,40 @@ class ApiClient {
     return this.request<void>(`/servers/${serverId}/bans/${userId}`, {
       method: "DELETE",
     });
+  }
+
+  // ─── Bots ────────────────────────────────────────────────────────────────
+
+  listBots(): Promise<{ bots: BotDto[] }> {
+    return this.request<{ bots: BotDto[] }>("/bots");
+  }
+
+  createBot(data: CreateBotRequest): Promise<BotCreatedResponse> {
+    return this.request<BotCreatedResponse>("/bots", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  revokeBot(botId: string): Promise<void> {
+    return this.request(`/bots/${botId}`, { method: "DELETE" });
+  }
+
+  regenerateBotToken(botId: string): Promise<BotCreatedResponse> {
+    return this.request<BotCreatedResponse>(`/bots/${botId}/token/regenerate`, {
+      method: "POST",
+    });
+  }
+
+  updateBot(botId: string, data: UpdateBotRequest): Promise<BotDto> {
+    return this.request<BotDto>(`/bots/${botId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  getBotLogs(botId: string): Promise<{ logs: BotLogEntry[] }> {
+    return this.request<{ logs: BotLogEntry[] }>(`/bots/${botId}/logs`);
   }
 }
 
