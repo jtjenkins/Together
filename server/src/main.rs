@@ -251,6 +251,8 @@ async fn main() {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Server data export (owner only)
+        .route("/servers/:id/export", get(handlers::export::export_server))
         // Audit logs (owner only)
         .route(
             "/servers/:id/audit-logs",
