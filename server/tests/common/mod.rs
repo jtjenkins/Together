@@ -76,6 +76,7 @@ pub fn create_test_app(pool: PgPool) -> Router {
         giphy_api_key: None,
         config: Arc::new(config),
         bot_rate_limiter: AppState::new_bot_rate_limiter(),
+        go_live_sessions: Arc::new(RwLock::new(HashMap::new())),
     };
     Router::new()
         .route("/health", get(handlers::health_check))
