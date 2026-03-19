@@ -32,6 +32,9 @@ pub struct UpdateUserRequest {
     /// Free-form status text; capped at 128 characters.
     #[validate(length(max = 128))]
     pub custom_status: Option<String>,
+    /// Activity/rich presence text, e.g. "Playing Minecraft"; capped at 128 characters.
+    #[validate(length(max = 128))]
+    pub activity: Option<String>,
 }
 
 // ============================================================================
@@ -83,6 +86,7 @@ pub async fn update_current_user(
 
         status: req.status,
         custom_status: req.custom_status,
+        activity: req.activity,
     };
 
     let user = sqlx::query_as::<_, User>(
@@ -93,8 +97,9 @@ pub async fn update_current_user(
             pronouns      = COALESCE($3, pronouns),
             status        = COALESCE($4, status),
             custom_status = COALESCE($5, custom_status),
+            activity      = COALESCE($6, activity),
             updated_at    = NOW()
-        WHERE id = $6
+        WHERE id = $7
         RETURNING *
         "#,
     )
@@ -103,6 +108,7 @@ pub async fn update_current_user(
     .bind(update.pronouns)
     .bind(update.status)
     .bind(update.custom_status)
+    .bind(update.activity)
     .bind(auth_user.user_id())
     .fetch_optional(&state.pool)
     .await?

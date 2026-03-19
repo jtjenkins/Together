@@ -24,6 +24,7 @@ function makeMember(username: string): MemberDto {
     avatar_url: null,
     status: "online",
     custom_status: null,
+    activity: null,
     nickname: null,
     joined_at: new Date().toISOString(),
   };

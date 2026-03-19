@@ -22,7 +22,11 @@ interface AuthState {
   login: (data: LoginRequest) => Promise<void>;
   logout: () => void;
   updateProfile: (data: UpdateUserDto) => Promise<void>;
-  updatePresence: (status: UserStatus, customStatus?: string | null) => void;
+  updatePresence: (
+    status: UserStatus,
+    customStatus?: string | null,
+    activity?: string | null,
+  ) => void;
   setUser: (user: UserDto) => void;
   restoreSession: () => Promise<void>;
   clearError: () => void;
@@ -88,8 +92,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updatePresence: (status, customStatus = null) => {
-    gateway.sendPresenceUpdate(status, customStatus);
+  updatePresence: (status, customStatus = null, activity = null) => {
+    gateway.sendPresenceUpdate(status, customStatus, activity);
     const user = get().user;
     if (user) {
       set({
@@ -97,6 +101,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           ...user,
           status,
           custom_status: customStatus ?? user.custom_status,
+          activity: activity ?? user.activity,
         },
       });
     }

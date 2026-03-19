@@ -21,6 +21,7 @@ pub struct User {
     pub pronouns: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
+    pub activity: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub is_admin: bool,
@@ -44,6 +45,7 @@ pub struct UserDto {
     pub pronouns: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
+    pub activity: Option<String>,
     pub created_at: DateTime<Utc>,
     pub is_admin: bool,
 }
@@ -59,6 +61,7 @@ impl From<User> for UserDto {
             pronouns: user.pronouns,
             status: user.status,
             custom_status: user.custom_status,
+            activity: user.activity,
             created_at: user.created_at,
             is_admin: user.is_admin,
         }
@@ -72,6 +75,7 @@ pub struct UpdateUserDto {
     pub pronouns: Option<String>,
     pub status: Option<String>,
     pub custom_status: Option<String>,
+    pub activity: Option<String>,
 }
 
 /// Public profile shape for GET /users/:id — omits private fields like email.

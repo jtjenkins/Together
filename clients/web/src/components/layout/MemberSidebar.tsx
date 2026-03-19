@@ -39,6 +39,9 @@ function MemberItem({ member }: { member: MemberDto }) {
         <span className={styles.username}>
           {member.nickname || member.username}
         </span>
+        {member.activity && (
+          <span className={styles.activity}>{member.activity}</span>
+        )}
       </div>
       {currentUserId !== member.user_id && (
         <button

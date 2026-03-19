@@ -149,7 +149,7 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
     // Register connection and go online *after* READY is delivered,
     // so no broadcast events can arrive before the client has its initial state.
     let conn_id = state.connections.add(user_id, tx).await;
-    set_presence(&state, user_id, "online", None).await;
+    set_presence(&state, user_id, "online", None, None).await;
 
     // Forward outbound events from the mpsc channel to the WebSocket.
     let mut send_task = tokio::spawn(async move {
@@ -196,7 +196,7 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
     // Clean up on disconnect.
     state.connections.remove(user_id, conn_id).await;
     cleanup_voice_on_disconnect(&state, user_id).await;
-    set_presence(&state, user_id, "offline", None).await;
+    set_presence(&state, user_id, "offline", None, None).await;
 }
 
 // ============================================================================
@@ -226,7 +226,8 @@ async fn handle_client_message(user_id: Uuid, text: &str, state: &AppState) {
                     return;
                 }
                 let custom_status = data["custom_status"].as_str().map(ToOwned::to_owned);
-                set_presence(state, user_id, status, custom_status).await;
+                let activity = data["activity"].as_str().map(ToOwned::to_owned);
+                set_presence(state, user_id, status, custom_status, activity).await;
             }
         }
         GatewayOp::TypingStart => {
@@ -454,6 +455,7 @@ async fn handle_voice_signal(user_id: Uuid, data: serde_json::Value, state: &App
         "type":         data["type"],
         "sdp":          data["sdp"],
         "candidate":    data["candidate"],
+        "stream_type":  data["stream_type"],
     });
 
     let event = GatewayMessage::dispatch(EVENT_VOICE_SIGNAL, relayed);
@@ -589,6 +591,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
 
                     status: r.recipient_status,
                     custom_status: r.recipient_custom_status,
+                    activity: None,
                     created_at: r.recipient_created_at,
                     is_admin: r.recipient_is_admin,
                 },
@@ -719,14 +722,17 @@ pub async fn set_presence(
     user_id: Uuid,
     status: &str,
     custom_status: Option<String>,
+    activity: Option<String>,
 ) {
     // Persist status — non-fatal if this fails.
-    if let Err(e) = sqlx::query("UPDATE users SET status = $1, custom_status = $2 WHERE id = $3")
-        .bind(status)
-        .bind(custom_status.as_deref())
-        .bind(user_id)
-        .execute(&state.pool)
-        .await
+    if let Err(e) =
+        sqlx::query("UPDATE users SET status = $1, custom_status = $2, activity = $3 WHERE id = $4")
+            .bind(status)
+            .bind(custom_status.as_deref())
+            .bind(activity.as_deref())
+            .bind(user_id)
+            .execute(&state.pool)
+            .await
     {
         tracing::warn!(
             user_id = %user_id,
@@ -763,6 +769,7 @@ pub async fn set_presence(
             "user_id": user_id,
             "status": status,
             "custom_status": custom_status,
+            "activity": activity,
         }),
     );
 

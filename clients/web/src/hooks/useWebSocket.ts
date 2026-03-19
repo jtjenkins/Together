@@ -87,7 +87,12 @@ export function useWebSocket() {
       }),
 
       gateway.on("PRESENCE_UPDATE", (event: PresenceUpdateEvent) => {
-        updateMemberPresence(event.user_id, event.status, event.custom_status);
+        updateMemberPresence(
+          event.user_id,
+          event.status,
+          event.custom_status,
+          event.activity,
+        );
       }),
 
       gateway.on("DM_CHANNEL_CREATE", (channel: DirectMessageChannel) => {
