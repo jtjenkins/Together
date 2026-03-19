@@ -31,6 +31,7 @@ interface ServerState {
     userId: string,
     status: string,
     customStatus: string | null,
+    activity: string | null,
   ) => void;
   fetchDiscoverableServers: () => Promise<void>;
   clearError: () => void;
@@ -156,7 +157,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
     }
   },
 
-  updateMemberPresence: (userId, status, customStatus) => {
+  updateMemberPresence: (userId, status, customStatus, activity) => {
     set((state) => ({
       members: state.members.map((m) =>
         m.user_id === userId
@@ -164,6 +165,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
               ...m,
               status: status as MemberDto["status"],
               custom_status: customStatus,
+              activity,
             }
           : m,
       ),

@@ -11,6 +11,7 @@ export interface UserDto {
   pronouns: string | null;
   status: UserStatus;
   custom_status: string | null;
+  activity: string | null;
   created_at: string;
   is_admin: boolean;
 }
@@ -86,6 +87,7 @@ export interface MemberDto {
   avatar_url: string | null;
   status: UserStatus;
   custom_status: string | null;
+  activity: string | null;
   nickname: string | null;
   joined_at: string;
 }
@@ -313,6 +315,7 @@ export interface PresenceUpdateEvent {
   user_id: string;
   status: UserStatus;
   custom_status: string | null;
+  activity: string | null;
 }
 
 export interface TypingStartEvent {
