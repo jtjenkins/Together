@@ -42,6 +42,8 @@ import type {
   BotCreatedResponse,
   UpdateBotRequest,
   BotLogEntry,
+  GoLiveSession,
+  StartGoLiveRequest,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -338,6 +340,28 @@ class ApiClient {
 
   listVoiceParticipants(channelId: string): Promise<VoiceParticipant[]> {
     return this.request(`/channels/${channelId}/voice`);
+  }
+
+  // ─── Go Live ────────────────────────────────────────────────
+
+  startGoLive(
+    channelId: string,
+    data: StartGoLiveRequest,
+  ): Promise<GoLiveSession> {
+    return this.request(`/channels/${channelId}/go-live`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  stopGoLive(channelId: string): Promise<void> {
+    return this.request(`/channels/${channelId}/go-live`, {
+      method: "DELETE",
+    });
+  }
+
+  getGoLive(channelId: string): Promise<GoLiveSession> {
+    return this.request(`/channels/${channelId}/go-live`);
   }
 
   // ─── Attachments ───────────────────────────────────────────

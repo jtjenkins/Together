@@ -9,6 +9,7 @@ pub mod dm;
 pub mod events;
 pub mod export;
 pub mod giphy;
+pub mod go_live;
 pub mod health;
 pub mod ice;
 pub mod link_preview;

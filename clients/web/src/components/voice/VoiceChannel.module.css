@@ -251,6 +251,23 @@
   color: #fff;
 }
 
+.goLiveActive {
+  background: rgba(224, 60, 60, 0.15);
+  border-color: var(--accent-red, #e03c3c);
+  color: var(--accent-red, #e03c3c);
+  animation: goLivePulse 2s ease-in-out infinite;
+}
+
+@keyframes goLivePulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
 /* ── Speaking indicator ──────────────────────── */
 
 .speaking {

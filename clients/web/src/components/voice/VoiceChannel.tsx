@@ -12,6 +12,7 @@ import {
   VideoOff,
   ScreenShare,
   ScreenShareOff,
+  Radio,
 } from "lucide-react";
 import { useVoiceStore } from "../../stores/voiceStore";
 import { useAuthStore } from "../../stores/authStore";
@@ -21,11 +22,21 @@ import {
   sensitivityToThreshold,
 } from "../../stores/voiceSettingsStore";
 import { useWebRTC } from "../../hooks/useWebRTC";
+import { useGoLive } from "../../hooks/useGoLive";
 import { usePushToTalk } from "../../hooks/usePushToTalk";
 import { VideoGrid } from "./VideoGrid";
 import { gateway } from "../../api/websocket";
 import { api } from "../../api/client";
-import type { VoiceParticipant, VoiceStateUpdateEvent } from "../../types";
+import type {
+  VoiceParticipant,
+  VoiceStateUpdateEvent,
+  GoLiveQuality,
+} from "../../types";
+import {
+  GoLiveViewer,
+  GoLiveBanner,
+  GoLiveQualitySelector,
+} from "./GoLiveViewer";
 import styles from "./VoiceChannel.module.css";
 
 /** Convert a KeyboardEvent.code to a human-readable label. */
@@ -75,6 +86,11 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
 
   // Speaking state: set of user IDs currently transmitting audio
   const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
+
+  // Go Live state
+  const [showQualityPicker, setShowQualityPicker] = useState(false);
+  const [showViewer, setShowViewer] = useState(false);
+  const [goLiveError, setGoLiveError] = useState<string | null>(null);
 
   // Audio device selection
   const [micDeviceId, setMicDeviceId] = useState<string | null>(null);
@@ -333,10 +349,53 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
       onLocalStreamsChange: handleRemoteStreamsChange,
     });
 
-  const activeError = voiceError ?? rtcError;
+  const {
+    activeSession: goLiveSession,
+    isBroadcasting,
+    viewerCount,
+    viewerStream,
+    startBroadcast,
+    stopBroadcast,
+  } = useGoLive({
+    enabled: isConnected,
+    channelId,
+    myUserId: user?.id ?? "",
+    participants,
+    onError: setGoLiveError,
+  });
+
+  const handleStartGoLive = async (quality: GoLiveQuality) => {
+    setShowQualityPicker(false);
+    await startBroadcast(quality);
+  };
+
+  const handleStopGoLive = async () => {
+    await stopBroadcast();
+    setShowViewer(false);
+  };
+
+  // Broadcaster name for the banner/viewer header
+  const broadcasterName =
+    participants.find((p) => p.user_id === goLiveSession?.broadcaster_id)
+      ?.username ??
+    goLiveSession?.broadcaster_id?.slice(0, 8) ??
+    "Someone";
+
+  const activeError = voiceError ?? rtcError ?? goLiveError;
 
   return (
     <div className={styles.voiceChannel}>
+      {/* Go Live fullscreen viewer */}
+      {showViewer && viewerStream && goLiveSession && (
+        <GoLiveViewer
+          stream={viewerStream}
+          session={goLiveSession}
+          broadcasterName={broadcasterName}
+          viewerCount={viewerCount}
+          onClose={() => setShowViewer(false)}
+        />
+      )}
+
       <div className={styles.header}>
         {onBack && (
           <button
@@ -484,6 +543,21 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                     <ScreenShare size={20} />
                   )}
                 </button>
+                {/* Go Live button — broadcaster toggles; others not shown */}
+                {!goLiveSession || isBroadcasting ? (
+                  <button
+                    className={`${styles.controlBtn} ${isBroadcasting ? styles.goLiveActive : ""}`}
+                    onClick={
+                      isBroadcasting
+                        ? handleStopGoLive
+                        : () => setShowQualityPicker(true)
+                    }
+                    title={isBroadcasting ? "End Go Live" : "Go Live"}
+                    aria-label={isBroadcasting ? "End Go Live" : "Go Live"}
+                  >
+                    <Radio size={20} />
+                  </button>
+                ) : null}
                 <button
                   className={`${styles.controlBtn} ${showSettings ? styles.controlActive : ""}`}
                   onClick={() => {
@@ -631,6 +705,24 @@ export function VoiceChannel({ channelId, onBack }: VoiceChannelProps) {
                     </select>
                   </div>
                 </div>
+              )}
+
+              {/* Quality picker overlay */}
+              {showQualityPicker && (
+                <GoLiveQualitySelector
+                  onSelect={handleStartGoLive}
+                  onCancel={() => setShowQualityPicker(false)}
+                />
+              )}
+
+              {/* Go Live banner for viewers (someone else is live) */}
+              {goLiveSession && !isBroadcasting && (
+                <GoLiveBanner
+                  session={goLiveSession}
+                  broadcasterName={broadcasterName}
+                  viewerCount={viewerCount}
+                  onWatch={() => setShowViewer(true)}
+                />
               )}
 
               {/* PTT active indicator shown outside the settings panel */}

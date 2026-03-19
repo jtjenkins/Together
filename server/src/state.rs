@@ -3,8 +3,10 @@ use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use governor::{DefaultKeyedRateLimiter, Quota};
 use reqwest::Client;
+use serde::Serialize;
 use sqlx::PgPool;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -12,6 +14,20 @@ use uuid::Uuid;
 use crate::config::Config;
 use crate::handlers::link_preview::LinkPreviewCacheEntry;
 use crate::websocket::ConnectionManager;
+
+/// An active Go Live broadcast session within a voice channel.
+///
+/// At most one session exists per channel at a time — enforced by the
+/// `start_go_live` handler under a write lock.
+#[derive(Debug, Clone, Serialize)]
+pub struct GoLiveSession {
+    /// The user currently broadcasting.
+    pub broadcaster_id: Uuid,
+    /// Requested quality tier: "480p", "720p", or "1080p".
+    pub quality: String,
+    /// Wall-clock time the broadcast started (UTC).
+    pub started_at: DateTime<Utc>,
+}
 
 /// Shared application state passed to all handlers and extractors.
 ///
@@ -44,6 +60,11 @@ pub struct AppState {
     /// Uses a dashmap-backed keyed rate limiter so each bot gets an independent
     /// token bucket. Bots share a single `Arc` so cloning `AppState` is cheap.
     pub bot_rate_limiter: Arc<DefaultKeyedRateLimiter<Uuid>>,
+    /// Active Go Live broadcast sessions, keyed by voice channel ID.
+    ///
+    /// At most one session per channel. Protected by a `RwLock` so the common
+    /// read path (viewer fetch) is non-exclusive while start/stop are exclusive.
+    pub go_live_sessions: Arc<RwLock<HashMap<Uuid, GoLiveSession>>>,
 }
 
 impl AppState {

@@ -152,6 +152,7 @@ async fn main() {
         giphy_api_key,
         config: Arc::new(config.clone()),
         bot_rate_limiter: AppState::new_bot_rate_limiter(),
+        go_live_sessions: Arc::new(RwLock::new(HashMap::new())),
     };
 
     // Prometheus metrics layer
@@ -456,6 +457,19 @@ async fn main() {
         .route(
             "/channels/:channel_id/voice",
             get(handlers::voice::list_voice_participants),
+        )
+        // Go Live routes (protected, nested under channel)
+        .route(
+            "/channels/:channel_id/go-live",
+            post(handlers::go_live::start_go_live),
+        )
+        .route(
+            "/channels/:channel_id/go-live",
+            delete(handlers::go_live::stop_go_live),
+        )
+        .route(
+            "/channels/:channel_id/go-live",
+            get(handlers::go_live::get_go_live),
         )
         // ICE servers for WebRTC (protected, returns TURN credentials)
         .route("/ice-servers", get(handlers::ice::get_ice_servers))
