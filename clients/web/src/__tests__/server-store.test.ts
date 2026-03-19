@@ -266,7 +266,7 @@ describe("serverStore", () => {
         ],
       });
 
-      useServerStore.getState().updateMemberPresence("u1", "away", "BRB", null);
+      useServerStore.getState().updateMemberPresence("u1", "away", "BRB");
 
       expect(useServerStore.getState().members[0].status).toBe("away");
     });
