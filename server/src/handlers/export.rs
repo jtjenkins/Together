@@ -126,10 +126,10 @@ fn to_slug(s: &str) -> String {
 /// Sanitize a filename for use inside a `Content-Disposition` header value.
 /// Strips characters that could inject headers (`"`, `\r`, `\n`, `\0`).
 fn sanitize_header_filename(name: &str) -> String {
-    name.replace('"', "'")
-        .replace('\r', "")
-        .replace('\n', "")
-        .replace('\0', "")
+    name.chars()
+        .filter(|c| !matches!(c, '\r' | '\n' | '\0'))
+        .map(|c| if c == '"' { '\'' } else { c })
+        .collect()
 }
 
 // ============================================================================
