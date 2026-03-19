@@ -32,6 +32,7 @@ const mockChannel = (
     pronouns: null,
     status: "online",
     custom_status: null,
+    activity: null,
     created_at: "2024-01-01T00:00:00Z",
     is_admin: false,
   },
