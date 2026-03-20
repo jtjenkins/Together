@@ -9,6 +9,7 @@ updates, and WebRTC voice signaling.
 
 ```
 GET ws://your-server:8080/ws?token=<access_token>
+GET ws://your-server:8080/ws?bot_token=<static_token>
 ```
 
 The access token is passed as a query parameter rather than an `Authorization` header because
@@ -16,6 +17,11 @@ browsers cannot set custom headers on WebSocket upgrade requests (a fundamental 
 An invalid or expired token results in a `401` HTTP response before the upgrade completes.
 
 Use a fresh access token on every connection — access tokens expire after 15 minutes.
+
+**Bot authentication**: Bots can connect using the `bot_token` query parameter with their static
+bot token. However, static tokens appear in server and proxy access logs. For production use,
+prefer exchanging the bot token for a short-lived JWT via `POST /bots/connect`, then connect
+with `?token=<jwt>` instead.
 
 ---
 
@@ -47,7 +53,18 @@ All messages in both directions use the same JSON envelope:
 | `HEARTBEAT`       | Client → Server | Keep-alive ping to prevent connection timeout   |
 | `HEARTBEAT_ACK`   | Server → Client | Pong response to a `HEARTBEAT`                  |
 | `PRESENCE_UPDATE` | Both            | Update or receive a user's online status        |
+| `TYPING_START`    | Client → Server | Notify the server that the user started typing  |
 | `VOICE_SIGNAL`    | Both            | WebRTC signaling payload (SDP or ICE candidate) |
+
+---
+
+## Operational Limits
+
+| Parameter                  | Value   | Behavior on violation                     |
+| -------------------------- | ------- | ----------------------------------------- |
+| Idle timeout               | 300 s   | Server closes connection after 5 min idle |
+| Max frame size             | 16 KB   | Oversized frames close the connection     |
+| Per-connection rate limit  | 20 msg/s| Excess messages are silently dropped      |
 
 ---
 
@@ -55,13 +72,14 @@ All messages in both directions use the same JSON envelope:
 
 ```
 1. Client opens WebSocket to /ws?token=<access_token>
+   (or /ws?bot_token=<static_token> for bots)
 2. Server validates the token
    - Invalid/expired token → HTTP 401 before upgrade (connection refused)
-3. Server sends READY event with user profile and server list
+3. Server sends READY event with user profile, server list, DM channels, and unread state
 4. Client sends HEARTBEAT every 30 seconds to keep the connection alive
 5. Server sends HEARTBEAT_ACK in response to each HEARTBEAT
 6. Events flow bidirectionally for the session lifetime
-7. On disconnect (network drop, token expiry, etc.), client reconnects
+7. On disconnect (network drop, token expiry, idle timeout, etc.), client reconnects
    with a fresh access token from /auth/login
 ```
 
@@ -69,8 +87,8 @@ All messages in both directions use the same JSON envelope:
 
 ## READY Event
 
-Sent immediately after a successful connection. Contains the authenticated user's profile and
-the list of servers they belong to.
+Sent immediately after a successful connection. Contains the authenticated user's profile,
+the list of servers they belong to, open DM channels, and per-channel unread/mention counts.
 
 The server list uses the raw server shape (not the REST `ServerDto`) — it does not include
 `member_count`. To get a member count, call `GET /servers/:id` after connection.
@@ -85,9 +103,13 @@ The server list uses the raw server shape (not the REST `ServerDto`) — it does
       "username": "alice",
       "email": "alice@example.com",
       "avatar_url": null,
+      "bio": null,
+      "pronouns": null,
       "status": "online",
       "custom_status": null,
-      "created_at": "2025-01-01T00:00:00Z"
+      "activity": null,
+      "created_at": "2025-01-01T00:00:00Z",
+      "is_admin": false
     },
     "servers": [
       {
@@ -95,9 +117,36 @@ The server list uses the raw server shape (not the REST `ServerDto`) — it does
         "name": "My Gaming Server",
         "owner_id": "uuid",
         "icon_url": null,
+        "is_public": false,
         "created_at": "2025-01-01T00:00:00Z",
         "updated_at": "2025-01-01T00:00:00Z"
       }
+    ],
+    "dm_channels": [
+      {
+        "id": "uuid",
+        "recipient": {
+          "id": "uuid",
+          "username": "bob",
+          "email": null,
+          "avatar_url": null,
+          "bio": null,
+          "pronouns": null,
+          "status": "online",
+          "custom_status": null,
+          "activity": null,
+          "created_at": "2025-01-01T00:00:00Z",
+          "is_admin": false
+        },
+        "created_at": "2025-01-01T00:00:00Z",
+        "last_message_at": "2025-01-15T08:30:00Z"
+      }
+    ],
+    "unread_counts": [
+      { "channel_id": "uuid", "unread_count": 5 }
+    ],
+    "mention_counts": [
+      { "channel_id": "uuid", "count": 2 }
     ]
   }
 }
@@ -175,7 +224,8 @@ Sent to all members of a shared server when a user changes their online status.
   "d": {
     "user_id": "uuid",
     "status": "online",
-    "custom_status": null
+    "custom_status": null,
+    "activity": null
   }
 }
 ```
@@ -196,6 +246,8 @@ The `username` field is injected by the server on every broadcast.
     "channel_id": "uuid",
     "self_mute": false,
     "self_deaf": false,
+    "self_video": false,
+    "self_screen": false,
     "server_mute": false,
     "server_deaf": false,
     "joined_at": "2025-01-01T12:00:00Z",
@@ -219,13 +271,41 @@ The signal fields are at the top level of `d` alongside `from_user_id`.
     "from_user_id": "uuid",
     "type": "offer",
     "sdp": "v=0\r\no=- ...",
-    "candidate": null
+    "candidate": null,
+    "stream_type": null
   }
 }
 ```
 
 For ICE candidates, `type` is `"candidate"`, `sdp` is `null`, and `candidate` contains the ICE
-candidate string.
+candidate string. The `stream_type` field is forwarded as-is from the sender (e.g. `"screen"`,
+`"camera"`, or `null`).
+
+### Additional Server → Client Events
+
+The following events are dispatched via the same `DISPATCH` envelope. Payload shapes vary by
+event — refer to the handler source code for full field details.
+
+| Event                  | Description                                                        |
+| ---------------------- | ------------------------------------------------------------------ |
+| `DM_CHANNEL_CREATE`    | A new DM channel was opened with the connected user                |
+| `DM_MESSAGE_CREATE`    | A new message was sent in one of the user's DM channels            |
+| `REACTION_ADD`         | A reaction was added to a message in a visible channel             |
+| `REACTION_REMOVE`      | A reaction was removed from a message in a visible channel         |
+| `THREAD_MESSAGE_CREATE`| A new message was posted in a thread the user can see              |
+| `POLL_VOTE`            | A vote was cast on a poll in a visible channel                     |
+| `TYPING_START`         | A user started typing in a channel (server broadcast)              |
+| `TYPING_STOP`          | A user stopped typing in a channel                                 |
+| `MESSAGE_PIN`          | A message was pinned in a channel                                  |
+| `MESSAGE_UNPIN`        | A message was unpinned from a channel                              |
+| `CUSTOM_EMOJI_CREATE`  | A custom emoji was added to a server                               |
+| `CUSTOM_EMOJI_DELETE`  | A custom emoji was removed from a server                           |
+| `GO_LIVE_START`        | A user started a live stream in a voice channel                    |
+| `GO_LIVE_STOP`         | A user stopped their live stream in a voice channel                |
+
+The server-broadcast `TYPING_START` event payload includes `user_id`, `username`, `channel_id`,
+and `timestamp`. Clients should auto-expire the typing indicator after ~10 seconds if no further
+`TYPING_START` events are received for that user.
 
 ---
 
@@ -250,7 +330,26 @@ Messages with unknown status values are silently dropped.
 {
   "op": "PRESENCE_UPDATE",
   "d": {
-    "status": "away"
+    "status": "away",
+    "custom_status": "Playing a game",
+    "activity": "Elden Ring"
+  }
+}
+```
+
+All fields in `d` are optional except `status`. `custom_status` and `activity` are free-text
+strings (or `null` to clear).
+
+### `TYPING_START`
+
+Notify the server that you started typing in a channel. The server validates channel membership
+before broadcasting to other members.
+
+```json
+{
+  "op": "TYPING_START",
+  "d": {
+    "channel_id": "uuid"
   }
 }
 ```
@@ -268,10 +367,14 @@ top level of `d` — there is no nested `signal` wrapper object.
     "to_user_id": "uuid",
     "type": "offer",
     "sdp": "v=0\r\no=- ...",
-    "candidate": null
+    "candidate": null,
+    "stream_type": null
   }
 }
 ```
+
+The `stream_type` field is forwarded to the receiving peer as-is (e.g. `"screen"`, `"camera"`,
+or `null`).
 
 ---
 
@@ -332,5 +435,6 @@ thundering-herd problems after a server restart.
 | 1001 | Server going away (restart/shutdown)    |
 
 Authentication failures result in a `401` HTTP response before the WebSocket upgrade completes,
-not a WebSocket close frame. Invalid messages (malformed JSON, unknown opcodes) are silently
-dropped — the connection remains open.
+not a WebSocket close frame. Malformed JSON and unknown opcodes are silently dropped — the
+connection remains open. However, oversized frames (>16 KB) cause the server to close the
+connection immediately.

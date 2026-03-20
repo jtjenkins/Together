@@ -103,11 +103,13 @@ rsync -avz --delete /mnt/backups/ user@backup-server:/backups/together/
 
 ### Restoring from Backup
 
-**1. Stop the services (prevents data corruption during restore):**
+**1. Start only the database container (the app server should not be running during restore):**
 
 ```bash
-docker compose down
+docker compose up -d postgres
 ```
+
+> **Do not** run `docker compose down` before restoring — that would remove the database container and its network. Instead, stop only the app server if it is running (`docker compose stop server`), or simply ensure only postgres is up.
 
 **2. Restore the database:**
 
@@ -142,6 +144,24 @@ docker compose exec server curl -s http://localhost:8080/api/health
 # Check logs for any errors
 docker compose logs server
 ```
+
+---
+
+## Combined Backup Script
+
+For convenience, `scripts/backup-full.sh` performs a combined database + file uploads backup in a single command:
+
+```bash
+./scripts/backup-full.sh [backup_dir]
+```
+
+This script:
+
+- Reads `POSTGRES_USER` and `POSTGRES_DB` from `.env` (or the environment)
+- Creates `together_YYYYMMDD_HHMMSS.sql.gz` (database dump) and `uploads_YYYYMMDD_HHMMSS.tar.gz` (file uploads) in the specified backup directory (defaults to `./backups`)
+- Uses atomic writes (temp file + rename) so a failed backup never leaves a partial file with the final name
+- Cleans up temporary files on exit, even on failure
+- Requires services to be running (`docker compose up -d`)
 
 ---
 

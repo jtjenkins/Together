@@ -105,7 +105,7 @@ POST /servers/:server_id/join
 Authorization: Bearer <token>
 ```
 
-No request body. Returns `200 OK` on success, `409 Conflict` if already a member. Returns `404 Not Found` for private servers (to avoid leaking their existence).
+No request body. Returns `201 Created` on success, `409 Conflict` if already a member. Returns `404 Not Found` for private servers (to avoid leaking their existence).
 
 ### Create a public server
 

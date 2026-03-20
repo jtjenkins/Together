@@ -2,6 +2,8 @@
 
 Audit logs record administrative actions taken within a server, giving server owners a tamper-evident history of who did what and when.
 
+> **Note:** The audit logging schema, query endpoint, and event types are implemented. However, event emission is not yet wired into the handlers — no audit events are currently being recorded. This will be completed in a future release.
+
 ## Access
 
 Only the **server owner** can read audit logs.
@@ -131,9 +133,9 @@ CREATE TABLE audit_logs (
     action      TEXT        NOT NULL,
     target_type TEXT,
     target_id   UUID,
-    details     JSONB       NOT NULL DEFAULT '{}',
+    details     JSONB       DEFAULT '{}',
     ip_address  INET,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 

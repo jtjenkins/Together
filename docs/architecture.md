@@ -53,9 +53,9 @@ The architecture is optimized for small to medium communities (20-500 users) wit
 │  │  Chat  │     │  Users   │    │   Voice    │                 │
 │  │ Module │     │  Module  │    │   Module   │                 │
 │  │        │     │          │    │  (WebRTC)  │                 │
-│  │ • Msgs │     │ • Auth   │    │  • SFU     │                 │
+│  │ • Msgs │     │ • Auth   │    │  • Signal  │                 │
 │  │ • Chans│     │ • Roles  │    │  • ICE     │                 │
-│  │ • Perms│     │ • Servers│    │  • DTLS    │                 │
+│  │ • Perms│     │ • Servers│    │  • P2P     │                 │
 │  └────┬───┘     └────┬─────┘    └─────┬──────┘                 │
 │       │              │                 │                       │
 │       └──────────────┴─────────────────┘                       │
@@ -66,14 +66,13 @@ The architecture is optimized for small to medium communities (20-500 users) wit
          ┌─────────────────────────┐
          │     PostgreSQL 16       │
          │                         │
-         │  Tables:                │
-         │  • users                │
-         │  • servers              │
-         │  • channels             │
-         │  • messages             │
-         │  • roles                │
-         │  • sessions             │
-         │  • voice_state          │
+         │  Key tables (30+):      │
+         │  • users, sessions      │
+         │  • servers, channels    │
+         │  • messages, reactions  │
+         │  • roles, voice_states  │
+         │  • bots, audit_logs     │
+         │  • webhooks, DMs, ...   │
          └─────────────────────────┘
 ```
 
@@ -97,22 +96,22 @@ The architecture is optimized for small to medium communities (20-500 users) wit
 
 ```rust
 // HTTP REST API
-GET  /api/servers              // List servers
-POST /api/servers              // Create server
-GET  /api/channels/:id/messages // Get message history
-POST /api/channels/:id/messages // Send message
+GET  /servers              // List servers
+POST /servers              // Create server
+GET  /channels/:id/messages // Get message history
+POST /channels/:id/messages // Send message
 
 // WebSocket upgrade
-GET  /gateway?token=jwt        // Upgrade to WebSocket connection
+GET  /ws?token=jwt         // Upgrade to WebSocket connection
 
 // File uploads
-POST /api/attachments          // Upload file (multipart/form-data)
+POST /messages/:message_id/attachments  // Upload file (multipart/form-data)
 ```
 
 **Key Features**:
 
 - JWT validation on all authenticated routes
-- Rate limiting: 100 req/min per user, 10 WebSocket connections per IP
+- Rate limiting: 10 req/s per IP (burst 20) globally, 2 req/s (burst 5) for auth
 - CORS for web client
 - Graceful shutdown (drain connections on SIGTERM)
 
@@ -125,18 +124,15 @@ POST /api/attachments          // Upload file (multipart/form-data)
 ```
 Client                          Server
   │                               │
-  │ GET /gateway?token=jwt        │
+  │ GET /ws?token=jwt             │
   ├──────────────────────────────>│
   │                               │ Validate JWT
   │                               │ Upgrade to WebSocket
   │ 101 Switching Protocols       │
   │<──────────────────────────────┤
-  │                               │
-  │ {op: "IDENTIFY"}              │
-  ├──────────────────────────────>│
   │                               │ Register connection
   │                               │ Load user's servers
-  │ {op: "READY", data: {...}}    │
+  │ {op: "DISPATCH", t: "READY"}  │
   │<──────────────────────────────┤
   │                               │
   │ Heartbeat every 30s           │
@@ -148,8 +144,9 @@ Client                          Server
 ```rust
 #[derive(Serialize, Deserialize)]
 struct GatewayMessage {
-    op: String,           // Operation: DISPATCH, HEARTBEAT, IDENTIFY, etc.
-    s: Option<u64>,       // Sequence number (for resume)
+    op: GatewayOp,        // Enum serialized as SCREAMING_SNAKE_CASE
+                          // DISPATCH, HEARTBEAT, HEARTBEAT_ACK,
+                          // PRESENCE_UPDATE, TYPING_START, VOICE_SIGNAL
     t: Option<String>,    // Event type (for DISPATCH)
     d: Option<Value>,     // Event data
 }
@@ -168,14 +165,21 @@ struct GatewayMessage {
 }
 ```
 
-**Event Types**:
+**Event Types** (21 total):
 
-- `READY` - Initial state after identify
+- `READY` - Initial state sent on connection
 - `MESSAGE_CREATE/UPDATE/DELETE` - Chat messages
-- `CHANNEL_CREATE/UPDATE/DELETE` - Channel changes
-- `VOICE_STATE_UPDATE` - User joined/left/muted in voice
 - `PRESENCE_UPDATE` - User status changed
-- `TYPING_START` - User typing indicator
+- `VOICE_STATE_UPDATE` - User joined/left/muted in voice
+- `VOICE_SIGNAL` - WebRTC SDP/ICE relay between peers
+- `DM_CHANNEL_CREATE` / `DM_MESSAGE_CREATE` - Direct messages
+- `REACTION_ADD/REMOVE` - Message reactions
+- `THREAD_MESSAGE_CREATE` - Thread replies
+- `POLL_VOTE` - Poll vote cast
+- `TYPING_START/STOP` - Typing indicators
+- `MESSAGE_PIN/UNPIN` - Pin changes
+- `CUSTOM_EMOJI_CREATE/DELETE` - Custom emoji management
+- `GO_LIVE_START/STOP` - Screen sharing / go-live sessions
 
 **Performance**:
 
@@ -193,7 +197,7 @@ struct GatewayMessage {
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-    author_id UUID NOT NULL REFERENCES users(id),
+    author_id UUID REFERENCES users(id) ON DELETE SET NULL,
     content TEXT NOT NULL,
     edited_at TIMESTAMPTZ,
     deleted BOOLEAN DEFAULT FALSE,
@@ -218,23 +222,23 @@ CREATE INDEX idx_messages_search
 
 ```rust
 // Send message
-POST /api/channels/:id/messages
+POST /channels/:id/messages
 {
   "content": "Hello world!",
   "reply_to": "optional_message_id"
 }
 
 // Get history (cursor-based pagination)
-GET /api/channels/:id/messages?before=timestamp&limit=50
+GET /channels/:id/messages?before=message_id&limit=50
 
 // Edit message
-PATCH /api/channels/:id/messages/:msg_id
+PATCH /channels/:id/messages/:msg_id
 {
   "content": "Updated content"
 }
 
 // Delete message (soft delete)
-DELETE /api/channels/:id/messages/:msg_id
+DELETE /channels/:id/messages/:msg_id
 ```
 
 **Search Implementation**:
@@ -307,7 +311,7 @@ CREATE TABLE member_roles (
 
 ```rust
 // Login
-POST /api/auth/login
+POST /auth/login
 {
   "username": "user",
   "password": "pass"
@@ -327,7 +331,7 @@ Response:
 }
 
 // Refresh
-POST /api/auth/refresh
+POST /auth/refresh
 {
   "refresh_token": "..."
 }
@@ -361,88 +365,77 @@ async fn can_send_message(user_id: Uuid, channel_id: Uuid) -> Result<bool> {
 }
 ```
 
-### 5. Voice Module (WebRTC SFU)
+### 5. Voice Module (P2P WebRTC Mesh)
 
-**Purpose**: Low-latency voice chat using Selective Forwarding Unit
+**Purpose**: Low-latency voice/video chat via peer-to-peer connections
 
-**Why SFU (not mesh or MCU)**:
+**Why P2P mesh (not SFU or MCU)**:
 
-- **Mesh**: Each client connects to every other (N² connections) - doesn't scale
-- **MCU**: Server mixes audio (expensive CPU, adds latency)
-- **SFU**: Server forwards packets without processing - perfect balance
+- For gaming communities with 3-8 people per voice channel, P2P mesh is sufficient
+- **Zero server-side media infrastructure** - the server is purely a signaling relay
+- No Pion, no SFU, no server-side media processing or forwarding
+- Migration path: if channels grow beyond ~10 simultaneous video participants, introduce an SFU; the signaling relay is already in place
 
 **Architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│              Voice Service                          │
-│                                                     │
-│  ┌─────────────────────────────────────────────┐    │
-│  │         Signaling (WebSocket)               │    │
-│  │  • SDP offer/answer exchange                │    │
-│  │  • ICE candidate gathering                  │    │
-│  │  • Voice state management                   │    │
-│  └─────────────────┬───────────────────────────┘    │
-│                    │                                │
-│  ┌─────────────────▼───────────────────────────┐    │
-│  │          WebRTC SFU (Pion)                  │    │
-│  │                                             │    │
-│  │   User A ──► [Router] ──► User B            │    │
-│  │             (forward)                       │    │
-│  │   User B ──►   ▲   ▼  ──► User C            │    │
-│  │                │                            │    │
-│  │            No mixing,                       │    │
-│  │         just forwarding                     │    │
-│  └─────────────────────────────────────────────┘  s  │
-└─────────────────────────────────────────────────────┘
+│              Voice Signaling (Server)                │
+│                                                      │
+│  ┌─────────────────────────────────────────────┐     │
+│  │         WebSocket VOICE_SIGNAL relay         │     │
+│  │  • Relay SDP offer/answer between peers     │     │
+│  │  • Relay ICE candidates between peers       │     │
+│  │  • Co-membership check before forwarding    │     │
+│  │  • Voice state management (DB)              │     │
+│  └─────────────────────────────────────────────┘     │
+│                                                      │
+│  Server NEVER touches audio/video packets.           │
+└──────────────────────────────────────────────────────┘
+
+           P2P Media (browser ↔ browser)
+
+    User A ◄──── SRTP/UDP ────► User B
+       │                           │
+       └──── SRTP/UDP ────► User C ┘
 ```
 
 **Connection Flow**:
 
 ```
-1. Client → Server: "Join voice channel X"
-2. Server: Create PeerConnection for user
-3. Server → Client: SDP offer
-4. Client → Server: SDP answer
-5. ICE candidates exchanged (STUN/TURN for NAT traversal)
-6. DTLS handshake (encryption)
-7. Audio flows via UDP (SRTP encrypted)
+1. Client → Server: Join voice channel (REST + WS VOICE_STATE_UPDATE)
+2. Server: Insert voice_states row, broadcast VOICE_STATE_UPDATE to channel
+3. Client A → Server: VOICE_SIGNAL {target: userB, sdp: offer}
+4. Server: Verify A and B are in the same voice channel, then forward
+5. Client B → Server: VOICE_SIGNAL {target: userA, sdp: answer}
+6. ICE candidates exchanged via VOICE_SIGNAL relay (STUN/TURN for NAT traversal)
+7. DTLS handshake directly between peers
+8. Audio/video flows peer-to-peer via SRTP/UDP (server not involved)
 ```
 
-**Voice Configuration**:
+**NAT Traversal**:
 
-```rust
-VoiceConfig {
-    codec: Opus,
-    sample_rate: 48000,
-    channels: 2, // Stereo
-    bitrate: 64000, // 64kbps per user
+- **STUN**: Public Google servers for most connections
+- **TURN**: Optional coturn with HMAC-SHA1 time-limited credentials via `GET /ice-servers`
+- Required for iOS cellular and restrictive corporate firewalls
 
-    // Voice Activity Detection
-    vad_enabled: true,
-    vad_threshold: -30, // dB
-
-    // Jitter buffer
-    jitter_buffer_ms: 100,
-
-    // Limits
-    max_users_per_channel: 100,
-}
-```
+**Speaking Detection**: Client-side Web Audio API, sampling RMS every 100ms.
 
 **Database Schema**:
 
 ```sql
 CREATE TABLE voice_states (
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    channel_id UUID REFERENCES channels(id) ON DELETE CASCADE,
-    self_mute BOOLEAN DEFAULT FALSE,
-    self_deaf BOOLEAN DEFAULT FALSE,
-    server_mute BOOLEAN DEFAULT FALSE,
-    server_deaf BOOLEAN DEFAULT FALSE,
-    joined_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (user_id, channel_id)
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    self_mute BOOLEAN NOT NULL DEFAULT FALSE,
+    self_deaf BOOLEAN NOT NULL DEFAULT FALSE,
+    server_mute BOOLEAN NOT NULL DEFAULT FALSE,
+    server_deaf BOOLEAN NOT NULL DEFAULT FALSE,
+    self_video BOOLEAN NOT NULL DEFAULT FALSE,
+    self_screen BOOLEAN NOT NULL DEFAULT FALSE,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- PRIMARY KEY is user_id alone: a user can only be in ONE voice channel at a time
 ```
 
 ---
@@ -454,7 +447,7 @@ CREATE TABLE voice_states (
 ```
 User A (Desktop)
     │
-    │ POST /api/channels/123/messages
+    │ POST /channels/123/messages
     │ { content: "Hello!" }
     │
     ▼
@@ -495,31 +488,29 @@ User A      User B    User C
 ### 2. Joining Voice Channel
 
 ```
-User
+User A
   │
-  │ WS: {"op": "VOICE_STATE_UPDATE", "channel_id": "..."}
+  │ WS: {"op": "VOICE_STATE_UPDATE", "d": {"channel_id": "..."}}
   │
   ▼
-┌──────────────┐
-│ Voice Module │
-│ 1. Create    │
-│    peer conn │
-│ 2. Generate  │
-│    SDP offer │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│   Database   │
-│ INSERT voice │
-│ state        │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────────┐
-│ Broadcast to all │
-│ in voice channel │
-└──────────────────┘
+┌───────────────────┐
+│ Voice Handler     │
+│ 1. Upsert voice   │
+│    state in DB    │
+│ 2. Broadcast      │
+│    VOICE_STATE_   │
+│    UPDATE to chan  │
+└───────┬───────────┘
+        │
+        ▼
+┌───────────────────┐     P2P WebRTC
+│ Existing peers    │     (browser ↔ browser)
+│ receive update,   │────────────────────┐
+│ initiate WebRTC   │                    │
+│ via VOICE_SIGNAL  │◄───────────────────┘
+└───────────────────┘
+  Server only relays SDP/ICE signals.
+  Media flows directly between peers.
 ```
 
 ---
@@ -572,23 +563,23 @@ User
 
 ### WebSocket Security
 
-- **JWT validation** on upgrade
-- **Rate limiting**: 100 messages/min per connection
-- **Connection limits**: 10 per IP address
-- **Heartbeat timeout**: 60 seconds (detect dead connections)
+- **JWT validation** on upgrade (token passed as query parameter)
+- **Rate limiting**: 20 messages/sec per WebSocket connection
+- **Idle timeout**: 300 seconds (disconnect inactive connections)
+- **Heartbeat**: Client sends HEARTBEAT, server replies HEARTBEAT_ACK
 
 ### Voice Security
 
-- **DTLS**: Standard WebRTC encryption for key exchange
-- **SRTP**: Encrypted media streams
-- **No P2P**: All traffic through server (hide user IPs)
+- **DTLS**: Standard WebRTC encryption for key exchange (peer-to-peer)
+- **SRTP**: Encrypted media streams (peer-to-peer)
+- **P2P mesh**: Media flows directly between browsers; peer IP addresses are visible to other participants unless TURN relay is used
+- **Co-membership check**: Server verifies both users are in the same voice channel before relaying any VOICE_SIGNAL, preventing cross-channel signal leakage
 
 ### File Uploads
 
 - **Size limits**: 50MB max
 - **Type validation**: MIME type checking
-- **Virus scanning**: Optional ClamAV integration
-- **Storage**: Separate from database (filesystem or S3)
+- **Storage**: Local filesystem (configurable upload directory)
 
 ---
 
@@ -597,43 +588,59 @@ User
 ### Docker Compose (Production)
 
 ```yaml
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: together
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backups:/backups
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  coturn:
+    image: coturn/coturn:latest
+    network_mode: host
+    volumes:
+      - ./turn.conf:/etc/turnserver.conf:ro
+      - ./certs:/etc/ssl:ro
+    restart: unless-stopped
 
   server:
-    build: ./server
-    ports:
-      - "8080:8080" # HTTP/WebSocket
-      - "7880-8000:7880-8000/udp" # WebRTC UDP range
-    environment:
-      DATABASE_URL: postgres://postgres:${DB_PASSWORD}@postgres/together
-      JWT_SECRET: ${JWT_SECRET}
-      RUST_LOG: info
+    image: jtjenkins/together-server:${TOGETHER_VERSION:-latest}
     depends_on:
       postgres:
         condition: service_healthy
-    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      APP_ENV: production
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      RUST_LOG: ${RUST_LOG:-together_server=info,tower_http=info,sqlx=warn}
+      UPLOAD_DIR: /app/uploads
     volumes:
-      - app_data:/data # File attachments
+      - uploads_data:/app/uploads
+    restart: unless-stopped
+    # Server port is NOT exposed — traffic flows through the web/Nginx service
+
+  web:
+    image: jtjenkins/together-web:${TOGETHER_VERSION:-latest}
+    depends_on:
+      - server
+    ports:
+      - "${BIND_PORT:-80}:80"
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-  app_data:
+  uploads_data:
 ```
 
 ### System Requirements
@@ -660,24 +667,9 @@ volumes:
 
 ### Metrics (Prometheus format)
 
-```rust
-// Connection metrics
-together_websocket_connections_total
-together_websocket_messages_sent_total
-together_websocket_messages_received_total
+Metrics are provided by `axum_prometheus` and exposed at `GET /metrics` (restricted to loopback connections only).
 
-// HTTP metrics
-together_http_requests_total{method, endpoint, status}
-together_http_request_duration_seconds{method, endpoint}
-
-// Voice metrics
-together_voice_participants_total
-together_voice_bitrate_bps
-
-// Database metrics
-together_db_query_duration_seconds{query_type}
-together_db_connections_active
-```
+Standard metrics include HTTP request duration histograms and request counters broken down by method, path, and status code. These are the default `axum_prometheus` metric names (e.g., `axum_http_requests_total`, `axum_http_requests_duration_seconds`), not custom application metrics.
 
 ### Logging
 
@@ -698,11 +690,20 @@ GET /health
 Response:
 {
   "status": "healthy",
-  "database": "connected",
-  "websockets": 45,
-  "voice_participants": 8,
-  "uptime_seconds": 86400
+  "service": "together-server",
+  "version": "0.1.0",
+  "uptime_secs": 86400,
+  "database": {
+    "status": "healthy",
+    "latency_ms": 2
+  },
+  "connections": {
+    "websocket": 45
+  }
 }
+
+GET /health/ready   — Readiness check (200 when ready, 503 when not)
+GET /health/live    — Liveness check (always 200 if process is alive)
 ```
 
 ---

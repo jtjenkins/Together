@@ -79,7 +79,7 @@ Verify it's running:
 
 ```bash
 curl http://localhost/api/health
-# {"status":"ok","service":"together-server","version":"0.1.0","database":"ok"}
+# {"status":"ok","service":"together-server","version":"0.1.0","uptime_secs":42,"database":{"status":"ok","latency_ms":1},"connections":{"websocket":0}}
 ```
 
 Open **http://localhost** in a browser and create your first account.
@@ -142,10 +142,10 @@ The mobile clients share the same React frontend as the web app, served via Taur
 ```bash
 # Android emulator
 cd clients/desktop
-npm run tauri android dev
+npx tauri android dev
 
 # iOS simulator (macOS + Xcode required)
-npm run tauri ios dev
+npx tauri ios dev
 ```
 
 > **iOS voice note:** WKWebView on iOS requires a TURN server (coturn) for voice channels to
@@ -172,8 +172,8 @@ cp .env.example .env    # set POSTGRES_PASSWORD and JWT_SECRET
 
 ```bash
 cd clients/web
-npm test          # interactive
-npm test -- --run # single pass
+npm test             # single pass (CI-friendly)
+npm run test:watch   # interactive watch mode
 npm run lint
 npx tsc --noEmit
 ```

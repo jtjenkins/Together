@@ -1,508 +1,417 @@
 # Together Project Structure
 
-## Monorepo Layout
+## Root Directory
 
 ```
 Together/
-├── README.md                   # Project overview
-├── LICENSE                     # AGPL-3.0
-├── docker-compose.yml          # Production deployment
-├── docker-compose.dev.yml      # Development setup
-├── .env.example                # Environment template
-├── Makefile                    # Common tasks
+├── CLAUDE.md                      # AI assistant project context
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── LICENSE                        # AGPL-3.0
+├── README.md
+├── SECURITY.md
+├── .env.example                   # Environment variable template
+├── .dockerignore
+├── .gitignore
 │
-├── .github/
-│   └── workflows/
-│       ├── server.yml          # Server CI/CD
-│       ├── desktop.yml         # Desktop app builds
-│       └── mobile.yml          # Mobile app builds
+├── Dockerfile                     # Server production container
+├── Dockerfile.web                 # Web client container
+├── docker-compose.yml             # Production deployment
+├── docker-compose.dev.yml         # Development (PostgreSQL only)
+├── docker-compose.build.yml       # Build configuration
+├── nginx.conf                     # Reverse proxy configuration
+├── turn.conf                      # TURN server (coturn) configuration
+├── turn.conf.example              # TURN config template
 │
-├── docs/                       # Documentation
-│   ├── README.md               # Docs index
-│   ├── architecture.md         # System design
-│   ├── roadmap.md              # Implementation phases
-│   ├── api/                    # API documentation
-│   │   ├── rest.md             # REST API spec
-│   │   └── websocket.md        # WebSocket protocol
-│   └── deployment/             # Deployment guides
-│       ├── docker.md           # Docker Compose guide
-│       ├── systemd.md          # systemd service
-│       └── nginx.md            # Reverse proxy setup
+├── .github/workflows/             # CI/CD pipelines
+│   ├── ci.yml                     # Rust + TypeScript CI (fmt, clippy, test, lint, typecheck)
+│   ├── claude.yml                 # Claude Code automation
+│   ├── docker.yml                 # Docker image builds
+│   └── release.yml                # Release packaging
 │
-├── server/                     # Rust backend (single binary)
-│   ├── Cargo.toml              # Rust dependencies
-│   ├── Cargo.lock
-│   ├── Dockerfile              # Production container
-│   ├── .env.example            # Server config template
-│   │
-│   ├── migrations/             # SQL migrations (diesel/sqlx)
-│   │   ├── 001_users.sql
-│   │   ├── 002_servers.sql
-│   │   ├── 003_channels.sql
-│   │   └── 004_messages.sql
-│   │
-│   ├── src/
-│   │   ├── main.rs             # Entry point, server setup
-│   │   ├── config.rs           # Configuration loading
-│   │   │
-│   │   ├── auth/               # Authentication module
-│   │   │   ├── mod.rs
-│   │   │   ├── jwt.rs          # JWT creation/validation
-│   │   │   ├── password.rs     # bcrypt hashing
-│   │   │   └── middleware.rs   # Auth middleware
-│   │   │
-│   │   ├── websocket/          # WebSocket gateway
-│   │   │   ├── mod.rs
-│   │   │   ├── connection.rs   # Connection management
-│   │   │   ├── events.rs       # Event types
-│   │   │   └── router.rs       # Message routing
-│   │   │
-│   │   ├── chat/               # Chat functionality
-│   │   │   ├── mod.rs
-│   │   │   ├── handlers.rs     # REST handlers
-│   │   │   ├── messages.rs     # Message logic
-│   │   │   ├── channels.rs     # Channel management
-│   │   │   └── search.rs       # Full-text search
-│   │   │
-│   │   ├── users/              # User management
-│   │   │   ├── mod.rs
-│   │   │   ├── handlers.rs     # REST handlers
-│   │   │   ├── auth.rs         # Login/register
-│   │   │   ├── profile.rs      # User profiles
-│   │   │   └── friendships.rs  # Friend system
-│   │   │
-│   │   ├── servers/            # Server management
-│   │   │   ├── mod.rs
-│   │   │   ├── handlers.rs     # REST handlers
-│   │   │   ├── crud.rs         # Server CRUD
-│   │   │   ├── roles.rs        # Role system
-│   │   │   └── permissions.rs  # Permission checks
-│   │   │
-│   │   ├── voice/              # WebRTC voice
-│   │   │   ├── mod.rs
-│   │   │   ├── sfu.rs          # SFU implementation
-│   │   │   ├── signaling.rs    # SDP exchange
-│   │   │   └── state.rs        # Voice state tracking
-│   │   │
-│   │   ├── models/             # Database models
-│   │   │   ├── mod.rs
-│   │   │   ├── user.rs
-│   │   │   ├── server.rs
-│   │   │   ├── channel.rs
-│   │   │   ├── message.rs
-│   │   │   └── role.rs
-│   │   │
-│   │   ├── db/                 # Database operations
-│   │   │   ├── mod.rs
-│   │   │   ├── pool.rs         # Connection pooling
-│   │   │   └── queries.rs      # SQL queries
-│   │   │
-│   │   └── utils/              # Utilities
-│   │       ├── mod.rs
-│   │       ├── rate_limit.rs   # Rate limiting
-│   │       └── validation.rs   # Input validation
-│   │
-│   └── tests/                  # Integration tests
-│       ├── auth_test.rs
-│       ├── messages_test.rs
-│       └── permissions_test.rs
-│
-├── clients/                    # Client applications
-│   │
-│   ├── shared/                 # Shared TypeScript code
-│   │   ├── types/              # Type definitions
-│   │   │   ├── user.ts
-│   │   │   ├── message.ts
-│   │   │   ├── channel.ts
-│   │   │   └── websocket.ts
-│   │   ├── api/                # API client
-│   │   │   ├── rest.ts         # REST client
-│   │   │   └── websocket.ts    # WebSocket client
-│   │   └── utils/              # Shared utilities
-│   │
-│   ├── desktop/                # Tauri desktop app
-│   │   ├── package.json
-│   │   ├── vite.config.ts
-│   │   ├── tsconfig.json
-│   │   │
-│   │   ├── src-tauri/          # Rust backend for Tauri
-│   │   │   ├── Cargo.toml
-│   │   │   ├── tauri.conf.json
-│   │   │   └── src/
-│   │   │       ├── main.rs     # Tauri commands
-│   │   │       └── tray.rs     # System tray
-│   │   │
-│   │   ├── src/                # React frontend
-│   │   │   ├── main.tsx        # Entry point
-│   │   │   ├── App.tsx         # Root component
-│   │   │   │
-│   │   │   ├── components/     # UI components
-│   │   │   │   ├── Layout/
-│   │   │   │   │   ├── Sidebar.tsx
-│   │   │   │   │   ├── TopBar.tsx
-│   │   │   │   │   └── MemberList.tsx
-│   │   │   │   ├── ServerList/
-│   │   │   │   │   ├── ServerIcon.tsx
-│   │   │   │   │   └── ServerList.tsx
-│   │   │   │   ├── ChannelList/
-│   │   │   │   │   ├── ChannelItem.tsx
-│   │   │   │   │   └── Category.tsx
-│   │   │   │   ├── Chat/
-│   │   │   │   │   ├── MessageList.tsx
-│   │   │   │   │   ├── Message.tsx
-│   │   │   │   │   ├── MessageInput.tsx
-│   │   │   │   │   └── TypingIndicator.tsx
-│   │   │   │   ├── Voice/
-│   │   │   │   │   ├── VoicePanel.tsx
-│   │   │   │   │   ├── VoiceUser.tsx
-│   │   │   │   │   └── VoiceControls.tsx
-│   │   │   │   └── Settings/
-│   │   │   │       ├── UserSettings.tsx
-│   │   │   │       └── ServerSettings.tsx
-│   │   │   │
-│   │   │   ├── stores/         # State management (Zustand)
-│   │   │   │   ├── useAuth.ts
-│   │   │   │   ├── useServers.ts
-│   │   │   │   ├── useChannels.ts
-│   │   │   │   ├── useMessages.ts
-│   │   │   │   └── useVoice.ts
-│   │   │   │
-│   │   │   ├── hooks/          # Custom React hooks
-│   │   │   │   ├── useWebSocket.ts
-│   │   │   │   ├── useVoice.ts
-│   │   │   │   ├── useMessages.ts
-│   │   │   │   └── usePermissions.ts
-│   │   │   │
-│   │   │   └── lib/            # Utilities
-│   │   │       ├── api.ts      # API wrapper
-│   │   │       └── voice.ts    # WebRTC wrapper
-│   │   │
-│   │   └── public/             # Static assets
-│   │
-│   ├── web/                    # Web client (similar to desktop)
-│   │   ├── package.json
-│   │   ├── vite.config.ts
-│   │   ├── src/
-│   │   │   └── (similar structure to desktop)
-│   │   └── public/
-│   │
-│   └── mobile/                 # React Native app
-│       ├── package.json
-│       ├── metro.config.js
-│       │
-│       ├── ios/                # iOS project
-│       │   └── Together/
-│       │
-│       ├── android/            # Android project
-│       │   └── app/
-│       │
-│       └── src/
-│           ├── App.tsx
-│           │
-│           ├── navigation/     # React Navigation
-│           │   └── RootNavigator.tsx
-│           │
-│           ├── screens/        # Mobile screens
-│           │   ├── ServerListScreen.tsx
-│           │   ├── ChannelListScreen.tsx
-│           │   ├── ChatScreen.tsx
-│           │   ├── VoiceScreen.tsx
-│           │   └── SettingsScreen.tsx
-│           │
-│           ├── components/     # Mobile UI components
-│           │   ├── ServerIcon.tsx
-│           │   ├── Message.tsx
-│           │   └── VoiceUser.tsx
-│           │
-│           └── services/       # API clients
-│               ├── api.ts
-│               ├── websocket.ts
-│               └── voice.ts
-│
-└── tools/                      # Utilities
-    ├── cli/                    # Admin CLI
-    │   └── src/
-    │       └── main.rs         # Server management commands
+├── server/                        # Rust backend
+├── clients/                       # Frontend applications
+│   ├── web/                       # React + Vite (browser)
+│   └── desktop/                   # Tauri v2 + React (desktop & mobile)
+├── docs/                          # Project documentation
+├── scripts/                       # Utility scripts
+├── load-tests/                    # k6 load test suite
+├── security-scan/                 # Security tooling
+├── assets/                        # Project assets (icon.png, logo.png)
+├── certs/                         # TLS certificates
+└── data/                          # Runtime data (uploads/)
+```
+
+## Server (`server/`)
+
+Single Rust binary built with Axum. Flat module layout with one handler file per domain.
+
+```
+server/
+├── Cargo.toml
+├── Cargo.lock
+├── README.md
+├── migrations/                    # 44 SQL migrations (sqlx-cli)
+│   ├── 20240216000001_users_and_auth.sql
+│   ├── 20240216000001_users_and_auth.down.sql
+│   ├── ...                        # Named YYYYMMDDNNNNNN_<name>.sql
+│   └── 20260320000001_voice_states_user_index.sql
+├── tests/                         # Integration tests (sqlx::test with real PostgreSQL)
+│   ├── common/mod.rs              # Shared test helpers
+│   ├── auth_tests.rs
+│   ├── messages_tests.rs
+│   ├── channels_tests.rs
+│   ├── servers_tests.rs
+│   ├── users_tests.rs
+│   ├── dm_tests.rs
+│   ├── voice_tests.rs
+│   ├── search_tests.rs
+│   ├── search_scale_tests.rs
+│   ├── reactions_tests.rs
+│   ├── polls_tests.rs
+│   ├── thread_tests.rs
+│   ├── mention_tests.rs
+│   ├── attachments_tests.rs
+│   ├── events_tests.rs
+│   ├── read_state_tests.rs
+│   ├── link_preview_tests.rs
+│   ├── automod_tests.rs
+│   ├── custom_emojis.rs
+│   └── health_tests.rs
+└── src/
+    ├── main.rs                    # Server setup, route configuration
+    ├── lib.rs                     # Crate root, module declarations
+    ├── state.rs                   # AppState (pool, config, connections, rate limiters)
+    ├── bot_auth.rs                # Bot token authentication extractor
+    ├── webhook_delivery.rs        # Webhook delivery with HMAC-SHA256 signing
     │
-    └── discord-bridge/         # Discord sync tool
-        ├── package.json
-        └── src/
-            ├── bot.ts          # Discord bot
-            └── sync.ts         # Message sync logic
+    ├── auth/
+    │   └── mod.rs                 # JWT, bcrypt, AuthUser extractor
+    │
+    ├── config/
+    │   └── mod.rs                 # AppConfig from environment variables
+    │
+    ├── db/
+    │   └── mod.rs                 # Database pool initialization
+    │
+    ├── error/
+    │   └── mod.rs                 # AppError enum, HTTP status mapping
+    │
+    ├── models/
+    │   ├── mod.rs                 # All database models (sqlx::FromRow) and DTOs
+    │   └── link_preview.rs        # Link preview model
+    │
+    ├── handlers/                  # One file per domain
+    │   ├── mod.rs                 # Handler module declarations
+    │   ├── auth.rs                # Login, register, refresh, password reset
+    │   ├── users.rs               # User profiles, status, settings
+    │   ├── servers.rs             # Server CRUD, roles, permissions, invites
+    │   ├── channels.rs            # Channel CRUD, categories
+    │   ├── messages.rs            # Send, edit, delete, threads
+    │   ├── dm.rs                  # Direct message channels and messages
+    │   ├── search.rs              # Full-text message search
+    │   ├── voice.rs               # Voice state management
+    │   ├── go_live.rs             # Screen sharing / Go Live
+    │   ├── ice.rs                 # ICE/TURN server credentials endpoint
+    │   ├── reactions.rs           # Message reactions
+    │   ├── pins.rs                # Pinned messages
+    │   ├── polls.rs               # Message polls
+    │   ├── attachments.rs         # File upload and download
+    │   ├── bots.rs                # Bot account management
+    │   ├── webhooks.rs            # Webhook CRUD
+    │   ├── audit.rs               # Audit log queries
+    │   ├── automod.rs             # Auto-moderation rules
+    │   ├── events.rs              # Server events (scheduled events)
+    │   ├── export.rs              # Server data export (ZIP)
+    │   ├── custom_emojis.rs       # Custom emoji management
+    │   ├── giphy.rs               # Giphy GIF search proxy
+    │   ├── link_preview.rs        # Link preview / OG tag extraction
+    │   ├── read_states.rs         # Read state tracking
+    │   ├── health.rs              # Health check endpoint
+    │   └── shared.rs              # Common query helpers
+    │
+    └── websocket/
+        ├── mod.rs
+        ├── handler.rs             # WebSocket upgrade, message loop
+        ├── events.rs              # GatewayOp enum, event name constants
+        └── connection_manager.rs  # In-memory DashMap of active connections
 ```
 
----
+### Migrations
 
-## Key Design Decisions
+44 migration files using sqlx-cli naming convention: `YYYYMMDDNNNNNN_<name>.sql` with matching `.down.sql` rollback files. Covers users, servers, channels, messages, voice, DMs, reactions, read states, mentions, threads, server discovery, polls, events, pinned messages, bots, automod, audit logs, password reset, admin flag, video, user profiles, custom emojis, webhooks, rich presence, and voice state indexes.
 
-### 1. Monolithic Backend
+### Key Rust Dependencies
 
-**Why**: Simplicity, maintainability, easier debugging
+| Crate | Version | Purpose |
+|-------|---------|---------|
+| axum | 0.7 | Web framework (ws, macros, multipart) |
+| tokio | 1 | Async runtime |
+| sqlx | 0.7 | PostgreSQL driver (with migrate, uuid, chrono, json) |
+| serde / serde_json | 1 | Serialization |
+| tower / tower-http | 0.4 / 0.5 | Middleware (CORS, tracing, static files) |
+| governor / tower_governor | 0.6 / 0.4 | Rate limiting (DashMap-backed) |
+| jsonwebtoken | 9 | JWT authentication |
+| bcrypt | 0.15 | Password hashing |
+| uuid | 1 | UUID generation and serde support |
+| chrono | 0.4 | Date/time handling |
+| reqwest | 0.11 | HTTP client (link previews, Giphy) |
+| scraper | 0.19 | HTML parsing for OG tag extraction |
+| validator | 0.16 | Input validation with derive macros |
+| tracing / tracing-subscriber | 0.1 / 0.3 | Structured logging |
+| axum-prometheus | 0.7 | Prometheus metrics |
+| hmac / sha1 | 0.12 / 0.10 | TURN credential generation |
+| sha2 | 0.10 | SHA-256 for refresh token hashing |
+| zip | 2 | Server data export archives |
+| infer | 0.16 | MIME type detection for uploads |
 
-**Structure**:
+## Web Client (`clients/web/`)
 
-- Single Rust binary
-- Modules for different domains (chat, users, voice)
-- All share same database connection pool
-- No inter-service communication overhead
+React 18 SPA built with Vite. CSS Modules for styling. Zustand for state management.
 
-### 2. Shared Client Code
-
-**Why**: Type safety, consistency, reduced duplication
-
-**Shared**:
-
-- TypeScript type definitions
-- API client code
-- WebSocket event handlers
-- Utility functions
-
-**Platform-specific**:
-
-- UI components (Tauri vs React vs React Native)
-- Platform APIs (notifications, system tray)
-- Navigation patterns
-
-### 3. Single Database
-
-**Why**: ACID transactions, referential integrity, simpler ops
-
-**PostgreSQL handles**:
-
-- Users and authentication
-- Messages and history
-- Channels and servers
-- Roles and permissions
-- Sessions and presence
-
-### 4. Simple Deployment
-
-**Why**: Fast iteration, easy debugging, lower operational burden
-
-**Docker Compose provides**:
-
-- Single-command startup
-- Environment variable configuration
-- Volume management for persistence
-- Health checks and restarts
-
----
-
-## Development Workflow
-
-### Local Development
-
-```bash
-# Terminal 1: Start database
-docker-compose -f docker-compose.dev.yml up postgres
-
-# Terminal 2: Run server
-cd server
-cargo run
-# Server runs on http://localhost:8080
-
-# Terminal 3: Run desktop client
-cd clients/desktop
-npm run tauri dev
+```
+clients/web/
+├── package.json
+├── index.html
+├── vite.config.ts
+├── vitest.config.ts
+├── tsconfig.json
+├── tsconfig.node.json
+└── src/
+    ├── main.tsx                   # Entry point
+    ├── App.tsx                    # Root component, routing
+    │
+    ├── api/
+    │   ├── client.ts              # REST API client
+    │   └── websocket.ts           # WebSocket gateway client
+    │
+    ├── components/
+    │   ├── auth/
+    │   │   └── AuthForm.tsx       # Login / register form
+    │   ├── layout/
+    │   │   ├── AppLayout.tsx      # Main app shell
+    │   │   ├── ServerSidebar.tsx   # Server icon list
+    │   │   ├── ChannelSidebar.tsx  # Channel list within a server
+    │   │   └── MemberSidebar.tsx   # Member list panel
+    │   ├── messages/
+    │   │   ├── ChatArea.tsx       # Message view container
+    │   │   ├── MessageList.tsx    # Scrollable message list
+    │   │   ├── MessageItem.tsx    # Single message rendering
+    │   │   ├── MessageInput.tsx   # Composer with attachments
+    │   │   ├── DateSeparator.tsx
+    │   │   ├── EmojiPicker.tsx
+    │   │   ├── EmojiAutocomplete.tsx
+    │   │   ├── GifPicker.tsx
+    │   │   ├── LinkPreview.tsx
+    │   │   ├── MentionAutocomplete.tsx
+    │   │   ├── ReactionBar.tsx
+    │   │   ├── PinnedMessages.tsx
+    │   │   ├── ThreadPanel.tsx
+    │   │   ├── PollCard.tsx
+    │   │   ├── PollForm.tsx
+    │   │   ├── EventCard.tsx
+    │   │   ├── EventForm.tsx
+    │   │   └── SlashCommandPicker.tsx
+    │   ├── voice/
+    │   │   ├── VoiceChannel.tsx   # Voice channel UI
+    │   │   ├── VideoGrid.tsx      # Video participant grid
+    │   │   ├── VideoTile.tsx      # Single video tile
+    │   │   └── GoLiveViewer.tsx   # Screen share viewer
+    │   ├── dm/
+    │   │   ├── DMSidebar.tsx      # DM conversation list
+    │   │   └── DMConversation.tsx # DM message view
+    │   ├── servers/
+    │   │   ├── CreateServerModal.tsx
+    │   │   ├── BrowseServersModal.tsx
+    │   │   ├── ServerSettingsModal.tsx
+    │   │   ├── BotManager.tsx
+    │   │   ├── WebhookManager.tsx
+    │   │   ├── AutomodSettings.tsx
+    │   │   └── CustomEmojiManager.tsx
+    │   ├── channels/
+    │   │   ├── CreateChannelModal.tsx
+    │   │   └── EditChannelModal.tsx
+    │   ├── users/
+    │   │   ├── UserPanel.tsx
+    │   │   ├── UserProfileCard.tsx
+    │   │   ├── UserSettingsModal.tsx
+    │   │   ├── StatusMenu.tsx
+    │   │   └── AdminTab.tsx
+    │   ├── search/
+    │   │   └── SearchModal.tsx
+    │   ├── moderation/
+    │   │   └── AutoModModal.tsx
+    │   ├── desktop/
+    │   │   └── ServerSetup.tsx    # First-run server setup
+    │   ├── common/
+    │   │   ├── Modal.tsx
+    │   │   ├── ContextMenu.tsx
+    │   │   └── ErrorBoundary.tsx
+    │   └── ErrorBoundary.tsx      # Top-level error boundary
+    │
+    ├── hooks/
+    │   ├── useWebSocket.ts        # WebSocket connection management
+    │   ├── useWebRTC.ts           # P2P voice/video
+    │   ├── usePushToTalk.ts       # Push-to-talk keybinding
+    │   ├── useGoLive.ts           # Screen sharing
+    │   ├── useTypingIndicator.ts  # Typing status
+    │   ├── useFocusTrap.ts        # Accessibility focus trap
+    │   └── useMobileLayout.ts     # Responsive layout detection
+    │
+    ├── stores/                    # Zustand state stores
+    │   ├── authStore.ts
+    │   ├── serverStore.ts
+    │   ├── channelStore.ts
+    │   ├── messageStore.ts
+    │   ├── dmStore.ts
+    │   ├── voiceStore.ts
+    │   ├── voiceSettingsStore.ts
+    │   ├── typingStore.ts
+    │   ├── readStateStore.ts
+    │   ├── autoModStore.ts
+    │   └── customEmojiStore.ts
+    │
+    ├── types/
+    │   ├── index.ts               # All TypeScript type definitions
+    │   └── globals.d.ts           # Global type augmentations
+    │
+    ├── utils/
+    │   ├── emoji.ts               # Emoji parsing and rendering
+    │   ├── markdown.ts            # Markdown rendering
+    │   ├── links.ts               # URL detection and formatting
+    │   ├── formatTime.ts          # Date/time formatting
+    │   ├── formatBytes.ts         # File size formatting
+    │   ├── slashCommands.ts       # Slash command definitions
+    │   ├── iceCache.ts            # ICE server credential caching
+    │   └── tauri.ts               # Tauri platform detection
+    │
+    ├── styles/
+    │   └── globals.css            # Global styles
+    │
+    └── __tests__/                 # Vitest test suite (30 test files)
+        ├── setup.ts               # Test setup (jsdom)
+        ├── api-client.test.ts
+        ├── auth-form.test.tsx
+        ├── channel-store.test.ts
+        ├── dm-store.test.ts
+        ├── message-store.test.ts
+        ├── server-store.test.ts
+        ├── voice-store.test.ts
+        ├── voice-settings-store.test.ts
+        ├── useWebRTC.test.ts
+        ├── usePushToTalk.test.ts
+        ├── emoji-picker.test.tsx
+        ├── emoji.test.ts
+        ├── markdown.test.ts
+        ├── links.test.ts
+        ├── format-time.test.ts
+        ├── link-preview.test.tsx
+        ├── mention-autocomplete.test.ts
+        ├── mention-autocomplete-component.test.tsx
+        ├── message-input-mention.test.tsx
+        ├── modal.test.tsx
+        ├── video-tile.test.tsx
+        ├── server-setup.test.tsx
+        ├── slash-command-picker.test.tsx
+        ├── slashCommands.test.ts
+        ├── AdminTab.test.tsx
+        ├── automod-settings.test.tsx
+        ├── customEmojiStore.test.ts
+        └── user-settings-modal.test.tsx
 ```
 
-### Testing
+### Key Frontend Dependencies
 
-```bash
-# Server tests
-cd server
-cargo test
+| Package | Version | Purpose |
+|---------|---------|---------|
+| react / react-dom | ^18.3.1 | UI framework |
+| react-router-dom | ^6.26.0 | Client-side routing |
+| zustand | ^4.5.4 | State management |
+| date-fns | ^3.6.0 | Date formatting |
+| dompurify | ^3.3.3 | HTML sanitization |
+| lucide-react | ^0.575.0 | Icon library |
+| vite | ^5.4.21 | Build tool |
+| vitest | ^2.1.9 | Test runner |
+| typescript | ~5.5.4 | Type checking |
+| @testing-library/react | ^16.0.0 | Component testing |
 
-# Integration tests
-cargo test --test '*'
+## Desktop Client (`clients/desktop/`)
 
-# Client tests
-cd clients/desktop
-npm test
+Tauri v2 wrapper that loads the web client source. Supports desktop (macOS, Windows, Linux) and mobile (Android, iOS) targets from the same project.
+
+```
+clients/desktop/
+├── package.json                   # Tauri CLI dependency
+└── src-tauri/
+    ├── Cargo.toml                 # Tauri Rust dependencies
+    ├── Cargo.lock
+    ├── build.rs
+    ├── tauri.conf.json            # Tauri configuration
+    ├── capabilities/
+    │   └── default.json           # Permission capabilities
+    ├── icons/                     # App icons (all sizes)
+    ├── src/
+    │   ├── main.rs                # Tauri entry point
+    │   └── lib.rs                 # Tauri commands
+    └── gen/
+        ├── android/               # Generated Android project (Kotlin)
+        └── apple/                 # Generated iOS/macOS project (Swift)
 ```
 
-### Building
+## Scripts (`scripts/`)
 
-```bash
-# Server (release)
-cd server
-cargo build --release
-# Binary: target/release/together-server
-
-# Desktop app
-cd clients/desktop
-npm run tauri build
-# Output: src-tauri/target/release/bundle/
-
-# Docker image
-docker build -t together-server server/
+```
+scripts/
+├── README.md
+├── setup-dev.sh                   # Development environment setup
+├── migrate.sh                     # Database migration runner
+├── backup.sh                      # Database backup (incremental)
+├── backup-full.sh                 # Full database + uploads backup
+├── restore.sh                     # Backup restoration
+├── setup-android-keystore.sh      # Android signing key generation
+└── setup-gpg-signing.sh           # GPG signing setup for releases
 ```
 
----
+## Load Tests (`load-tests/`)
 
-## Dependencies
+k6 load test scripts for validating performance at scale.
 
-### Server (Rust)
-
-```toml
-[dependencies]
-# Web framework
-axum = "0.7"
-tokio = { version = "1", features = ["full"] }
-
-# Database
-sqlx = { version = "0.7", features = ["postgres", "runtime-tokio"] }
-
-# Authentication
-jsonwebtoken = "9"
-bcrypt = "0.15"
-
-# WebSocket
-axum-tungstenite = "0.7"
-
-# WebRTC
-webrtc = "0.9"
-
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# Utilities
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
+```
+load-tests/
+├── config.js                      # Test configuration
+├── setup.js                       # Test data seeding
+├── run-all.sh                     # Run full test suite
+├── test-http.js                   # HTTP endpoint load tests
+├── test-websocket.js              # WebSocket connection tests
+├── test-voice.js                  # Voice signaling tests
+└── results/                       # Test result output
 ```
 
-### Clients (TypeScript)
+## Documentation (`docs/`)
 
-```json
-{
-  "dependencies": {
-    "react": "^18.2.0",
-    "zustand": "^4.5.0",
-    "axios": "^1.6.0",
-    "ws": "^8.16.0"
-  }
-}
 ```
-
----
-
-## File Size Estimates
-
-| Component   | Source Code  | Binary/Bundle         |
-| ----------- | ------------ | --------------------- |
-| Server      | ~15k LOC     | ~20MB                 |
-| Desktop app | ~8k LOC      | ~5MB                  |
-| Web client  | ~7k LOC      | ~500KB (gzipped)      |
-| Mobile app  | ~7k LOC      | ~15MB (each platform) |
-| **Total**   | **~37k LOC** | N/A                   |
-
-**Compare to microservices**: Would be ~50k+ LOC with service coordination overhead.
-
----
-
-## Scaling Considerations
-
-### Current Architecture (20-500 users)
-
-**Deployment**: Single VPS
-**Cost**: $10-40/month
-**Complexity**: Low
-
-### If Needed (500-2000 users)
-
-**Add**:
-
-- Redis for sessions/presence
-- PostgreSQL read replica
-- Separate voice server
-
-**Deployment**: 3-4 VPS
-**Cost**: $100-200/month
-**Complexity**: Medium
-
-### If Needed (2000+ users)
-
-**Migrate to**:
-
-- Multiple server instances (horizontal scaling)
-- ScyllaDB for messages
-- Service mesh
-
-**Deployment**: Kubernetes
-**Cost**: $500+/month
-**Complexity**: High
-
-**For 20 users**: Stay at "Current Architecture" indefinitely.
-
----
-
-## Security Boundaries
-
-### External (Public Internet)
-
-- HTTPS/WSS only (TLS termination at NGINX)
-- Rate limiting at gateway
-- Authentication on all routes
-
-### Internal (Within Docker network)
-
-- Server <-> Postgres: Internal Docker network
-- No external database access
-- Container isolation
-
-### Client Security
-
-- JWT tokens in secure storage
-- Password never stored, only sent over HTTPS
-- File uploads: Size + type validation
-
----
-
-## Backup Strategy
-
-### Automated Daily Backups
-
-```bash
-# PostgreSQL backup
-docker-compose exec postgres pg_dump -U postgres together > backup.sql
-
-# Incremental with timestamps
-DATE=$(date +%Y%m%d)
-docker-compose exec postgres pg_dump > backups/together_${DATE}.sql
-
-# Compress and encrypt
-gzip backups/together_${DATE}.sql
-gpg --encrypt backups/together_${DATE}.sql.gz
+docs/
+├── architecture.md                # System design overview
+├── project-structure.md           # This file
+├── websocket-protocol.md          # Gateway protocol specification
+├── openapi.yaml                   # REST API specification
+├── self-hosting.md                # Self-hosting guide
+├── backup-restore.md              # Backup and restore procedures
+├── release-roadmap.md             # Release planning
+├── signing-setup.md               # Code signing documentation
+├── together-signing-public.asc    # GPG public key for verification
+│
+├── bot-api.md                     # Bot API documentation
+├── audit-logging.md               # Audit log system
+├── auto-moderation.md             # Auto-moderation rules
+├── message-search.md              # Full-text search
+├── message-editing-deletion.md    # Message edit/delete behavior
+├── message-pinning.md             # Pinned messages
+├── presence-status.md             # User presence and status
+├── server-discovery.md            # Public server discovery
+├── channel-categories.md          # Channel categories
+├── screen-sharing.md              # Screen sharing / Go Live
+├── ios-voice.md                   # iOS voice implementation notes
+│
+└── superpowers/                   # Feature design specs
 ```
-
-### File Attachments
-
-```bash
-# Backup uploads directory
-tar -czf backups/uploads_${DATE}.tar.gz data/uploads/
-```
-
-### Restoration
-
-```bash
-# Restore database
-cat backup.sql | docker-compose exec -T postgres psql -U postgres together
-
-# Restore uploads
-tar -xzf backups/uploads_${DATE}.tar.gz -C data/
-```
-
----
-
-## Conclusion
-
-This structure provides:
-
-- ✅ Clear separation of concerns (server, clients, docs)
-- ✅ Easy navigation (consistent naming, logical grouping)
-- ✅ Simple deployment (single binary + Docker)
-- ✅ Maintainable codebase (~37k LOC)
-- ✅ Room to grow (can split later if needed)
-
-**Philosophy**: Optimize for comprehension and iteration speed, not for hypothetical scale.

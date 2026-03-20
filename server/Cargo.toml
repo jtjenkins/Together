@@ -3,7 +3,7 @@ name = "together-server"
 version = "0.1.0"
 edition = "2021"
 authors = ["Together Contributors"]
-license = "AGPL-3.0"
+license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
 description = "Backend server for Together - a private Discord alternative"
 
 [lib]

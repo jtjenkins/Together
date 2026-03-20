@@ -32,24 +32,35 @@ The server hashes the provided token with SHA-256 and compares it against the st
 
 ### Bot authentication for WebSocket
 
-Pass the token as a query parameter when opening the WebSocket connection:
+There are two ways to authenticate a bot for WebSocket connections:
+
+**Option 1 — Static token (simpler but exposes the token in server/proxy access logs)**
 
 ```
-ws://your-server/ws?bot_token=<plaintext_token>
 wss://your-server/ws?bot_token=<plaintext_token>
 ```
 
-The server validates the token identically to the REST path. On success the bot receives the same real-time event stream as human users.
+**Option 2 — Short-lived JWT via `POST /bots/connect` (recommended)**
+
+First exchange the static token for a JWT (see [POST /bots/connect](#post-botsconnect)), then connect with:
+
+```
+wss://your-server/ws?token=<jwt>
+```
+
+This avoids exposing the long-lived bot token in URL logs.
+
+Both paths validate the token identically. On success the bot receives the same real-time event stream as human users.
 
 ---
 
 ## Rate Limiting
 
-Bot requests share the same rate-limiting infrastructure as human users:
+Bot REST API requests are rate-limited at **50 requests per second** per bot (keyed by the bot's `user_id`). This is a separate rate-limiting layer from the per-IP limit applied to human users.
 
-- **50 requests per second** per token (enforced at the gateway level)
-- Exceeding the limit returns `429 Too Many Requests`
-- The `Retry-After` header indicates when the quota resets
+- Exceeding the limit returns `429 Too Many Requests` with a JSON body: `{"error": "Bot rate limit exceeded. Max 50 requests/second."}`
+- **No `Retry-After` header is included** in the 429 response
+- This rate limit does **not** apply to WebSocket connections — WebSocket connections are persistent resources and are bounded by connection limits at the TCP/HTTP level instead
 
 ---
 
@@ -102,12 +113,14 @@ Content-Type: application/json
 
 The `token` field is the plaintext bot token. **Store it securely — it is shown exactly once and cannot be retrieved again.** Only the SHA-256 hash is stored server-side.
 
+> **Note:** The `created_by` field is `Option<Uuid>` and can be `null` in responses (e.g., if the creating user's account has been deleted).
+
 **Errors**
 
 | Status | Condition                                                         |
 | ------ | ----------------------------------------------------------------- |
-| `400`  | Name is empty, exceeds 64 chars, or description exceeds 512 chars |
-| `403`  | Caller is itself a bot                                            |
+| `400`  | Name is empty, exceeds 64 chars, description exceeds 512 chars, or name contains no alphanumeric characters |
+| `403`  | Caller is itself a bot                                                                                      |
 
 ---
 
@@ -206,6 +219,99 @@ Authorization: Bearer <jwt>
 
 ---
 
+### PATCH /bots/:id
+
+Update a bot's name and/or description. Only the bot's creator can update it. Updates are rejected if the bot has been revoked.
+
+**Request**
+
+```http
+PATCH /bots/d4e8a1c2-...
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{
+  "name": "Renamed Bot",
+  "description": "Updated description."
+}
+```
+
+| Field         | Type            | Required | Constraints        |
+| ------------- | --------------- | -------- | ------------------ |
+| `name`        | string          | no       | 1–64 characters, must contain at least one alphanumeric character |
+| `description` | string \| null  | no       | max 512 characters (pass `null` to clear) |
+
+**Response** `200 OK`
+
+```json
+{
+  "id": "d4e8a1c2-...",
+  "user_id": "f7b3c9e0-...",
+  "name": "Renamed Bot",
+  "description": "Updated description.",
+  "created_by": "a1b2c3d4-...",
+  "revoked_at": null,
+  "created_at": "2026-03-12T10:00:00Z"
+}
+```
+
+**Errors**
+
+| Status | Condition                                                             |
+| ------ | --------------------------------------------------------------------- |
+| `400`  | Name is empty, exceeds 64 chars, has no alphanumeric characters, description exceeds 512 chars, or bot is revoked |
+| `403`  | Caller is itself a bot                                                |
+| `404`  | Bot not found or owned by a different user                            |
+
+---
+
+### GET /bots/:id/logs
+
+Retrieve synthesized activity logs for a bot. Returns creation, recent messages sent (up to 50), and revocation events, sorted newest-first. Only the bot's creator can access logs.
+
+**Request**
+
+```http
+GET /bots/d4e8a1c2-.../logs
+Authorization: Bearer <jwt>
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "logs": [
+    {
+      "timestamp": "2026-03-12T14:30:00Z",
+      "event": "message_sent",
+      "detail": "[channel f1a2b3c4-...] Hello, welcome to the server!"
+    },
+    {
+      "timestamp": "2026-03-12T10:00:00Z",
+      "event": "bot_created",
+      "detail": "Bot \"My Moderation Bot\" was created"
+    }
+  ]
+}
+```
+
+Each log entry has:
+
+| Field       | Type           | Description                                              |
+| ----------- | -------------- | -------------------------------------------------------- |
+| `timestamp` | ISO 8601 string | When the event occurred                                  |
+| `event`     | string         | One of `bot_created`, `message_sent`, or `bot_revoked`   |
+| `detail`    | string \| null | Human-readable description (message previews truncated to 80 chars) |
+
+**Errors**
+
+| Status | Condition                                  |
+| ------ | ------------------------------------------ |
+| `403`  | Caller is itself a bot                     |
+| `404`  | Bot not found or owned by a different user |
+
+---
+
 ### POST /bots/:id/token/regenerate
 
 Issue a new token for an active (non-revoked) bot. The previous token is immediately invalidated. The new plaintext token is returned once and is not stored.
@@ -244,14 +350,48 @@ Authorization: Bearer <jwt>
 
 ---
 
+### POST /bots/connect
+
+Exchange a static bot token for a short-lived JWT access token (15 minutes). This is a **bot-only** endpoint — human users receive `403 Forbidden`.
+
+The returned JWT can be used to open a WebSocket connection via `?token=<jwt>`, which avoids exposing the long-lived bot token in server or proxy access logs. This is the recommended authentication method for WebSocket connections.
+
+**Request**
+
+```http
+POST /bots/connect
+Authorization: Bot <plaintext_token>
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+**Errors**
+
+| Status | Condition                                  |
+| ------ | ------------------------------------------ |
+| `401`  | Invalid or revoked bot token               |
+| `403`  | Caller is a human user (bot-only endpoint) |
+
+---
+
 ## WebSocket Event Stream
 
-After connecting with a valid bot token, the bot receives real-time gateway events using the same protocol as human clients.
+After connecting with a valid bot token or JWT, the bot receives real-time gateway events using the same protocol as human clients.
 
 **Connection**
 
 ```
+# Option 1: Static token (simpler, but exposes token in logs)
 wss://your-server/ws?bot_token=<plaintext_token>
+
+# Option 2: Short-lived JWT from POST /bots/connect (recommended)
+wss://your-server/ws?token=<jwt>
 ```
 
 **Heartbeat**

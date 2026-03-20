@@ -99,13 +99,15 @@ Expected response:
   "status": "ok",
   "service": "together-server",
   "version": "0.1.0",
-  "database": "ok"
+  "uptime_secs": 42,
+  "database": { "status": "ok", "latency_ms": 1 },
+  "connections": { "websocket": 0 }
 }
 ```
 
 Then open **http://localhost** in a browser — you should see the Together login screen.
 
-If `database` is `"unavailable"`, PostgreSQL is still starting. Wait a few seconds and retry.
+If `database` shows `{"status": "unavailable", ...}`, PostgreSQL is still starting. Wait a few seconds and retry.
 
 ---
 
@@ -177,11 +179,8 @@ pkey=/etc/ssl/key.pem
 **Step 3 — Add TURN variables to `.env`:**
 
 ```bash
-TURN_HOST=turn.your-domain.com
-TURN_PORT=3478
-TURN_TLS_PORT=5349
+TURN_URL=turn:turn.your-domain.com:3478
 TURN_SECRET=YOUR_GENERATED_SECRET   # must match turn.conf
-TURN_REALM=your-domain.com
 ```
 
 **Step 4 — Open firewall ports:**
@@ -344,7 +343,10 @@ server {
 | `DATABASE_URL`      | Auto     | _(set by compose)_         | Full connection URL; Compose sets this          |
 | `JWT_SECRET`        | Yes      | —                          | JWT signing secret (32+ chars)                  |
 | `APP_ENV`           | No       | `development`              | Set to `production` for JSON logs + strict CORS |
-| `ALLOWED_ORIGINS`   | No       | _(empty)_                  | CORS origins — only needed if bypassing Nginx   |
+| `ALLOWED_ORIGINS`   | No       | _(empty)_                  | CORS origins — leave empty to block all cross-origin requests |
 | `BIND_PORT`         | No       | `80`                       | Host port for the Nginx web container           |
 | `GIPHY_API_KEY`     | No       | _(GIF picker disabled)_    | Giphy API key for the GIF search feature        |
 | `RUST_LOG`          | No       | `together_server=info,...` | Log level filter                                |
+| `TURN_URL`          | No       | _(TURN disabled)_          | TURN server URL (e.g. `turn:host:3478`)         |
+| `TURN_SECRET`       | No       | _(TURN disabled)_          | HMAC-SHA1 shared secret for TURN credentials    |
+| `TOGETHER_VERSION`  | No       | `latest`                   | Docker image tag to pull (e.g. `v0.0.2`)        |

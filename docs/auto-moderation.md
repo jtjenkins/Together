@@ -1,6 +1,6 @@
 # Auto-Moderation Admin Guide
 
-Together's auto-moderation system enforces configurable rules on incoming messages before they are stored. All rule checks run server-side; clients receive an error response when a message is blocked.
+Together's auto-moderation system enforces configurable rules on incoming messages. All rule checks run server-side; clients receive an error response when a message is blocked.
 
 ## Overview
 
@@ -12,15 +12,15 @@ Auto-moderation is configured per server. The system provides three independent 
 | Duplicate detection | The same user posting identical content within 30 seconds        |
 | Word filter         | Messages containing any word or phrase on the server's blocklist |
 
-Each rule fires independently. If multiple rules would trigger on the same message, the first matching rule wins (order: spam → duplicate → word filter).
+Each rule fires independently. If multiple rules would trigger on the same message, the first matching rule wins (order: word filter → duplicate → spam). Word filter and duplicate are pre-insert checks (block before the message is stored), while spam is a post-insert check (soft-deletes the message after storage).
 
-> **Note:** Active timeouts are enforced even when auto-moderation is globally disabled. A moderator cannot accidentally unblock a timed-out user by toggling the master switch off.
+> **Note:** Active timeouts are only enforced when auto-moderation is enabled. Disabling the master switch causes the code to return early before reaching the timeout check.
 
 ---
 
 ## Required Permission
 
-`PATCH /servers/:id/automod`, word filter endpoints, and log endpoints require `MANAGE_SERVER` permission. `GET /servers/:id/automod` (read-only config) is accessible to all server members. Members without `MANAGE_SERVER` can read the top-level enabled/disabled state (so the UI can show a notice), but cannot modify settings or view logs.
+All automod endpoints — `GET /servers/:id/automod`, `PATCH /servers/:id/automod`, word filter endpoints, and log endpoints — are restricted to the **server owner only**. The code checks `auth.user_id() != server.owner_id` on every endpoint; no permission bitflag is involved.
 
 ---
 
@@ -34,7 +34,7 @@ All requests require `Authorization: Bearer <jwt>`.
 
 ### GET /servers/:id/automod
 
-Returns the current configuration. Accessible to all server members.
+Returns the current configuration. Restricted to the server owner.
 
 **Response**
 
@@ -53,13 +53,13 @@ Returns the current configuration. Accessible to all server members.
 }
 ```
 
-If no configuration has been saved yet, the server returns all-disabled defaults.
+If no configuration has been saved yet, the server returns `404 Not Found`.
 
 ---
 
 ### PATCH /servers/:id/automod
 
-Update configuration. Requires `MANAGE_SERVER`. All fields are optional; omitted fields keep their current value.
+Update configuration. Restricted to the server owner. All fields are optional; omitted fields keep their current value.
 
 **Request**
 
@@ -85,7 +85,7 @@ Content-Type: application/json
 
 | Field                 | Type    | Constraints | Default    | Description                                                              |
 | --------------------- | ------- | ----------- | ---------- | ------------------------------------------------------------------------ |
-| `enabled`             | boolean | —           | `false`    | Master switch. When `false`, no rules run (active timeouts still apply). |
+| `enabled`             | boolean | —           | `false`    | Master switch. When `false`, no rules run and timeouts are not enforced. |
 | `spam_enabled`        | boolean | —           | `false`    | Enable spam rate detection.                                              |
 | `spam_max_messages`   | integer | 1–50        | `5`        | Maximum messages allowed within the window.                              |
 | `spam_window_secs`    | integer | 1–60        | `5`        | Sliding window size in seconds.                                          |
@@ -111,13 +111,13 @@ Content-Type: application/json
 | Status | Reason                                             |
 | ------ | -------------------------------------------------- |
 | 400    | Invalid action value or field out of allowed range |
-| 403    | Caller does not have `MANAGE_SERVER` permission    |
+| 403    | Caller is not the server owner                     |
 
 ---
 
 ### GET /servers/:id/automod/words
 
-List all blocked words. Requires `MANAGE_SERVER`.
+List all blocked words. Restricted to the server owner.
 
 **Response**
 
@@ -139,7 +139,7 @@ Words are returned in the order they were added.
 
 ### POST /servers/:id/automod/words
 
-Add a word or phrase to the blocklist. Requires `MANAGE_SERVER`.
+Add a word or phrase to the blocklist. Restricted to the server owner.
 
 Words are normalized to lowercase before storage; matching is also case-insensitive. Substring matching is used — a filter for `"bad"` will match `"badword"`.
 
@@ -155,42 +155,27 @@ Content-Type: application/json
 }
 ```
 
-**Response:** `201 Created` with the new word filter object.
+**Response:** `201 Created` with the word filter object. If the word already exists, the endpoint returns `201` idempotently (upsert behavior).
 
 **Errors**
 
-| Status | Reason                                 |
-| ------ | -------------------------------------- |
-| 400    | Word is blank                          |
-| 409    | Word already exists in the filter list |
+| Status | Reason        |
+| ------ | ------------- |
+| 400    | Word is blank |
 
 ---
 
-### DELETE /servers/:id/automod/words/:word_id
+### DELETE /servers/:id/automod/words/:word
 
-Remove a word from the blocklist. Requires `MANAGE_SERVER`.
+Remove a word from the blocklist by its text value. Restricted to the server owner. Silently succeeds even if the word does not exist in the list.
 
 **Response:** `204 No Content`
-
-**Errors**
-
-| Status | Reason            |
-| ------ | ----------------- |
-| 404    | Word ID not found |
 
 ---
 
 ### GET /servers/:id/automod/logs
 
-Retrieve the auto-moderation audit log. Requires `MANAGE_SERVER`.
-
-**Query parameters**
-
-| Parameter | Type    | Default | Max   | Description                     |
-| --------- | ------- | ------- | ----- | ------------------------------- |
-| `limit`   | integer | `50`    | `100` | Number of log entries to return |
-
-Results are ordered newest-first.
+Retrieve the auto-moderation audit log. Restricted to the server owner. Always returns the 100 most recent entries, ordered newest-first.
 
 **Response**
 
@@ -222,51 +207,15 @@ Results are ordered newest-first.
 
 ---
 
-## WebSocket Event
-
-When a rule fires, the server broadcasts an `AUTOMOD_ACTION` event to all currently connected members of the server. Moderators can use this for real-time notifications without polling the log endpoint.
-
-**Event payload**
-
-```json
-{
-  "op": 0,
-  "t": "AUTOMOD_ACTION",
-  "d": {
-    "server_id": "uuid",
-    "channel_id": "uuid",
-    "user_id": "uuid",
-    "username": "exampleuser",
-    "rule_type": "word_filter",
-    "action_taken": "delete",
-    "matched_term": "badword"
-  }
-}
-```
-
----
-
-## Admin UI
-
-The auto-moderation panel is accessible to users with `MANAGE_SERVER` via **Server Settings → Auto-Moderation**. It provides three tabs:
-
-**Overview** — Master enable toggle, spam detection settings (max messages, window, action), duplicate detection toggle, and the shared timeout duration.
-
-**Word Filters** — Enable/disable the word filter, set the action for word filter violations, and manage the blocked word list. Words are matched case-insensitively anywhere in a message.
-
-**Audit Log** — View the 50 most recent auto-moderation actions. Each entry shows the username, rule that fired, action taken, the original message content, and (for word filter violations) the matched term. The log can be refreshed manually.
-
----
-
 ## Rule Behavior Reference
 
 ### Spam detection
 
-The server tracks per-user message timestamps in memory using a sliding window. When a user's timestamp count within the configured window reaches `spam_max_messages`, the triggering message is blocked and the configured action is applied. The in-memory tracker resets when the server restarts.
+The server uses database queries (`COUNT(*)` on the messages table) to count a user's recent messages within the configured window. When the count exceeds `spam_max_messages`, the triggering message is soft-deleted and the configured `spam_action` is applied. Because detection is database-backed, message counts survive server restarts. Spam detection is a post-insert check — the message is stored first, then evaluated and soft-deleted if it exceeds the threshold.
 
 ### Duplicate detection
 
-Queries the database for an identical message from the same user in the same channel within the last 30 seconds. The duplicate detection rule uses the same action as the spam rule (`spam_action`).
+Queries the database for an identical message from the same user in the same channel within the last 30 seconds. Duplicate detection always uses the `"delete"` action (blocks the message); it is not configurable via `spam_action`.
 
 ### Word filter
 
@@ -274,6 +223,6 @@ Loads the server's blocklist from the database on each message. Matches are case
 
 ### Timeouts
 
-When the `timeout` action fires, an entry is inserted into `automod_timeouts` with an expiry of `timeout_minutes` from now. If the user triggers another rule before their timeout expires, the expiry is extended to whichever is later. Timed-out users receive `403 Forbidden` on any message send attempt, with the message: `"You are currently timed out in this server"`.
+When the `timeout` action fires, an entry is inserted into `automod_timeouts` with an expiry of `timeout_minutes` from now. If the user triggers another timeout before the current one expires, the new expiry unconditionally overwrites the existing one. Timed-out users receive `403 Forbidden` on any message send attempt, with the message: `"User is timed out"`.
 
 Timeouts expire automatically — no manual cleanup is required.
