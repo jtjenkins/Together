@@ -1,0 +1,12 @@
+# Build override — use with the main compose file to build from source:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
