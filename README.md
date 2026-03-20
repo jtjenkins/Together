@@ -34,16 +34,26 @@ Rocket.Chat instead.
 | Servers, channels, roles & permissions      | ✅     |
 | Real-time text chat with threads            | ✅     |
 | Direct messages                             | ✅     |
-| Voice channels (WebRTC SFU)                 | ✅     |
+| Voice channels (P2P WebRTC mesh)            | ✅     |
+| Go Live screen broadcasting                 | ✅     |
 | File & image uploads (up to 50 MB)          | ✅     |
-| Emoji reactions, polls, server events       | ✅     |
+| Emoji reactions & custom server emojis      | ✅     |
+| Polls & server events                       | ✅     |
 | GIF picker (Giphy integration)              | ✅     |
-| Slash commands & Discord-style markdown     | ✅     |
+| Link previews                               | ✅     |
+| Full-text message search                    | ✅     |
+| Message pinning                             | ✅     |
+| Activity / rich presence status             | ✅     |
+| Bot API with token authentication           | ✅     |
+| Webhooks (HMAC-SHA256 signed payloads)      | ✅     |
+| Auto-moderation rules                       | ✅     |
+| Audit logging                               | ✅     |
+| Server data export (ZIP download)           | ✅     |
+| Read-state tracking & unread indicators     | ✅     |
 | Desktop app (Tauri — macOS, Windows, Linux) | ✅     |
 | Web app (any browser)                       | ✅     |
-| Mobile app (Tauri — Android & iOS)          | ✅     |
-| Link previews                               | ✅     |
-| Rate limiting & basic security hardening    | ✅     |
+| Mobile app (Tauri v2 — Android & iOS)       | ✅     |
+| Rate limiting & security hardening          | ✅     |
 
 ---
 
@@ -81,17 +91,17 @@ For a complete guide covering TLS, backups, upgrades, and firewall configuration
 
 ## Architecture
 
-Together is a **single Rust binary** backed by PostgreSQL — no microservices, no message
-queues, no Redis required.
+Together is a **single Rust binary** (~13k lines) backed by PostgreSQL — no microservices, no
+message queues, no Redis required.
 
 ```
 Clients (Desktop · Web · Mobile)
           │  HTTPS / WebSocket
           ▼
   Together Server (Rust/Axum)
-  ├── REST API  (auth, servers, channels, messages, files, polls, events)
-  ├── WebSocket gateway  (real-time MESSAGE_CREATE, PRESENCE_UPDATE, etc.)
-  └── WebRTC signaling relay  (voice channel coordination)
+  ├── REST API  (auth, servers, channels, messages, files, polls, bots, webhooks, etc.)
+  ├── WebSocket gateway  (real-time MESSAGE_CREATE, PRESENCE_UPDATE, VOICE_SIGNAL, etc.)
+  └── WebRTC signaling relay  (P2P voice & Go Live coordination)
           │
           ▼
      PostgreSQL 16
@@ -180,6 +190,10 @@ For the full contribution guide (code style, PR process, project structure), see
 | [docs/openapi.yaml](docs/openapi.yaml)                   | OpenAPI 3.1 spec for all REST endpoints        |
 | [docs/websocket-protocol.md](docs/websocket-protocol.md) | WebSocket gateway event reference              |
 | [docs/architecture.md](docs/architecture.md)             | Component design and database schema           |
+| [docs/bot-api.md](docs/bot-api.md)                       | Bot API and webhook integration guide          |
+| [docs/auto-moderation.md](docs/auto-moderation.md)       | Auto-moderation rules configuration            |
+| [docs/audit-logging.md](docs/audit-logging.md)           | Audit log events reference                     |
+| [docs/backup-restore.md](docs/backup-restore.md)         | Backup and restore procedures                  |
 | [docs/ios-voice.md](docs/ios-voice.md)                   | TURN server setup for iOS voice                |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                       | How to set up a dev environment and submit PRs |
 | [SECURITY.md](SECURITY.md)                               | Security policy and pre-production disclaimer  |
