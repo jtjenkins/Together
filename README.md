@@ -53,6 +53,7 @@ Rocket.Chat instead.
 | Desktop app (Tauri — macOS, Windows, Linux) | ✅     |
 | Web app (any browser)                       | ✅     |
 | Mobile app (Tauri v2 — Android & iOS)       | ✅     |
+| Discord-style markdown formatting            | ✅     |
 | Rate limiting & security hardening          | ✅     |
 
 ---
@@ -91,7 +92,7 @@ For a complete guide covering TLS, backups, upgrades, and firewall configuration
 
 ## Architecture
 
-Together is a **single Rust binary** (~13k lines) backed by PostgreSQL — no microservices, no
+Together is a **single Rust binary** (~12k lines) backed by PostgreSQL — no microservices, no
 message queues, no Redis required.
 
 ```
