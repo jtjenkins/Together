@@ -241,11 +241,22 @@ pub async fn refresh_token(
         create_refresh_token(user.id, user.username.clone(), &state.jwt_secret)?;
     let new_hash = hash_refresh_token(&new_refresh_token);
 
-    sqlx::query("UPDATE sessions SET refresh_token_hash = $1 WHERE id = $2")
-        .bind(&new_hash)
-        .bind(session_id)
-        .execute(&state.pool)
-        .await?;
+    // Compare-and-swap: only update if the current hash still matches,
+    // preventing concurrent refresh races from both succeeding.
+    let result = sqlx::query(
+        "UPDATE sessions SET refresh_token_hash = $1 WHERE id = $2 AND refresh_token_hash = $3",
+    )
+    .bind(&new_hash)
+    .bind(session_id)
+    .bind(&token_hash)
+    .execute(&state.pool)
+    .await?;
+
+    if result.rows_affected() != 1 {
+        return Err(AppError::Auth(
+            "Session not found, expired, or token already rotated".into(),
+        ));
+    }
 
     Ok(Json(AuthResponse {
         access_token,

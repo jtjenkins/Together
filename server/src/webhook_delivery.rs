@@ -59,7 +59,7 @@ pub struct WebhookQueue(Sender<DeliveryJob>);
 
 impl WebhookQueue {
     /// Enqueue a delivery job.  Uses `try_send` to avoid blocking the caller.
-    /// Logs a warning if the queue is full (back-pressure).
+    /// If the queue is full the job is dropped (load-shedding) and a warning is logged.
     pub fn send(&self, job: DeliveryJob) {
         if let Err(e) = self.0.try_send(job) {
             match e {

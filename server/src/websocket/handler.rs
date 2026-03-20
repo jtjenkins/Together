@@ -169,30 +169,41 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
             tokio::select! {
                 msg = ws_receiver.next() => {
                     match msg {
-                        Some(Ok(msg)) => match msg {
-                            Message::Text(text) => {
-                                // Frame size limit: reject oversized frames.
-                                if text.len() > 16_384 {
-                                    tracing::warn!(user_id = %user_id, len = text.len(), "WebSocket frame too large, ignoring");
-                                    continue;
-                                }
-
-                                // Per-connection rate limit: max 20 messages per second.
-                                let now = Instant::now();
-                                last_messages.retain(|t| now.duration_since(*t) < Duration::from_secs(1));
-                                if last_messages.len() >= 20 {
-                                    tracing::warn!(user_id = %user_id, "WebSocket rate limit exceeded");
-                                    continue;
-                                }
-                                last_messages.push(now);
-
-                                handle_client_message(user_id, &text, &state_clone).await;
+                        Some(Ok(msg)) => {
+                            // Frame size limit: reject oversized frames for all payload types.
+                            let payload_len = match &msg {
+                                Message::Text(text) => text.len(),
+                                Message::Binary(bin) => bin.len(),
+                                Message::Ping(ping) => ping.len(),
+                                Message::Pong(pong) => pong.len(),
+                                _ => 0,
+                            };
+                            if payload_len > 16_384 {
+                                tracing::warn!(
+                                    user_id = %user_id,
+                                    len = payload_len,
+                                    "WebSocket frame too large, closing connection"
+                                );
+                                break;
                             }
-                            Message::Close(_) => break,
-                            // Axum handles Pong frames automatically; Ping frames are
-                            // echoed back transparently by the underlying library.
-                            _ => {}
-                        },
+
+                            match msg {
+                                Message::Text(text) => {
+                                    // Per-connection rate limit: max 20 messages per second.
+                                    let now = Instant::now();
+                                    last_messages.retain(|t| now.duration_since(*t) < Duration::from_secs(1));
+                                    if last_messages.len() >= 20 {
+                                        tracing::warn!(user_id = %user_id, "WebSocket rate limit exceeded");
+                                        continue;
+                                    }
+                                    last_messages.push(now);
+
+                                    handle_client_message(user_id, &text, &state_clone).await;
+                                }
+                                Message::Close(_) => break,
+                                _ => {}
+                            }
+                        }
                         Some(Err(e)) => {
                             tracing::debug!(
                                 user_id = %user_id,

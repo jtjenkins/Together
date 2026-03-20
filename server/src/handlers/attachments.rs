@@ -387,14 +387,7 @@ async fn cleanup_files(paths: &[PathBuf]) {
     }
 }
 
-/// Sanitize a filename for use inside a `Content-Disposition` header value.
-/// Strips characters that could inject headers (`"`, `\r`, `\n`, `\0`).
-fn sanitize_header_filename(name: &str) -> String {
-    name.chars()
-        .filter(|c| !matches!(c, '\r' | '\n' | '\0'))
-        .map(|c| if c == '"' { '\'' } else { c })
-        .collect()
-}
+use super::shared::sanitize_header_filename;
 
 /// Replace any character that is not alphanumeric, dot, underscore, or hyphen
 /// with an underscore, and cap the result at 128 **characters** (not bytes) to

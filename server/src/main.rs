@@ -555,6 +555,7 @@ async fn main() {
     server.await.expect("Server failed to start");
 }
 
+#[cfg(unix)]
 async fn shutdown_signal() {
     let ctrl_c = tokio::signal::ctrl_c();
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
@@ -563,4 +564,12 @@ async fn shutdown_signal() {
         _ = ctrl_c => { tracing::info!("Received SIGINT, starting graceful shutdown"); }
         _ = sigterm.recv() => { tracing::info!("Received SIGTERM, starting graceful shutdown"); }
     }
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to install Ctrl+C handler");
+    tracing::info!("Received SIGINT, starting graceful shutdown");
 }

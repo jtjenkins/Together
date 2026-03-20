@@ -1,5 +1,10 @@
 import { api } from "../api/client";
 
+/** STUN-only fallback when TURN credentials cannot be fetched. */
+const STUN_FALLBACK: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+];
+
 let cache: { servers: RTCIceServer[]; expiresAt: number } | null = null;
 let inflight: Promise<RTCIceServer[]> | null = null;
 
@@ -16,8 +21,13 @@ export async function getIceServers(): Promise<RTCIceServer[]> {
         ...(s.username && { username: s.username }),
         ...(s.credential && { credential: s.credential }),
       }));
-      cache = { servers, expiresAt: Date.now() + (res.ttl || 86400) * 1000 };
+      // Subtract 60s from TTL to avoid using expired TURN credentials
+      const ttlMs = Math.max((res.ttl || 86400) - 60, 60) * 1000;
+      cache = { servers, expiresAt: Date.now() + ttlMs };
       return servers;
+    } catch (e) {
+      console.warn("Failed to fetch ICE servers, using STUN fallback:", e);
+      return STUN_FALLBACK;
     } finally {
       inflight = null;
     }

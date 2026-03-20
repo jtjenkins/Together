@@ -123,14 +123,7 @@ fn to_slug(s: &str) -> String {
         .to_lowercase()
 }
 
-/// Sanitize a filename for use inside a `Content-Disposition` header value.
-/// Strips characters that could inject headers (`"`, `\r`, `\n`, `\0`).
-fn sanitize_header_filename(name: &str) -> String {
-    name.chars()
-        .filter(|c| !matches!(c, '\r' | '\n' | '\0'))
-        .map(|c| if c == '"' { '\'' } else { c })
-        .collect()
-}
+use super::shared::sanitize_header_filename;
 
 // ============================================================================
 // Handler

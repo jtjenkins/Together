@@ -221,3 +221,12 @@ pub async fn require_manage_emojis(
         ))
     }
 }
+
+/// Sanitize a filename for safe use inside a `Content-Disposition` header.
+/// Replaces `"` with `'` and strips `\r`, `\n`, `\0` to prevent header injection.
+pub fn sanitize_header_filename(name: &str) -> String {
+    name.chars()
+        .filter(|c| !matches!(c, '\r' | '\n' | '\0'))
+        .map(|c| if c == '"' { '\'' } else { c })
+        .collect()
+}
