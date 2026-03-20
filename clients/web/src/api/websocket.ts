@@ -77,7 +77,6 @@ export class WebSocketClient {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
   private token: string | null = null;
   private handlers: Partial<Record<EventName, Set<EventHandler<never>>>> = {};
   private _isConnected = false;
@@ -124,7 +123,6 @@ export class WebSocketClient {
 
   disconnect() {
     this.token = null;
-    this.reconnectAttempts = this.maxReconnectAttempts;
     this.cleanup();
   }
 
@@ -218,6 +216,9 @@ export class WebSocketClient {
   }
 
   private handleMessage(msg: GatewayMessage) {
+    if (!msg.op) return;
+    if (msg.op === "DISPATCH" && (!msg.t || msg.d === undefined)) return;
+
     switch (msg.op) {
       case "DISPATCH":
         if (msg.t && msg.d) {
@@ -251,14 +252,7 @@ export class WebSocketClient {
   }
 
   private scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts || !this.token) {
-      if (this.token) {
-        console.error(
-          `[Gateway] Connection lost — gave up after ${this.maxReconnectAttempts} reconnect attempts`,
-        );
-      }
-      return;
-    }
+    if (!this.token) return;
 
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
     this.reconnectAttempts++;

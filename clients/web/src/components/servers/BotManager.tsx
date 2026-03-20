@@ -122,6 +122,7 @@ export function BotManager({ serverId: _serverId }: BotManagerProps) {
   };
 
   const handleRevoke = async (botId: string, botName: string) => {
+    // TODO: replace window.confirm with an accessible confirmation modal
     if (
       !confirm(
         `Revoke bot "${botName}"? Its token will stop working immediately.`,

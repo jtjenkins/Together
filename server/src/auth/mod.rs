@@ -93,10 +93,11 @@ pub fn create_refresh_token(user_id: Uuid, username: String, secret: &str) -> Ap
 }
 
 pub fn validate_token(token: &str, secret: &str) -> AppResult<Claims> {
+    let validation = Validation::new(jsonwebtoken::Algorithm::HS256);
     decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &validation,
     )
     .map(|data| data.claims)
     .map_err(|e| {

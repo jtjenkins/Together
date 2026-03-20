@@ -131,6 +131,7 @@ export function WebhookManager({ serverId }: WebhookManagerProps) {
   };
 
   const handleDelete = async (webhookId: string, webhookName: string) => {
+    // TODO: replace window.confirm with an accessible confirmation modal
     if (!confirm(`Delete webhook "${webhookName}"? This cannot be undone.`))
       return;
     setActionLoading((prev) => ({ ...prev, [webhookId]: true }));

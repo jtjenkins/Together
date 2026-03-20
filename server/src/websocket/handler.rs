@@ -8,6 +8,7 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt};
 use serde_json::json;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -163,26 +164,61 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
     // Handle inbound messages from the client.
     let state_clone = state.clone();
     let mut recv_task = tokio::spawn(async move {
+        let mut last_messages: Vec<Instant> = Vec::new();
         loop {
-            match ws_receiver.next().await {
-                Some(Ok(msg)) => match msg {
-                    Message::Text(text) => {
-                        handle_client_message(user_id, &text, &state_clone).await;
+            tokio::select! {
+                msg = ws_receiver.next() => {
+                    match msg {
+                        Some(Ok(msg)) => {
+                            // Frame size limit: reject oversized frames for all payload types.
+                            let payload_len = match &msg {
+                                Message::Text(text) => text.len(),
+                                Message::Binary(bin) => bin.len(),
+                                Message::Ping(ping) => ping.len(),
+                                Message::Pong(pong) => pong.len(),
+                                _ => 0,
+                            };
+                            if payload_len > 16_384 {
+                                tracing::warn!(
+                                    user_id = %user_id,
+                                    len = payload_len,
+                                    "WebSocket frame too large, closing connection"
+                                );
+                                break;
+                            }
+
+                            match msg {
+                                Message::Text(text) => {
+                                    // Per-connection rate limit: max 20 messages per second.
+                                    let now = Instant::now();
+                                    last_messages.retain(|t| now.duration_since(*t) < Duration::from_secs(1));
+                                    if last_messages.len() >= 20 {
+                                        tracing::warn!(user_id = %user_id, "WebSocket rate limit exceeded");
+                                        continue;
+                                    }
+                                    last_messages.push(now);
+
+                                    handle_client_message(user_id, &text, &state_clone).await;
+                                }
+                                Message::Close(_) => break,
+                                _ => {}
+                            }
+                        }
+                        Some(Err(e)) => {
+                            tracing::debug!(
+                                user_id = %user_id,
+                                error = ?e,
+                                "WebSocket receive error; closing connection"
+                            );
+                            break;
+                        }
+                        None => break,
                     }
-                    Message::Close(_) => break,
-                    // Axum handles Pong frames automatically; Ping frames are
-                    // echoed back transparently by the underlying library.
-                    _ => {}
-                },
-                Some(Err(e)) => {
-                    tracing::debug!(
-                        user_id = %user_id,
-                        error = ?e,
-                        "WebSocket receive error; closing connection"
-                    );
+                }
+                _ = tokio::time::sleep(Duration::from_secs(300)) => {
+                    tracing::info!(user_id = %user_id, "WebSocket idle timeout, disconnecting");
                     break;
                 }
-                None => break,
             }
         }
     });
@@ -538,14 +574,12 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         channel_created_at: chrono::DateTime<chrono::Utc>,
         recipient_id: Uuid,
         recipient_username: String,
-        recipient_email: Option<String>,
         recipient_avatar_url: Option<String>,
         recipient_bio: Option<String>,
         recipient_pronouns: Option<String>,
         recipient_status: String,
         recipient_custom_status: Option<String>,
         recipient_created_at: chrono::DateTime<chrono::Utc>,
-        recipient_is_admin: bool,
         last_message_at: Option<chrono::DateTime<chrono::Utc>>,
     }
 
@@ -555,14 +589,12 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
             dmc.created_at     AS channel_created_at,
             u.id               AS recipient_id,
             u.username         AS recipient_username,
-            u.email            AS recipient_email,
             u.avatar_url       AS recipient_avatar_url,
             u.bio              AS recipient_bio,
             u.pronouns         AS recipient_pronouns,
             u.status           AS recipient_status,
             u.custom_status    AS recipient_custom_status,
             u.created_at       AS recipient_created_at,
-            u.is_admin         AS recipient_is_admin,
             (SELECT MAX(dm.created_at)
              FROM direct_messages dm
              WHERE dm.channel_id = dmc.id AND dm.deleted = FALSE
@@ -584,7 +616,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
                 recipient: UserDto {
                     id: r.recipient_id,
                     username: r.recipient_username,
-                    email: r.recipient_email,
+                    email: None,
                     avatar_url: r.recipient_avatar_url,
                     bio: r.recipient_bio,
                     pronouns: r.recipient_pronouns,
@@ -593,7 +625,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
                     custom_status: r.recipient_custom_status,
                     activity: None,
                     created_at: r.recipient_created_at,
-                    is_admin: r.recipient_is_admin,
+                    is_admin: false,
                 },
                 created_at: r.channel_created_at,
                 last_message_at: r.last_message_at,

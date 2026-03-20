@@ -16,7 +16,7 @@ pub struct Config {
     pub jwt_secret: Arc<str>,
     pub server_host: String,
     pub server_port: u16,
-    /// true when APP_ENV != "production"
+    /// true only when APP_ENV == "development"
     pub is_dev: bool,
     /// Root directory for uploaded files (from UPLOAD_DIR, default: ./data/uploads).
     pub upload_dir: PathBuf,
@@ -67,8 +67,8 @@ impl Config {
                 .parse()
                 .unwrap_or(8080),
             is_dev: env::var("APP_ENV")
-                .map(|v| v != "production")
-                .unwrap_or(true),
+                .map(|v| v == "development")
+                .unwrap_or(false),
             upload_dir: PathBuf::from(
                 env::var("UPLOAD_DIR").unwrap_or_else(|_| "./data/uploads".to_string()),
             ),

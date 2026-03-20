@@ -337,13 +337,14 @@ pub async fn serve_file(
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
+    let safe_name = sanitize_header_filename(&attachment.filename);
     let disposition = if attachment.mime_type.starts_with("image/")
         || attachment.mime_type.starts_with("video/")
         || attachment.mime_type.starts_with("audio/")
     {
-        format!("inline; filename=\"{}\"", attachment.filename)
+        format!("inline; filename=\"{safe_name}\"")
     } else {
-        format!("attachment; filename=\"{}\"", attachment.filename)
+        format!("attachment; filename=\"{safe_name}\"")
     };
 
     let response = Response::builder()
@@ -385,6 +386,8 @@ async fn cleanup_files(paths: &[PathBuf]) {
         }
     }
 }
+
+use super::shared::sanitize_header_filename;
 
 /// Replace any character that is not alphanumeric, dot, underscore, or hyphen
 /// with an underscore, and cap the result at 128 **characters** (not bytes) to

@@ -118,9 +118,12 @@ fn to_slug(s: &str) -> String {
                 '_'
             }
         })
+        .filter(|&c| c != '"' && c != '\r' && c != '\n' && c != '\0')
         .collect::<String>()
         .to_lowercase()
 }
+
+use super::shared::sanitize_header_filename;
 
 // ============================================================================
 // Handler
@@ -312,7 +315,10 @@ pub async fn export_server(
         .header(header::CONTENT_TYPE, "application/zip")
         .header(
             header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{filename}\""),
+            format!(
+                "attachment; filename=\"{}\"",
+                sanitize_header_filename(&filename)
+            ),
         )
         .header(header::CONTENT_LENGTH, zip_bytes.len().to_string())
         .body(Body::from(zip_bytes))

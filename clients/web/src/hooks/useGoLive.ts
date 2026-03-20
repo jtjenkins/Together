@@ -17,6 +17,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { gateway } from "../api/websocket";
 import { api } from "../api/client";
+import { getIceServers } from "../utils/iceCache";
 import type { GoLiveQuality, GoLiveSession, VoiceParticipant } from "../types";
 
 // ─── Quality presets ──────────────────────────────────────────────────────────
@@ -61,35 +62,6 @@ export interface UseGoLiveResult {
   startBroadcast: (quality: GoLiveQuality) => Promise<void>;
   /** Stop broadcasting (broadcaster only). */
   stopBroadcast: () => Promise<void>;
-}
-
-// ─── ICE servers cache (shared with useWebRTC) ────────────────────────────────
-
-let goLiveIceCache: { servers: RTCIceServer[]; expiresAt: number } | null =
-  null;
-
-async function getIceServers(): Promise<RTCIceServer[]> {
-  if (goLiveIceCache && Date.now() < goLiveIceCache.expiresAt) {
-    return goLiveIceCache.servers;
-  }
-  try {
-    const response = await api.getIceServers();
-    const servers: RTCIceServer[] = response.iceServers.map((s) => ({
-      urls: s.urls,
-      username: s.username,
-      credential: s.credential,
-    }));
-    goLiveIceCache = {
-      servers,
-      expiresAt: Date.now() + (response.ttl - 60) * 1000,
-    };
-    return servers;
-  } catch {
-    return [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-    ];
-  }
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────

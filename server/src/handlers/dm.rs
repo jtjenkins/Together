@@ -78,14 +78,12 @@ async fn build_channel_dto(
         channel_created_at: DateTime<Utc>,
         recipient_id: Uuid,
         recipient_username: String,
-        recipient_email: Option<String>,
         recipient_avatar_url: Option<String>,
         recipient_bio: Option<String>,
         recipient_pronouns: Option<String>,
         recipient_status: String,
         recipient_custom_status: Option<String>,
         recipient_created_at: DateTime<Utc>,
-        recipient_is_admin: bool,
         last_message_at: Option<DateTime<Utc>>,
     }
 
@@ -94,14 +92,12 @@ async fn build_channel_dto(
              dmc.created_at        AS channel_created_at,
              u.id                  AS recipient_id,
              u.username            AS recipient_username,
-             u.email               AS recipient_email,
              u.avatar_url          AS recipient_avatar_url,
              u.bio                 AS recipient_bio,
              u.pronouns            AS recipient_pronouns,
              u.status              AS recipient_status,
              u.custom_status       AS recipient_custom_status,
              u.created_at          AS recipient_created_at,
-             u.is_admin            AS recipient_is_admin,
              (SELECT MAX(dm.created_at)
               FROM direct_messages dm
               WHERE dm.channel_id = dmc.id AND dm.deleted = FALSE
@@ -122,7 +118,7 @@ async fn build_channel_dto(
         recipient: UserDto {
             id: row.recipient_id,
             username: row.recipient_username,
-            email: row.recipient_email,
+            email: None, // Strip email from other users' profiles
             avatar_url: row.recipient_avatar_url,
             bio: row.recipient_bio,
             pronouns: row.recipient_pronouns,
@@ -131,7 +127,7 @@ async fn build_channel_dto(
             custom_status: row.recipient_custom_status,
             activity: None,
             created_at: row.recipient_created_at,
-            is_admin: row.recipient_is_admin,
+            is_admin: false, // Strip is_admin from other users' profiles
         },
         created_at: row.channel_created_at,
         last_message_at: row.last_message_at,
@@ -282,14 +278,12 @@ pub async fn list_dm_channels(
         channel_created_at: DateTime<Utc>,
         recipient_id: Uuid,
         recipient_username: String,
-        recipient_email: Option<String>,
         recipient_avatar_url: Option<String>,
         recipient_bio: Option<String>,
         recipient_pronouns: Option<String>,
         recipient_status: String,
         recipient_custom_status: Option<String>,
         recipient_created_at: DateTime<Utc>,
-        recipient_is_admin: bool,
         last_message_at: Option<DateTime<Utc>>,
     }
 
@@ -299,14 +293,12 @@ pub async fn list_dm_channels(
              dmc.created_at     AS channel_created_at,
              u.id               AS recipient_id,
              u.username         AS recipient_username,
-             u.email            AS recipient_email,
              u.avatar_url       AS recipient_avatar_url,
              u.bio              AS recipient_bio,
              u.pronouns         AS recipient_pronouns,
              u.status           AS recipient_status,
              u.custom_status    AS recipient_custom_status,
              u.created_at       AS recipient_created_at,
-             u.is_admin         AS recipient_is_admin,
              (SELECT MAX(dm.created_at)
               FROM direct_messages dm
               WHERE dm.channel_id = dmc.id AND dm.deleted = FALSE
@@ -328,7 +320,7 @@ pub async fn list_dm_channels(
             recipient: UserDto {
                 id: r.recipient_id,
                 username: r.recipient_username,
-                email: r.recipient_email,
+                email: None, // Strip email from other users' profiles
                 avatar_url: r.recipient_avatar_url,
                 bio: r.recipient_bio,
                 pronouns: r.recipient_pronouns,
@@ -337,7 +329,7 @@ pub async fn list_dm_channels(
                 custom_status: r.recipient_custom_status,
                 activity: None,
                 created_at: r.recipient_created_at,
-                is_admin: r.recipient_is_admin,
+                is_admin: false, // Strip is_admin from other users' profiles
             },
             created_at: r.channel_created_at,
             last_message_at: r.last_message_at,

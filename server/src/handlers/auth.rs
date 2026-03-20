@@ -168,6 +168,16 @@ pub async fn login(
     .execute(&mut *tx)
     .await?;
 
+    // Cap active sessions at 10 per user — delete the oldest sessions beyond the limit.
+    sqlx::query(
+        "DELETE FROM sessions WHERE user_id = $1 AND id NOT IN (
+             SELECT id FROM sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10
+         )",
+    )
+    .bind(user.id)
+    .execute(&mut *tx)
+    .await?;
+
     sqlx::query("UPDATE users SET status = 'online', updated_at = NOW() WHERE id = $1")
         .bind(user.id)
         .execute(&mut *tx)
@@ -203,8 +213,8 @@ pub async fn refresh_token(
 
     // Confirm the session exists and hasn't expired in the DB.
     // Using query_as instead of query! avoids updating the sqlx offline cache.
-    let row = sqlx::query_as::<_, (Uuid,)>(
-        "SELECT user_id FROM sessions WHERE refresh_token_hash = $1 AND expires_at > NOW()",
+    let row = sqlx::query_as::<_, (Uuid, Uuid)>(
+        "SELECT id, user_id FROM sessions WHERE refresh_token_hash = $1 AND expires_at > NOW()",
     )
     .bind(&token_hash)
     .fetch_optional(&state.pool)
@@ -214,20 +224,43 @@ pub async fn refresh_token(
         AppError::Auth("Session not found or expired".into())
     })?;
 
+    let (session_id, user_id) = row;
+
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
-        .bind(row.0)
+        .bind(user_id)
         .fetch_optional(&state.pool)
         .await?
         .ok_or_else(|| AppError::Auth("User not found".into()))?;
 
     info!("Token refresh for user: {} ({})", user.username, user.id);
 
-    // Issue a new access token; the refresh token is reused until it expires
+    // Rotate the refresh token: generate a new one, hash it, and update the session row.
+    // This ensures a stolen refresh token can only be used once.
     let access_token = create_access_token(user.id, user.username.clone(), &state.jwt_secret)?;
+    let new_refresh_token =
+        create_refresh_token(user.id, user.username.clone(), &state.jwt_secret)?;
+    let new_hash = hash_refresh_token(&new_refresh_token);
+
+    // Compare-and-swap: only update if the current hash still matches,
+    // preventing concurrent refresh races from both succeeding.
+    let result = sqlx::query(
+        "UPDATE sessions SET refresh_token_hash = $1 WHERE id = $2 AND refresh_token_hash = $3",
+    )
+    .bind(&new_hash)
+    .bind(session_id)
+    .bind(&token_hash)
+    .execute(&state.pool)
+    .await?;
+
+    if result.rows_affected() != 1 {
+        return Err(AppError::Auth(
+            "Session not found, expired, or token already rotated".into(),
+        ));
+    }
 
     Ok(Json(AuthResponse {
         access_token,
-        refresh_token: req.refresh_token,
+        refresh_token: new_refresh_token,
         user: user.into(),
     }))
 }

@@ -125,12 +125,18 @@ export const useDmStore = create<DmState>((set, get) => ({
           ...state.messagesByChannel,
           [message.channel_id]: [...existing, message],
         },
-        // Update last_message_at on the channel.
-        channels: state.channels.map((c) =>
-          c.id === message.channel_id
-            ? { ...c, last_message_at: message.created_at }
-            : c,
-        ),
+        // Update last_message_at on the channel and re-sort so most recent is first.
+        channels: state.channels
+          .map((c) =>
+            c.id === message.channel_id
+              ? { ...c, last_message_at: message.created_at }
+              : c,
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.last_message_at || 0).getTime() -
+              new Date(a.last_message_at || 0).getTime(),
+          ),
       };
     });
   },

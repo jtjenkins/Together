@@ -7,6 +7,9 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use chrono::{DateTime, Utc};
+use sqlx::FromRow;
+
 use super::shared::{fetch_server, require_member};
 use crate::{
     auth::AuthUser,
@@ -15,6 +18,42 @@ use crate::{
     state::AppState,
     webhook_delivery::{fire_event, DeliveryJob},
 };
+
+/// Webhook row without the `secret` column — used for list/get queries
+/// where the signing secret should not be loaded from the database.
+#[derive(Debug, Clone, FromRow)]
+struct WebhookNoSecret {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub created_by: Uuid,
+    pub name: String,
+    pub url: String,
+    pub event_types: serde_json::Value,
+    pub enabled: bool,
+    pub delivery_failures: i32,
+    pub last_used_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<WebhookNoSecret> for WebhookDto {
+    fn from(w: WebhookNoSecret) -> Self {
+        let event_types: Vec<String> = serde_json::from_value(w.event_types).unwrap_or_default();
+        WebhookDto {
+            id: w.id,
+            server_id: w.server_id,
+            created_by: w.created_by,
+            name: w.name,
+            url: w.url,
+            event_types,
+            enabled: w.enabled,
+            delivery_failures: w.delivery_failures,
+            last_used_at: w.last_used_at,
+            created_at: w.created_at,
+            updated_at: w.updated_at,
+        }
+    }
+}
 
 // ── Permission guard ──────────────────────────────────────────────────────────
 
@@ -190,8 +229,8 @@ pub async fn list_webhooks(
     require_member(&state.pool, server_id, auth.user_id()).await?;
     require_manage_webhooks(&state.pool, server_id, auth.user_id()).await?;
 
-    let webhooks: Vec<WebhookDto> = sqlx::query_as::<_, Webhook>(
-        "SELECT id, server_id, created_by, name, url, secret, event_types,
+    let webhooks: Vec<WebhookDto> = sqlx::query_as::<_, WebhookNoSecret>(
+        "SELECT id, server_id, created_by, name, url, event_types,
                 enabled, delivery_failures, last_used_at, created_at, updated_at
          FROM webhooks WHERE server_id = $1
          ORDER BY created_at ASC",
@@ -216,8 +255,8 @@ pub async fn get_webhook(
     require_member(&state.pool, server_id, auth.user_id()).await?;
     require_manage_webhooks(&state.pool, server_id, auth.user_id()).await?;
 
-    let webhook = sqlx::query_as::<_, Webhook>(
-        "SELECT id, server_id, created_by, name, url, secret, event_types,
+    let webhook = sqlx::query_as::<_, WebhookNoSecret>(
+        "SELECT id, server_id, created_by, name, url, event_types,
                 enabled, delivery_failures, last_used_at, created_at, updated_at
          FROM webhooks WHERE id = $1 AND server_id = $2",
     )
