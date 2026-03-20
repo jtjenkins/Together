@@ -124,7 +124,109 @@ If `database` is `"unavailable"`, PostgreSQL is still starting. Wait a few secon
 
 ---
 
-## 6. Upgrading
+## 6. TURN server (voice on mobile & restrictive networks)
+
+Together's voice channels use **peer-to-peer WebRTC** — audio flows directly between
+browsers with no server-side media processing. For peers to connect, they need to discover
+each other's network addresses via STUN, and relay media through a TURN server when a
+direct connection is impossible.
+
+**STUN** (Session Traversal Utilities for NAT) helps peers discover their public IP address.
+Together uses Google's public STUN servers by default — no configuration needed.
+
+**TURN** (Traversal Using Relays around NAT) relays media when a direct connection fails.
+This happens when:
+- A user is on **iOS cellular** (WKWebView cannot generate host ICE candidates)
+- A user is behind a **symmetric NAT** or strict corporate firewall
+- Both peers are behind **carrier-grade NAT** (common on mobile networks)
+
+Without a TURN server, voice works on most Wi-Fi networks but **will fail** for the cases
+above. If your community includes mobile users, you should set up TURN.
+
+### Setting up coturn
+
+The `docker-compose.yml` includes a **coturn** service that is ready to configure.
+
+**Step 1 — Create the config file:**
+
+```bash
+cp turn.conf.example turn.conf
+```
+
+**Step 2 — Edit `turn.conf`:**
+
+Set your domain and generate a shared secret:
+
+```bash
+# Generate a secret
+openssl rand -hex 32
+```
+
+Then in `turn.conf`:
+```
+realm=your-domain.com
+static-auth-secret=YOUR_GENERATED_SECRET
+```
+
+For production, uncomment and configure the TLS certificate paths:
+```
+cert=/etc/ssl/cert.pem
+pkey=/etc/ssl/key.pem
+```
+
+**Step 3 — Add TURN variables to `.env`:**
+
+```bash
+TURN_HOST=turn.your-domain.com
+TURN_PORT=3478
+TURN_TLS_PORT=5349
+TURN_SECRET=YOUR_GENERATED_SECRET   # must match turn.conf
+TURN_REALM=your-domain.com
+```
+
+**Step 4 — Open firewall ports:**
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 3478 | TCP + UDP | STUN/TURN |
+| 5349 | TCP + UDP | TURN over TLS/DTLS (required for iOS) |
+| 49152–65535 | UDP | Media relay range |
+
+**Step 5 — Restart:**
+
+```bash
+docker compose up -d
+```
+
+The Together server reads the `TURN_*` variables and generates time-limited HMAC-SHA1
+credentials for each authenticated user via the `GET /ice-servers` endpoint. Clients
+fetch these credentials automatically when joining a voice channel.
+
+### Verifying TURN is working
+
+```bash
+# Check coturn is running
+docker compose logs coturn
+
+# Test the TURN server from another machine
+# (requires the turnutils package, available via apt/brew)
+turnutils_uclient -t -u test -w test your-domain.com
+```
+
+### Do I need TURN?
+
+| Scenario | TURN needed? |
+|----------|-------------|
+| Desktop users on home Wi-Fi | Usually no — STUN is enough |
+| Mobile users on cellular (especially iOS) | **Yes** |
+| Users behind corporate firewalls | **Yes** |
+| LAN-only deployment (no internet) | No |
+
+> For more details on iOS-specific voice behavior, see [ios-voice.md](ios-voice.md).
+
+---
+
+## 7. Upgrading
 
 ```bash
 docker compose pull
@@ -136,7 +238,7 @@ on server startup — no manual step needed.
 
 ---
 
-## 7. Backup
+## 8. Backup
 
 ```bash
 ./scripts/backup.sh
@@ -151,7 +253,7 @@ directory as the first argument:
 
 ---
 
-## 8. Restore
+## 9. Restore
 
 ```bash
 gunzip < backups/together_DATE.sql.gz | \
@@ -160,7 +262,7 @@ gunzip < backups/together_DATE.sql.gz | \
 
 ---
 
-## 9. Viewing logs
+## 10. Viewing logs
 
 ```bash
 docker compose logs -f server   # backend API logs
@@ -173,7 +275,7 @@ preferred log aggregator.
 
 ---
 
-## 10. Metrics
+## 11. Metrics
 
 Prometheus metrics are available on the backend, but are restricted to loopback connections.
 To scrape them, run:
@@ -187,7 +289,7 @@ For continuous scraping, add a Prometheus service to your Compose file and scrap
 
 ---
 
-## 11. TLS / HTTPS
+## 12. TLS / HTTPS
 
 Together's Nginx container speaks plain HTTP on port 80. Terminate TLS in front of it.
 
