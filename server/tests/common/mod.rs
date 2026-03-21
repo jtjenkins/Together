@@ -250,6 +250,11 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/servers/:id/bans/:user_id",
             delete(handlers::automod::remove_ban),
         )
+        // Audit log routes
+        .route(
+            "/servers/:id/audit-logs",
+            get(handlers::audit::list_audit_logs),
+        )
         // Search
         .route(
             "/servers/:id/search",

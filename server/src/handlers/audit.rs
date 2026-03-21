@@ -40,7 +40,7 @@ pub async fn log_action(pool: &PgPool, entry: &CreateAuditLog) {
     let result = sqlx::query(
         r#"
         INSERT INTO audit_logs (server_id, actor_id, action, target_type, target_id, details, ip_address)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7::inet)
         "#,
     )
     .bind(entry.server_id)
