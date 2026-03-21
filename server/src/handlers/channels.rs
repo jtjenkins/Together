@@ -10,7 +10,10 @@ use super::shared::{fetch_server, require_member, validation_error};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
-    models::{Channel, ChannelType, CreateChannelDto, UpdateChannelDto},
+    handlers::audit::log_action,
+    models::{
+        AuditAction, Channel, ChannelType, CreateAuditLog, CreateChannelDto, UpdateChannelDto,
+    },
     state::AppState,
 };
 
@@ -106,6 +109,20 @@ pub async fn create_channel(
     .fetch_one(&state.pool)
     .await?;
 
+    log_action(
+        &state.pool,
+        &CreateAuditLog {
+            server_id,
+            actor_id: auth.user_id(),
+            action: AuditAction::ChannelCreate,
+            target_type: Some("channel".into()),
+            target_id: Some(channel.id),
+            details: serde_json::json!({ "name": &channel.name, "type": &channel.r#type }),
+            ip_address: None,
+        },
+    )
+    .await;
+
     Ok((StatusCode::CREATED, Json(channel)))
 }
 
@@ -187,6 +204,25 @@ pub async fn update_channel(
     .await?
     .ok_or_else(|| AppError::NotFound("Channel not found".into()))?;
 
+    log_action(
+        &state.pool,
+        &CreateAuditLog {
+            server_id,
+            actor_id: auth.user_id(),
+            action: AuditAction::ChannelUpdate,
+            target_type: Some("channel".into()),
+            target_id: Some(channel_id),
+            details: serde_json::json!({
+                "name": &updated.name,
+                "topic": &updated.topic,
+                "category": &updated.category,
+                "position": updated.position,
+            }),
+            ip_address: None,
+        },
+    )
+    .await;
+
     Ok(Json(updated))
 }
 
@@ -207,6 +243,9 @@ pub async fn delete_channel(
         ));
     }
 
+    // Fetch channel name before delete for the audit log.
+    let channel = fetch_channel(&state.pool, server_id, channel_id).await?;
+
     let result = sqlx::query("DELETE FROM channels WHERE id = $1 AND server_id = $2")
         .bind(channel_id)
         .bind(server_id)
@@ -216,6 +255,20 @@ pub async fn delete_channel(
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("Channel not found".into()));
     }
+
+    log_action(
+        &state.pool,
+        &CreateAuditLog {
+            server_id,
+            actor_id: auth.user_id(),
+            action: AuditAction::ChannelDelete,
+            target_type: Some("channel".into()),
+            target_id: Some(channel_id),
+            details: serde_json::json!({ "name": channel.name }),
+            ip_address: None,
+        },
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }
