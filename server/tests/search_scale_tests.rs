@@ -163,7 +163,7 @@ async fn test_search_scales_to_100k_messages(pool: sqlx::PgPool) -> sqlx::Result
         .await?;
 
     // Insert 100K messages in batches
-    let batch_size = 10_000;
+    let batch_size = 5_000;
     let total_messages = 100_000;
 
     println!("Inserting {} messages...", total_messages);
@@ -349,8 +349,8 @@ async fn test_search_scales_to_1m_messages(pool: sqlx::PgPool) -> sqlx::Result<(
         .execute(&pool)
         .await?;
 
-    // Insert 1M messages in batches of 10K
-    let batch_size = 10_000;
+    // Insert 1M messages in batches of 5K
+    let batch_size = 5_000;
     let total_messages = 1_000_000;
 
     println!("=== 1M Message Scale Test ===");
