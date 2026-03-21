@@ -25,7 +25,7 @@ static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z0-9_]+$")
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct RegisterRequest {
-    #[validate(length(min = 2, max = 32), regex = "USERNAME_REGEX")]
+    #[validate(length(min = 2, max = 32), regex(path = *USERNAME_REGEX))]
     pub username: String,
     #[validate(email)]
     pub email: Option<String>,
