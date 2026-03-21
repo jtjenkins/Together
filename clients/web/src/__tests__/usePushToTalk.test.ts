@@ -11,12 +11,12 @@ function fireKeyUp(code: string) {
 }
 
 describe("usePushToTalk", () => {
-  let onPress: ReturnType<typeof vi.fn>;
-  let onRelease: ReturnType<typeof vi.fn>;
+  let onPress: ReturnType<typeof vi.fn<() => void>>;
+  let onRelease: ReturnType<typeof vi.fn<() => void>>;
 
   beforeEach(() => {
-    onPress = vi.fn();
-    onRelease = vi.fn();
+    onPress = vi.fn<() => void>();
+    onRelease = vi.fn<() => void>();
   });
 
   afterEach(() => {
