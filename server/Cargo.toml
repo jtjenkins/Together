@@ -51,7 +51,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 axum-prometheus = "0.7"
 
 # Phase 2: Authentication and API
-jsonwebtoken = "9"           # JWT auth
+jsonwebtoken = { version = "10", features = ["rust_crypto"] } # JWT auth
 bcrypt = "0.15"              # Password hashing
 sha2 = "0.10"                # SHA-256 for refresh token hashing (deterministic)
 base64 = "0.22"              # Base64 encoding for reset tokens
