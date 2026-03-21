@@ -212,7 +212,12 @@ pub async fn update_channel(
             action: AuditAction::ChannelUpdate,
             target_type: Some("channel".into()),
             target_id: Some(channel_id),
-            details: serde_json::json!({ "name": updated.name }),
+            details: serde_json::json!({
+                "name": updated.name,
+                "topic": updated.topic,
+                "category": updated.category,
+                "position": updated.position,
+            }),
             ip_address: None,
         },
     )
@@ -238,6 +243,9 @@ pub async fn delete_channel(
         ));
     }
 
+    // Fetch channel name before delete for the audit log.
+    let channel = fetch_channel(&state.pool, server_id, channel_id).await?;
+
     let result = sqlx::query("DELETE FROM channels WHERE id = $1 AND server_id = $2")
         .bind(channel_id)
         .bind(server_id)
@@ -256,7 +264,7 @@ pub async fn delete_channel(
             action: AuditAction::ChannelDelete,
             target_type: Some("channel".into()),
             target_id: Some(channel_id),
-            details: serde_json::json!({}),
+            details: serde_json::json!({ "name": channel.name }),
             ip_address: None,
         },
     )

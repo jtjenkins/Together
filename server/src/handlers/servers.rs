@@ -266,7 +266,11 @@ pub async fn update_server(
             action: AuditAction::ServerUpdate,
             target_type: Some("server".into()),
             target_id: Some(server_id),
-            details: serde_json::json!({ "name": updated.name }),
+            details: serde_json::json!({
+                "name": updated.name,
+                "icon_url": updated.icon_url,
+                "is_public": updated.is_public,
+            }),
             ip_address: None,
         },
     )
@@ -290,7 +294,7 @@ pub async fn delete_server(
         ));
     }
 
-    // Log before delete — CASCADE will remove the audit_logs rows for this server.
+    // Log before delete — server_id will be SET NULL on the audit row.
     log_action(
         &state.pool,
         &CreateAuditLog {

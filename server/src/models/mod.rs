@@ -658,7 +658,7 @@ pub struct GifResult {
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct AuditLog {
     pub id: Uuid,
-    pub server_id: Uuid,
+    pub server_id: Option<Uuid>,
     pub actor_id: Option<Uuid>,
     pub action: String,
     pub target_type: Option<String>,
