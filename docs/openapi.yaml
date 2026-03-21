@@ -16,9 +16,9 @@ info:
     Authorization: Bearer <access_token>
     ```
 
-    Access tokens expire after 15 minutes. Use the refresh token (7-day
-    lifetime) to obtain a new access token by re-calling `POST /auth/login`
-    with your credentials, or implement a dedicated token-refresh flow.
+    Access tokens expire after 15 minutes. Use `POST /auth/refresh` with the
+    refresh token (7-day lifetime) to obtain a new access token without
+    re-entering credentials.
 
     **Error shape**
 
@@ -38,7 +38,8 @@ info:
   contact:
     name: Together Project
   license:
-    name: MIT
+    name: PolyForm Noncommercial 1.0.0
+    url: https://polyformproject.org/licenses/noncommercial/1.0.0/
 
 servers:
   - url: http://localhost:8080
@@ -180,6 +181,80 @@ components:
           maxLength: 128
           description: Plain-text password.
           example: "s3cur3P@ssword"
+
+    RefreshRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          maxLength: 2048
+          description: The refresh token obtained from login or a previous refresh.
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address of the user whose password should be reset.
+          example: "alice@example.com"
+
+    ForgotPasswordResponse:
+      type: object
+      required:
+        - message
+        - token
+        - expires_in_seconds
+        - note
+      properties:
+        message:
+          type: string
+          example: "Password reset token generated"
+        token:
+          type: string
+          description: One-time reset token to share with the user out-of-band.
+          example: "dGhpcyBpcyBhIHRlc3QgdG9rZW4..."
+        expires_in_seconds:
+          type: integer
+          description: Token lifetime in seconds (3600 = 1 hour).
+          example: 3600
+        note:
+          type: string
+          example: "Share this token with the user to reset their password"
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - new_password
+      properties:
+        token:
+          type: string
+          description: The one-time reset token from the forgot-password endpoint.
+          example: "dGhpcyBpcyBhIHRlc3QgdG9rZW4..."
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: |
+            New plain-text password. Hashed with bcrypt before storage.
+            Maximum of 128 characters to prevent bcrypt truncation issues.
+          example: "n3wS3cur3P@ss"
+
+    MessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Human-readable confirmation message.
+          example: "Password has been reset successfully"
 
     # -- Users (update) -------------------------------------------------------
 
@@ -596,6 +671,270 @@ components:
           format: date-time
           example: "2026-02-15T19:31:00Z"
 
+    # -- Reactions ------------------------------------------------------------
+
+    ReactionCount:
+      type: object
+      description: Aggregated reaction count for a single emoji on a message.
+      required:
+        - emoji
+        - count
+        - me
+      properties:
+        emoji:
+          type: string
+          description: The emoji string (Unicode or custom identifier).
+          example: "👍"
+        count:
+          type: integer
+          description: Number of users who reacted with this emoji.
+          example: 5
+        me:
+          type: boolean
+          description: Whether the authenticated user has added this reaction.
+          example: true
+
+    # -- Polls ----------------------------------------------------------------
+
+    CreatePollPayload:
+      type: object
+      required:
+        - question
+        - options
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: The poll question (1-500 characters).
+          example: "What game should we play tonight?"
+        options:
+          type: array
+          minItems: 2
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: Poll options (2-10 items, each 1-200 characters).
+          example: ["Valorant", "Minecraft", "Among Us"]
+
+    CastVotePayload:
+      type: object
+      required:
+        - option_id
+      properties:
+        option_id:
+          type: string
+          format: uuid
+          description: UUID of the poll option to vote for.
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+    PollDto:
+      type: object
+      description: A poll with per-option vote counts.
+      required:
+        - id
+        - channel_id
+        - message_id
+        - question
+        - options
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+        message_id:
+          type: string
+          format: uuid
+        question:
+          type: string
+          example: "What game should we play tonight?"
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/PollOptionDto"
+        my_vote:
+          type: string
+          format: uuid
+          nullable: true
+          description: The option_id the caller voted for, or null.
+        created_at:
+          type: string
+          format: date-time
+
+    PollOptionDto:
+      type: object
+      required:
+        - id
+        - text
+        - vote_count
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+          example: "Valorant"
+        vote_count:
+          type: integer
+          example: 3
+
+    # -- Events ---------------------------------------------------------------
+
+    CreateEventPayload:
+      type: object
+      required:
+        - name
+        - starts_at
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Event name (1-200 characters).
+          example: "Friday Game Night"
+        description:
+          type: string
+          nullable: true
+          description: Optional event description.
+          example: "Bring your best strategies!"
+        starts_at:
+          type: string
+          format: date-time
+          description: When the event starts (ISO 8601).
+          example: "2026-03-28T20:00:00Z"
+
+    ServerEventDto:
+      type: object
+      description: A scheduled server event.
+      required:
+        - id
+        - server_id
+        - channel_id
+        - name
+        - starts_at
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Friday Game Night"
+        description:
+          type: string
+          nullable: true
+        starts_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    # -- Direct Messages ------------------------------------------------------
+
+    OpenDmRequest:
+      type: object
+      required:
+        - user_id
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: UUID of the user to open a DM channel with.
+          example: "550e8400-e29b-41d4-a716-446655440099"
+
+    DirectMessageChannelDto:
+      type: object
+      description: |
+        A direct message channel between two users. The `recipient` field
+        shows the other participant (not the requesting user).
+      required:
+        - id
+        - recipient
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "880e8400-e29b-41d4-a716-446655440010"
+        recipient:
+          $ref: "#/components/schemas/UserDto"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-15T09:00:00Z"
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the most recent non-deleted message, or null if no messages exist.
+          example: "2026-02-15T10:30:00Z"
+
+    SendDmRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: Message content (1-4000 characters).
+          example: "Hey, want to play tonight?"
+
+    DirectMessage:
+      type: object
+      description: |
+        A message in a DM channel. `author_id` is null when the originating
+        user account has been deleted.
+      required:
+        - id
+        - channel_id
+        - content
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "990e8400-e29b-41d4-a716-446655440020"
+        channel_id:
+          type: string
+          format: uuid
+          example: "880e8400-e29b-41d4-a716-446655440010"
+        author_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Author UUID, or null if the account was deleted.
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        content:
+          type: string
+          example: "Hey, want to play tonight?"
+        edited_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last edit, or null if never edited.
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-15T10:30:00Z"
+
     # -- Voice ----------------------------------------------------------------
 
     VoiceStateDto:
@@ -679,7 +1018,548 @@ components:
           description: Set the caller's self-deaf state.
           example: false
 
-    # -- Health / Metrics -----------------------------------------------------
+    # -- Go Live --------------------------------------------------------------
+
+    GoLiveSession:
+      type: object
+      required:
+        - broadcaster_id
+        - quality
+        - started_at
+      properties:
+        broadcaster_id:
+          type: string
+          format: uuid
+          description: User ID of the broadcaster.
+        quality:
+          type: string
+          enum: ["480p", "720p", "1080p"]
+        started_at:
+          type: string
+          format: date-time
+
+    # -- Bots -----------------------------------------------------------------
+
+    BotDto:
+      type: object
+      required:
+        - id
+        - user_id
+        - name
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          description: The bot's associated user account ID.
+        name:
+          type: string
+          example: "My Cool Bot"
+        description:
+          type: string
+          nullable: true
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: User ID of the bot's creator.
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the bot was revoked, or null if active.
+        created_at:
+          type: string
+          format: date-time
+
+    BotCreatedResponse:
+      type: object
+      required:
+        - bot
+        - token
+      properties:
+        bot:
+          $ref: "#/components/schemas/BotDto"
+        token:
+          type: string
+          description: Plaintext bot token. Shown exactly once.
+
+    BotLogEntry:
+      type: object
+      required:
+        - timestamp
+        - event
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        event:
+          type: string
+          enum: [bot_created, message_sent, bot_revoked]
+        detail:
+          type: string
+          nullable: true
+
+    # -- Webhooks -------------------------------------------------------------
+
+    WebhookDto:
+      type: object
+      required:
+        - id
+        - server_id
+        - created_by
+        - name
+        - url
+        - event_types
+        - enabled
+        - delivery_failures
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        created_by:
+          type: string
+          format: uuid
+        name:
+          type: string
+        url:
+          type: string
+        event_types:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        delivery_failures:
+          type: integer
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WebhookCreatedResponse:
+      type: object
+      required:
+        - webhook
+        - secret
+      properties:
+        webhook:
+          $ref: "#/components/schemas/WebhookDto"
+        secret:
+          type: string
+          description: HMAC-SHA256 signing secret. Shown exactly once at creation.
+
+    # -- Custom Emojis --------------------------------------------------------
+
+    CustomEmojiDto:
+      type: object
+      required:
+        - id
+        - server_id
+        - created_by
+        - name
+        - url
+        - content_type
+        - file_size
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        created_by:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "pepe_happy"
+        url:
+          type: string
+          description: Path to fetch the image, e.g. `/emojis/{id}`.
+          example: "/emojis/550e8400-e29b-41d4-a716-446655440000"
+        content_type:
+          type: string
+          example: "image/png"
+        file_size:
+          type: integer
+          format: int64
+          description: File size in bytes.
+        created_at:
+          type: string
+          format: date-time
+
+    # -- Automod --------------------------------------------------------------
+
+    AutomodConfig:
+      type: object
+      required:
+        - server_id
+        - enabled
+        - spam_enabled
+        - spam_max_messages
+        - spam_window_secs
+        - spam_action
+        - duplicate_enabled
+        - word_filter_enabled
+        - word_filter_action
+        - timeout_minutes
+        - updated_at
+      properties:
+        server_id:
+          type: string
+          format: uuid
+        enabled:
+          type: boolean
+        spam_enabled:
+          type: boolean
+        spam_max_messages:
+          type: integer
+        spam_window_secs:
+          type: integer
+        spam_action:
+          type: string
+          enum: [delete, timeout, kick, ban]
+        duplicate_enabled:
+          type: boolean
+        word_filter_enabled:
+          type: boolean
+        word_filter_action:
+          type: string
+          enum: [delete, timeout, kick, ban]
+        timeout_minutes:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
+
+    AutomodWordFilter:
+      type: object
+      required:
+        - id
+        - server_id
+        - word
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        word:
+          type: string
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    AutomodLog:
+      type: object
+      required:
+        - id
+        - server_id
+        - rule_type
+        - action_taken
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+          nullable: true
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        rule_type:
+          type: string
+          enum: [spam, duplicate, word_filter]
+        action_taken:
+          type: string
+          enum: [delete, timeout, kick, ban]
+        matched_term:
+          type: string
+          nullable: true
+        message_content:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ServerBan:
+      type: object
+      required:
+        - user_id
+        - server_id
+        - created_at
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        banned_by:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    # -- Audit Logs -----------------------------------------------------------
+
+    AuditLog:
+      type: object
+      required:
+        - id
+        - action
+        - details
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+          nullable: true
+        actor_id:
+          type: string
+          format: uuid
+          nullable: true
+        action:
+          type: string
+          description: >
+            Action type (e.g. server_create, channel_delete, member_kick,
+            role_update).
+        target_type:
+          type: string
+          nullable: true
+        target_id:
+          type: string
+          format: uuid
+          nullable: true
+        details:
+          type: object
+          description: Arbitrary JSON details about the action.
+        ip_address:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    # -- Search ---------------------------------------------------------------
+
+    SearchResponse:
+      type: object
+      required:
+        - results
+        - total
+        - has_more
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        total:
+          type: integer
+          format: int64
+          description: Total number of matching messages.
+          example: 123
+        has_more:
+          type: boolean
+          description: Whether more results exist beyond this page.
+          example: true
+        next_cursor:
+          type: string
+          format: uuid
+          nullable: true
+          description: Message ID cursor for fetching the next page, or null if no more results.
+          example: "aa0e8400-e29b-41d4-a716-446655440030"
+
+    SearchResult:
+      type: object
+      required:
+        - id
+        - channel_id
+        - content
+        - highlight
+        - created_at
+        - rank
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "bb0e8400-e29b-41d4-a716-446655440040"
+        channel_id:
+          type: string
+          format: uuid
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        author_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        author_username:
+          type: string
+          nullable: true
+          example: "alice"
+        content:
+          type: string
+          description: Full message content.
+          example: "Let's play some games tonight!"
+        highlight:
+          type: string
+          description: HTML snippet with matching terms wrapped in `<mark>` tags.
+          example: "Let's <mark>play</mark> some <mark>games</mark> tonight!"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T20:00:00Z"
+        rank:
+          type: number
+          format: float
+          description: Relevance score (higher is better).
+          example: 0.75
+
+    # -- Link Preview ---------------------------------------------------------
+
+    LinkPreviewDto:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          description: The original URL that was fetched.
+          example: "https://example.com/article"
+        title:
+          type: string
+          nullable: true
+          description: Page title from `og:title` or `<title>` tag.
+          example: "Example Article"
+        description:
+          type: string
+          nullable: true
+          description: Page description from `og:description` or `<meta name='description'>`.
+          example: "An example article description."
+        image:
+          type: string
+          nullable: true
+          description: Image URL from `og:image` (only http/https accepted).
+          example: "https://example.com/img.png"
+        site_name:
+          type: string
+          nullable: true
+          description: Site name from `og:site_name`, falling back to hostname.
+          example: "example.com"
+
+    # -- Giphy ----------------------------------------------------------------
+
+    GifResult:
+      type: object
+      required:
+        - url
+        - preview_url
+        - title
+        - width
+        - height
+      properties:
+        url:
+          type: string
+          description: URL of the original-size GIF.
+          example: "https://media.giphy.com/media/abc123/giphy.gif"
+        preview_url:
+          type: string
+          description: URL of the downsampled preview GIF.
+          example: "https://media.giphy.com/media/abc123/200_d.gif"
+        title:
+          type: string
+          description: GIF title.
+          example: "Thumbs Up"
+        width:
+          type: integer
+          format: uint32
+          description: Width of the original GIF in pixels.
+          example: 480
+        height:
+          type: integer
+          format: uint32
+          description: Height of the original GIF in pixels.
+          example: 360
+
+    # -- ICE Servers ----------------------------------------------------------
+
+    IceServersResponse:
+      type: object
+      required:
+        - iceServers
+        - ttl
+      properties:
+        iceServers:
+          type: array
+          items:
+            $ref: "#/components/schemas/IceServer"
+        ttl:
+          type: integer
+          format: uint64
+          description: Credential time-to-live in seconds.
+          example: 86400
+
+    IceServer:
+      type: object
+      required:
+        - urls
+      properties:
+        urls:
+          type: string
+          description: STUN or TURN server URL.
+          example: "stun:stun.l.google.com:19302"
+        username:
+          type: string
+          nullable: true
+          description: TURN username (time-limited). Absent for STUN-only servers.
+          example: "1742601600:alice"
+        credential:
+          type: string
+          nullable: true
+          description: TURN credential (HMAC-SHA1). Absent for STUN-only servers.
+          example: "base64hmacsha1..."
+
+    # -- Health (additional) --------------------------------------------------
 
     HealthResponse:
       type: object
@@ -703,6 +1583,50 @@ components:
           type: string
           enum: ["ok", "unavailable"]
           example: "ok"
+
+    ReadinessResponse:
+      type: object
+      required:
+        - ready
+        - checks
+      properties:
+        ready:
+          type: boolean
+          description: True when all dependency checks pass.
+          example: true
+        checks:
+          type: object
+          description: Map of check name to result.
+          additionalProperties:
+            $ref: "#/components/schemas/CheckResult"
+          example:
+            database:
+              ok: true
+
+    CheckResult:
+      type: object
+      required:
+        - ok
+      properties:
+        ok:
+          type: boolean
+          description: Whether the check passed.
+          example: true
+        error:
+          type: string
+          nullable: true
+          description: Human-readable error category, present only when `ok` is false.
+          example: "pool_timeout"
+
+    LivenessResponse:
+      type: object
+      required:
+        - alive
+      properties:
+        alive:
+          type: boolean
+          description: Always true when the process can respond.
+          example: true
 
     # -- Shared error ---------------------------------------------------------
 
@@ -770,7 +1694,7 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
           example:
-            error: "Server name must be 1–100 characters"
+            error: "Server name must be 1-100 characters"
 
     InternalError:
       description: Unexpected server error. Retry with exponential backoff.
@@ -829,6 +1753,63 @@ paths:
                 service: "together-server"
                 version: "0.1.0"
                 database: "unavailable"
+
+  /health/ready:
+    get:
+      operationId: readinessCheck
+      summary: Readiness probe
+      description: |
+        Returns `200 OK` when the service is ready to accept traffic.
+        Returns `503 Service Unavailable` if any critical dependency (e.g.
+        database) is unavailable. Suitable for Kubernetes readiness probes
+        and load-balancer health checks.
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+              example:
+                ready: true
+                checks:
+                  database:
+                    ok: true
+        "503":
+          description: One or more dependencies are unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+              example:
+                ready: false
+                checks:
+                  database:
+                    ok: false
+                    error: "pool_timeout"
+
+  /health/live:
+    get:
+      operationId: livenessCheck
+      summary: Liveness probe
+      description: |
+        Returns `200 OK` if the process is alive and able to respond.
+        Intentionally lightweight — queries no external dependencies. If this
+        handler can respond, the process is not deadlocked. Suitable for
+        Kubernetes liveness probes.
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivenessResponse"
+              example:
+                alive: true
 
   /metrics:
     get:
@@ -946,6 +1927,146 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Invalid username or password"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Refresh access token
+      description: |
+        Exchanges a valid refresh token for a new access token and a rotated
+        refresh token. The old refresh token is invalidated (single-use
+        rotation) to limit the window of a stolen token.
+
+        Uses compare-and-swap on the session row so that concurrent refresh
+        attempts with the same token cannot both succeed.
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+            example:
+              refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        "200":
+          description: New token pair and user object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Refresh token is invalid, expired, or already rotated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Invalid or expired refresh token"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      summary: Generate a password reset token (admin-only)
+      description: |
+        Creates a one-time password reset token for the user identified by
+        `email`. The token is returned in the response body for the admin to
+        share out-of-band. Tokens expire after 1 hour.
+
+        Only users with `is_admin = true` may call this endpoint.
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+            example:
+              email: "alice@example.com"
+      responses:
+        "200":
+          description: Reset token generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordResponse"
+              example:
+                message: "Password reset token generated"
+                token: "dGhpcyBpcyBhIHRlc3QgdG9rZW4..."
+                expires_in_seconds: 3600
+                note: "Share this token with the user to reset their password"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Caller is not an admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Admin access required"
+        "404":
+          description: No user found with the given email.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "No user found with email: alice@example.com"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      summary: Reset password using a reset token
+      description: |
+        Validates the one-time reset token and updates the user's password.
+        The token is marked as used and all existing sessions for the user
+        are invalidated for security.
+
+        Tokens are single-use and expire after 1 hour.
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+            example:
+              token: "dGhpcyBpcyBhIHRlc3QgdG9rZW4..."
+              new_password: "n3wS3cur3P@ss"
+      responses:
+        "200":
+          description: Password reset successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: "Password has been reset successfully"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Reset token is invalid, expired, or already used.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Invalid or expired reset token"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -1072,6 +2193,28 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /servers/browse:
+    get:
+      summary: Browse public servers
+      operationId: browseServers
+      tags: [Servers]
+      security:
+        - bearerAuth: []
+      description: >
+        Returns up to 50 public servers ordered by member count (descending),
+        then by creation date (descending).
+      responses:
+        "200":
+          description: Array of public servers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServerDto"
+        "401":
+          description: Missing or invalid access token.
 
   /servers/{id}:
     parameters:
@@ -1261,6 +2404,70 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /servers/{id}/export:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      operationId: exportServer
+      summary: Export server data as a ZIP archive (owner-only)
+      description: |
+        Builds a ZIP archive in memory containing server metadata, channels,
+        members, roles, per-channel message history (JSONL), and the
+        requesting user's DM history. Nothing is written to disk.
+
+        Only the server owner may call this endpoint. Returns `404` (not
+        `403`) for non-owners to avoid leaking server existence.
+
+        ZIP layout:
+        ```
+        {server-slug}-export/
+          server.json
+          channels.json
+          members.json
+          roles.json
+          messages/{channel-slug}-{id}.jsonl
+          dm_messages/{user-slug}-{id}.jsonl
+        ```
+      tags: [Servers]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: ZIP archive download.
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="my-server-export-20260321.zip"'
+            Content-Length:
+              schema:
+                type: string
+              description: Size of the ZIP archive in bytes.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Server not found or caller is not the owner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Server not found"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -1543,6 +2750,48 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /channels/{channel_id}/messages/{message_id}:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID.
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Message UUID.
+
+    get:
+      operationId: getMessage
+      summary: Get a single message
+      description: |
+        Returns the full MessageDto for a single message, including deleted
+        messages (the `deleted` flag is set to `true`) so reply-bar previews
+        can show "original message deleted" state.  Caller must be a member
+        of the server that owns the channel.
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The requested message.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /messages/{message_id}:
     parameters:
       - name: message_id
@@ -1611,6 +2860,1133 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Threads
+  # ==========================================================================
+
+  /channels/{channel_id}/messages/{message_id}/thread:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID.
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Parent message UUID. Must be a root message (not itself a thread reply).
+
+    get:
+      operationId: listThreadReplies
+      summary: List thread replies
+      description: |
+        Returns replies in the thread under the given parent message, in
+        ascending order (oldest first).  Threads read top-to-bottom.
+
+        **Cursor pagination**
+
+        Pass `before=<uuid>` with the ID of the newest reply already displayed
+        to fetch the next page of replies that arrived *after* the cursor in
+        time (forward pagination in a thread displayed oldest-first).
+
+        **Limits**
+
+        - Default: 50 replies per request.
+        - Maximum: 100 replies per request.
+        - Minimum: 1 reply per request.
+        - Deleted replies are excluded.
+      tags: [Threads]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: |
+            Cursor: return thread replies created after the reply with this UUID.
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Number of replies to return. Clamped to the range [1, 100].
+          example: 50
+      responses:
+        "200":
+          description: Array of thread replies, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MessageDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    post:
+      operationId: createThreadReply
+      summary: Post a reply in a thread
+      description: |
+        Posts a reply into the thread under the given parent message.  The
+        parent must be a root message (`thread_id IS NULL`). Thread replies
+        cannot themselves be threaded (no nested threads) — returns 400 if the
+        parent is already a thread reply.
+
+        On success, a `THREAD_MESSAGE_CREATE` event is broadcast via WebSocket
+        to all connected members of the server.
+
+        **Validation**
+
+        - `content`: 1-4 000 characters.
+      tags: [Threads]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 4000
+                  description: Reply text content. Supports @mentions.
+            example:
+              content: "Good point, I agree!"
+      responses:
+        "201":
+          description: Thread reply created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Reactions
+  # ==========================================================================
+
+  /channels/{channel_id}/messages/{message_id}/reactions:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID.
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Message UUID.
+
+    get:
+      operationId: listReactions
+      summary: List reactions on a message
+      description: |
+        Returns aggregated reaction counts for the message, with a `me` flag
+        indicating whether the authenticated user has added each reaction.
+        Ordered by earliest reaction time per emoji.
+      tags: [Reactions]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Array of reaction counts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReactionCount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /channels/{channel_id}/messages/{message_id}/reactions/{emoji}:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID.
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Message UUID.
+      - name: emoji
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+        description: |
+          URL-encoded emoji string (1-64 bytes). Can be a Unicode emoji or a
+          custom emoji identifier.
+        example: "\U0001F44D"
+
+    put:
+      operationId: addReaction
+      summary: Add a reaction to a message
+      description: |
+        Adds an emoji reaction from the authenticated user.  Idempotent —
+        adding the same emoji twice is silently ignored (no error).
+
+        On success, a `REACTION_ADD` event is broadcast via WebSocket to all
+        connected members of the server.
+      tags: [Reactions]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Reaction added (or already existed).
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: removeReaction
+      summary: Remove a reaction from a message
+      description: |
+        Removes the authenticated user's reaction for the given emoji.
+        Returns 404 if the reaction does not exist.
+
+        On success, a `REACTION_REMOVE` event is broadcast via WebSocket to
+        all connected members of the server.
+      tags: [Reactions]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Reaction removed.
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Pins
+  # ==========================================================================
+
+  /channels/{channel_id}/pinned-messages:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID.
+
+    get:
+      operationId: listPinnedMessages
+      summary: List pinned messages in a channel
+      description: |
+        Returns all pinned messages in the channel, ordered by pin time
+        (newest first).  Any server member can view pinned messages.
+      tags: [Pins]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Array of pinned messages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MessageDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /channels/{channel_id}/messages/{message_id}/pin:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID.
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Message UUID.
+
+    post:
+      operationId: pinMessage
+      summary: Pin a message
+      description: |
+        Pins a message in a channel.  Requires the `MANAGE_MESSAGES` permission
+        (or `ADMINISTRATOR`, or server ownership).  Idempotent — pinning an
+        already-pinned message succeeds without error.
+
+        On success, a `MESSAGE_PIN` event is broadcast via WebSocket to all
+        connected members of the server.
+      tags: [Pins]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Message pinned (or was already pinned).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: unpinMessage
+      summary: Unpin a message
+      description: |
+        Unpins a message in a channel.  Requires the `MANAGE_MESSAGES`
+        permission.  Returns 404 if the message is not currently pinned.
+
+        On success, a `MESSAGE_UNPIN` event is broadcast via WebSocket to all
+        connected members of the server.
+      tags: [Pins]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Message unpinned.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Polls
+  # ==========================================================================
+
+  /channels/{channel_id}/polls:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID. Must be a `text` type channel.
+
+    post:
+      operationId: createPoll
+      summary: Create a poll
+      description: |
+        Creates a poll attached to a new message in the channel.  The message
+        content is auto-generated from the poll question.  Caller must be a
+        member of the server.
+
+        **Validation**
+
+        - `question`: 1-500 characters.
+        - `options`: 2-10 items, each 1-200 characters.
+
+        On success, a `MESSAGE_CREATE` event (with an embedded `poll` object)
+        is broadcast via WebSocket to all connected members of the server.
+      tags: [Polls]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePollPayload"
+            example:
+              question: "What game should we play tonight?"
+              options:
+                - "Valorant"
+                - "Minecraft"
+                - "Among Us"
+      responses:
+        "201":
+          description: Poll created. Returns the auto-generated message with embedded poll.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /polls/{poll_id}:
+    parameters:
+      - name: poll_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Poll UUID.
+
+    get:
+      operationId: getPoll
+      summary: Get a poll
+      description: |
+        Returns the poll with per-option vote counts and the caller's current
+        vote selection.  Caller must be a member of the server that owns the
+        poll.
+      tags: [Polls]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Poll details with vote counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /polls/{poll_id}/vote:
+    parameters:
+      - name: poll_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Poll UUID.
+
+    post:
+      operationId: castVote
+      summary: Cast or change a vote on a poll
+      description: |
+        Casts or updates the authenticated user's vote on a poll.  Single-choice
+        — voting again replaces the previous vote.  The `option_id` must match
+        one of the poll's options.
+
+        On success, a `POLL_VOTE` event (with the updated poll state) is
+        broadcast via WebSocket to all connected members of the server.
+      tags: [Polls]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CastVotePayload"
+            example:
+              option_id: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Vote recorded. Returns updated poll with new vote counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Events
+  # ==========================================================================
+
+  /channels/{channel_id}/events:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel UUID.
+
+    post:
+      operationId: createEvent
+      summary: Create a server event
+      description: |
+        Creates a scheduled event attached to a new message in the channel.
+        The message content is auto-generated from the event name and start
+        time.  Caller must be a member of the server.
+
+        **Validation**
+
+        - `name`: 1-200 characters.
+
+        On success, a `MESSAGE_CREATE` event (with an embedded `event` object)
+        is broadcast via WebSocket to all connected members of the server.
+      tags: [Events]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventPayload"
+            example:
+              name: "Friday Game Night"
+              description: "Bring your best strategies!"
+              starts_at: "2026-03-28T20:00:00Z"
+      responses:
+        "201":
+          description: Event created. Returns the auto-generated message with embedded event.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /servers/{id}/events:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server UUID.
+
+    get:
+      operationId: listEvents
+      summary: List upcoming server events
+      description: |
+        Returns future events for the server (where `starts_at > NOW()`),
+        ordered by start time ascending.  Limited to 50 events.  Caller must
+        be a member of the server.
+      tags: [Events]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Array of upcoming events.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServerEventDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Direct Messages
+  # ==========================================================================
+
+  /dm-channels:
+    post:
+      operationId: openDmChannel
+      summary: Open or retrieve a DM channel
+      description: |
+        Opens a direct message channel with another user, or returns the
+        existing channel if one already exists (idempotent).
+
+        Uses a PostgreSQL advisory lock keyed to the sorted pair of user UUIDs
+        to prevent duplicate channel creation under concurrent requests.
+
+        Returns `201 Created` for newly created channels and `200 OK` for
+        existing ones.
+      tags: [Direct Messages]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenDmRequest"
+            example:
+              user_id: "550e8400-e29b-41d4-a716-446655440099"
+      responses:
+        "200":
+          description: Existing DM channel returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectMessageChannelDto"
+        "201":
+          description: New DM channel created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectMessageChannelDto"
+        "400":
+          description: Cannot open a DM channel with yourself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Cannot open a DM channel with yourself"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Target user not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "User not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listDmChannels
+      summary: List all DM channels
+      description: |
+        Returns all DM channels for the authenticated user, ordered by the
+        most recent message timestamp (descending). Channels with no messages
+        sort last.
+      tags: [Direct Messages]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Array of DM channels.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DirectMessageChannelDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /dm-channels/{id}/messages:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: DM channel ID.
+
+    post:
+      operationId: sendDmMessage
+      summary: Send a message in a DM channel
+      description: |
+        Sends a text message to the specified DM channel. The sender must be
+        a member of the channel. Both participants receive a
+        `DM_MESSAGE_CREATE` WebSocket event.
+      tags: [Direct Messages]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendDmRequest"
+            example:
+              content: "Hey, want to play tonight?"
+      responses:
+        "201":
+          description: Message created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectMessage"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: DM channel not found or caller is not a member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "DM channel not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listDmMessages
+      summary: List messages in a DM channel
+      description: |
+        Returns messages in the DM channel with cursor-based pagination.
+        Messages are ordered by creation time descending (newest first).
+        Soft-deleted messages are excluded.
+      tags: [Direct Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Return messages created before this message ID (cursor).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Maximum number of messages to return (default 50, max 100).
+      responses:
+        "200":
+          description: Array of messages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DirectMessage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: DM channel not found or caller is not a member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "DM channel not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /dm-channels/{id}/ack:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: DM channel ID.
+
+    post:
+      operationId: ackDmChannel
+      summary: Mark a DM channel as read
+      description: |
+        Upserts the caller's read-state for this DM channel to `NOW()`.
+        Called by the client whenever the user views the channel.
+      tags: [Direct Messages]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Read state updated (no body).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: DM channel not found or caller is not a member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "DM channel not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Voice
+  # ==========================================================================
+
+  /channels/{channel_id}/voice:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: |
+          Channel UUID. Must be a `voice` type channel; a text channel returns
+          `400 Bad Request`.
+
+    post:
+      operationId: joinVoiceChannel
+      summary: Join a voice channel
+      description: |
+        Places the authenticated user in the specified voice channel. If the
+        user is already in another voice channel this is an atomic switch: the
+        previous voice state is replaced via UPSERT and `self_mute`/`self_deaf`
+        are reset to `false`. `server_mute`/`server_deaf` (moderator-applied)
+        are preserved across channel switches.
+
+        If the user was in a channel on a *different* server a
+        `VOICE_STATE_UPDATE` leave event is broadcast to that server so its
+        members do not see a ghost participant.
+
+        On success, a `VOICE_STATE_UPDATE` event is broadcast to all connected
+        members of the target server.
+
+        After joining, initiate WebRTC signaling to other participants via the
+        WebSocket `VOICE_SIGNAL` opcode.
+      tags: [Voice]
+      responses:
+        "201":
+          description: Joined the voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceStateDto"
+        "400":
+          description: Channel is not a voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Channel is not a voice channel"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: leaveVoiceChannel
+      summary: Leave a voice channel
+      description: |
+        Removes the authenticated user from the voice channel. Returns `404`
+        if the user is not currently in this specific channel.
+
+        On success, a `VOICE_STATE_UPDATE` leave event is broadcast to all
+        connected members of the server.
+      tags: [Voice]
+      responses:
+        "204":
+          description: Left the voice channel. No body.
+        "400":
+          description: Channel is not a voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Not in this voice channel, or channel/server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Not in this voice channel"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    patch:
+      operationId: updateVoiceState
+      summary: Update self-mute or self-deaf state
+      description: |
+        Updates the caller's `self_mute` and/or `self_deaf` flags in the
+        current voice channel. At least one field must be provided; an empty
+        request body returns `400`.
+
+        `server_mute` and `server_deaf` are excluded from this endpoint to
+        prevent privilege escalation — those are moderator-only controls.
+
+        Returns `404` if the user is not currently in this channel.
+
+        On success, a `VOICE_STATE_UPDATE` event is broadcast to all connected
+        members of the server.
+      tags: [Voice]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVoiceStateRequest"
+            example:
+              self_mute: true
+      responses:
+        "200":
+          description: Updated voice state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceStateDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listVoiceParticipants
+      summary: List voice channel participants
+      description: |
+        Returns all users currently in the specified voice channel. Each entry
+        includes `username` so the client can display participant names without
+        a separate user lookup. The response shape matches the
+        `VOICE_STATE_UPDATE` WebSocket broadcast events.
+
+        Caller must be a member of the server.
+      tags: [Voice]
+      responses:
+        "200":
+          description: Array of voice participants with usernames.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VoiceParticipantDto"
+        "400":
+          description: Channel is not a voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /channels/{channel_id}/go-live:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Voice channel ID.
+
+    post:
+      summary: Start a Go Live broadcast
+      operationId: startGoLive
+      tags: [Voice]
+      security:
+        - bearerAuth: []
+      description: >
+        Start screen-sharing in a voice channel. Only one broadcaster per
+        channel is allowed. The caller must be in the voice channel.
+        Broadcasts a GO_LIVE_START event to all server members.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quality:
+                  type: string
+                  enum: ["480p", "720p", "1080p"]
+                  default: "720p"
+                  description: Quality tier for the broadcast.
+      responses:
+        "201":
+          description: Go Live session started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoLiveSession"
+        "400":
+          description: >
+            Validation error (not a voice channel, not in the voice channel,
+            invalid quality, or another user is already broadcasting).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "404":
+          description: Channel or server not found, or caller is not a member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      summary: Stop a Go Live broadcast
+      operationId: stopGoLive
+      tags: [Voice]
+      security:
+        - bearerAuth: []
+      description: >
+        End the active Go Live broadcast. Only the current broadcaster may
+        stop the session. Broadcasts a GO_LIVE_STOP event to all server
+        members.
+      responses:
+        "204":
+          description: Go Live session stopped.
+        "400":
+          description: Channel is not a voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the broadcaster can end the session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No active Go Live session, or channel/server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      summary: Get the active Go Live session
+      operationId: getGoLive
+      tags: [Voice]
+      security:
+        - bearerAuth: []
+      description: >
+        Returns the current Go Live session for the voice channel. Returns
+        404 when no broadcast is active.
+      responses:
+        "200":
+          description: Active Go Live session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoLiveSession"
+        "400":
+          description: Channel is not a voice channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "404":
+          description: No active session, or channel/server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ice-servers:
+    get:
+      operationId: getIceServers
+      summary: Get STUN/TURN server configurations for WebRTC
+      description: |
+        Returns ICE server configurations for WebRTC peer connections.
+        Always includes public Google STUN servers. If TURN is configured,
+        generates time-limited HMAC-SHA1 credentials scoped to the
+        authenticated user (24-hour TTL).
+      tags: [Voice]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: ICE server list with optional TURN credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IceServersResponse"
+              example:
+                iceServers:
+                  - urls: "stun:stun.l.google.com:19302"
+                  - urls: "stun:stun1.l.google.com:19302"
+                  - urls: "turn:turn.example.com:3478"
+                    username: "1742601600:alice"
+                    credential: "base64hmacsha1..."
+                ttl: 86400
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -1779,126 +4155,1335 @@ paths:
           $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
-  # Voice
+  # Bots
   # ==========================================================================
 
-  /channels/{channel_id}/voice:
-    parameters:
-      - name: channel_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: |
-          Channel UUID. Must be a `voice` type channel; a text channel returns
-          `400 Bad Request`.
-
+  /bots:
     post:
-      operationId: joinVoiceChannel
-      summary: Join a voice channel
-      description: |
-        Places the authenticated user in the specified voice channel. If the
-        user is already in another voice channel this is an atomic switch: the
-        previous voice state is replaced via UPSERT and `self_mute`/`self_deaf`
-        are reset to `false`. `server_mute`/`server_deaf` (moderator-applied)
-        are preserved across channel switches.
-
-        If the user was in a channel on a *different* server a
-        `VOICE_STATE_UPDATE` leave event is broadcast to that server so its
-        members do not see a ghost participant.
-
-        On success, a `VOICE_STATE_UPDATE` event is broadcast to all connected
-        members of the target server.
-
-        After joining, initiate WebRTC signaling to other participants via the
-        WebSocket `VOICE_SIGNAL` opcode.
-      tags: [Voice]
-      responses:
-        "201":
-          description: Joined the voice channel.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/VoiceStateDto"
-        "400":
-          description: Channel is not a voice channel.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                error: "Channel is not a voice channel"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-    delete:
-      operationId: leaveVoiceChannel
-      summary: Leave a voice channel
-      description: |
-        Removes the authenticated user from the voice channel. Returns `404`
-        if the user is not currently in this specific channel.
-
-        On success, a `VOICE_STATE_UPDATE` leave event is broadcast to all
-        connected members of the server.
-      tags: [Voice]
-      responses:
-        "204":
-          description: Left the voice channel. No body.
-        "400":
-          description: Channel is not a voice channel.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          description: Not in this voice channel, or channel/server not found.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                error: "Not in this voice channel"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-    patch:
-      operationId: updateVoiceState
-      summary: Update self-mute or self-deaf state
-      description: |
-        Updates the caller's `self_mute` and/or `self_deaf` flags in the
-        current voice channel. At least one field must be provided; an empty
-        request body returns `400`.
-
-        `server_mute` and `server_deaf` are excluded from this endpoint to
-        prevent privilege escalation — those are moderator-only controls.
-
-        Returns `404` if the user is not currently in this channel.
-
-        On success, a `VOICE_STATE_UPDATE` event is broadcast to all connected
-        members of the server.
-      tags: [Voice]
+      summary: Create a new bot
+      operationId: createBot
+      tags: [Bots]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateVoiceStateRequest"
-            example:
-              self_mute: true
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                  description: >
+                    Display name for the bot. Must contain at least one
+                    alphanumeric character.
+                  example: "My Cool Bot"
+                description:
+                  type: string
+                  maxLength: 512
+                  nullable: true
+                  description: Optional description of the bot.
+                  example: "A helper bot for moderation."
       responses:
-        "200":
-          description: Updated voice state.
+        "201":
+          description: Bot created successfully. The plaintext token is shown once.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/VoiceStateDto"
+                $ref: "#/components/schemas/BotCreatedResponse"
+        "400":
+          description: Validation error (name empty, too long, or no alphanumeric chars; description too long).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Bots cannot create other bots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      summary: List bots owned by the authenticated user
+      operationId: listBots
+      tags: [Bots]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Array of bots created by the caller.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bots]
+                properties:
+                  bots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BotDto"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Bots cannot list bots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bots/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Bot ID.
+
+    get:
+      summary: Get a bot by ID
+      operationId: getBot
+      tags: [Bots]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Bot details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotDto"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Bots cannot access bot management endpoints.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Bot not found or not owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Update a bot's name and/or description
+      operationId: updateBot
+      tags: [Bots]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                  description: New bot name. Must contain at least one alphanumeric character.
+                description:
+                  type: string
+                  maxLength: 512
+                  nullable: true
+                  description: New description. Pass null to clear.
+      responses:
+        "200":
+          description: Bot updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotDto"
+        "400":
+          description: Validation error (name or description constraint violated, or bot is revoked).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Bots cannot update bots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Bot not found or not owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      summary: Revoke a bot (soft-delete)
+      operationId: revokeBot
+      tags: [Bots]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Bot revoked successfully.
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Bots cannot revoke bots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Bot not found or already revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bots/{id}/logs:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Bot ID.
+
+    get:
+      summary: Retrieve recent activity log for a bot
+      operationId: getBotLogs
+      tags: [Bots]
+      security:
+        - bearerAuth: []
+      description: >
+        Returns a synthesised activity log including creation, recent messages
+        (last 50), and revocation events, sorted newest-first.
+      responses:
+        "200":
+          description: Bot activity log.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logs]
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BotLogEntry"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Bots cannot access bot management endpoints.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Bot not found or not owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bots/{id}/token/regenerate:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Bot ID.
+
+    post:
+      summary: Regenerate a bot's authentication token
+      operationId: regenerateBotToken
+      tags: [Bots]
+      security:
+        - bearerAuth: []
+      description: >
+        Invalidates the current token and returns a new one. The new token
+        is shown exactly once. Cannot be used on revoked bots.
+      responses:
+        "200":
+          description: New token generated. Previous token is now invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotCreatedResponse"
+        "400":
+          description: Bot is revoked; cannot regenerate token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Bots cannot regenerate tokens.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Bot not found or not owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bots/connect:
+    post:
+      summary: Exchange a bot token for a short-lived JWT
+      operationId: botConnect
+      tags: [Bots]
+      security:
+        - bearerAuth: []
+      description: >
+        Bots call this endpoint (authenticated via `Authorization: Bot <token>`)
+        to obtain a short-lived JWT access token (15 min) suitable for
+        WebSocket connections via `?token=<jwt>`.
+      responses:
+        "200":
+          description: Short-lived JWT access token.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token]
+                properties:
+                  access_token:
+                    type: string
+                    description: JWT valid for 15 minutes.
+        "403":
+          description: Only bots can use this endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ==========================================================================
+  # Webhooks
+  # ==========================================================================
+
+  /servers/{id}/webhooks:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      summary: List webhooks for a server
+      operationId: listWebhooks
+      tags: [Webhooks]
+      security:
+        - bearerAuth: []
+      description: Requires server membership and Administrator permission.
+      responses:
+        "200":
+          description: Array of webhooks for the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [webhooks]
+                properties:
+                  webhooks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WebhookDto"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Missing Administrator permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found or caller is not a member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      summary: Create a webhook
+      operationId: createWebhook
+      tags: [Webhooks]
+      security:
+        - bearerAuth: []
+      description: >
+        Requires server membership and Administrator permission. Maximum
+        10 webhooks per server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url, event_types]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Display name for the webhook.
+                  example: "Deploy Notifier"
+                url:
+                  type: string
+                  maxLength: 2000
+                  description: HTTP(S) URL to receive webhook payloads.
+                  example: "https://example.com/webhooks/together"
+                event_types:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    enum:
+                      - message.created
+                      - message.updated
+                      - message.deleted
+                      - member.joined
+                      - member.left
+                  description: Events this webhook subscribes to.
+      responses:
+        "201":
+          description: Webhook created. The signing secret is shown once.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookCreatedResponse"
+        "400":
+          description: >
+            Validation error (name, URL, event_types invalid, or 10-webhook
+            limit reached).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Missing Administrator permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found or caller is not a member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servers/{id}/webhooks/{webhook_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Webhook ID.
+
+    get:
+      summary: Get a webhook by ID
+      operationId: getWebhook
+      tags: [Webhooks]
+      security:
+        - bearerAuth: []
+      description: Requires server membership and Administrator permission.
+      responses:
+        "200":
+          description: Webhook details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDto"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Missing Administrator permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Webhook or server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Update a webhook
+      operationId: updateWebhook
+      tags: [Webhooks]
+      security:
+        - bearerAuth: []
+      description: Requires server membership and Administrator permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Updated webhook name.
+                url:
+                  type: string
+                  maxLength: 2000
+                  description: Updated HTTP(S) URL.
+                event_types:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    enum:
+                      - message.created
+                      - message.updated
+                      - message.deleted
+                      - member.joined
+                      - member.left
+                  description: Updated event subscriptions.
+                enabled:
+                  type: boolean
+                  description: Enable or disable the webhook.
+      responses:
+        "200":
+          description: Webhook updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDto"
+        "400":
+          description: Validation error (name, URL, or event_types invalid).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Missing Administrator permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Webhook or server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      summary: Delete a webhook
+      operationId: deleteWebhook
+      tags: [Webhooks]
+      security:
+        - bearerAuth: []
+      description: Requires server membership and Administrator permission.
+      responses:
+        "204":
+          description: Webhook deleted successfully.
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Missing Administrator permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Webhook or server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servers/{id}/webhooks/{webhook_id}/test:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Webhook ID.
+
+    post:
+      summary: Send a test ping event to a webhook
+      operationId: testWebhook
+      tags: [Webhooks]
+      security:
+        - bearerAuth: []
+      description: >
+        Enqueues an HMAC-signed test ping payload to the webhook URL.
+        Requires server membership and Administrator permission.
+      responses:
+        "202":
+          description: Test event enqueued for delivery.
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Missing Administrator permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Webhook or server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ==========================================================================
+  # Custom Emojis
+  # ==========================================================================
+
+  /servers/{id}/emojis:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      summary: List custom emojis for a server
+      operationId: listCustomEmojis
+      tags: [Custom Emojis]
+      security:
+        - bearerAuth: []
+      description: Requires server membership.
+      responses:
+        "200":
+          description: Array of custom emojis.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CustomEmojiDto"
+        "401":
+          description: Missing or invalid access token.
+        "404":
+          description: Server not found or caller is not a member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      summary: Upload a custom emoji
+      operationId: uploadCustomEmoji
+      tags: [Custom Emojis]
+      security:
+        - bearerAuth: []
+      description: >
+        Requires MANAGE_EMOJIS permission or server ownership. Maximum 50
+        emojis per server. Image must be JPEG, PNG, GIF, or WebP and no
+        larger than 256 KB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, image]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                  pattern: "^[a-z0-9_-]+$"
+                  description: >
+                    Emoji name. Lowercase letters, digits, underscores, and
+                    hyphens only.
+                  example: "pepe_happy"
+                image:
+                  type: string
+                  format: binary
+                  description: >
+                    Image file (JPEG, PNG, GIF, or WebP). Max 256 KB.
+      responses:
+        "201":
+          description: Emoji created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomEmojiDto"
+        "400":
+          description: >
+            Validation error (invalid name, unsupported image type, size
+            exceeded, duplicate name, or 50-emoji limit reached).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Missing MANAGE_EMOJIS permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servers/{id}/emojis/{emoji_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+      - name: emoji_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Emoji ID.
+
+    delete:
+      summary: Delete a custom emoji
+      operationId: deleteCustomEmoji
+      tags: [Custom Emojis]
+      security:
+        - bearerAuth: []
+      description: Requires MANAGE_EMOJIS permission or server ownership.
+      responses:
+        "204":
+          description: Emoji deleted successfully.
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Missing MANAGE_EMOJIS permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Emoji or server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /emojis/{emoji_id}:
+    parameters:
+      - name: emoji_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Emoji ID.
+
+    get:
+      summary: Serve a custom emoji image
+      operationId: serveCustomEmojiImage
+      tags: [Custom Emojis]
+      description: >
+        Public endpoint (no authentication required). Returns the raw image
+        bytes with appropriate Content-Type. Responses are cached for 24 hours.
+      responses:
+        "200":
+          description: Emoji image bytes.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=86400"
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/gif:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Emoji not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ==========================================================================
+  # Automod
+  # ==========================================================================
+
+  /servers/{id}/automod:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      summary: Get automod configuration
+      operationId: getAutomodConfig
+      tags: [Automod]
+      security:
+        - bearerAuth: []
+      description: Only the server owner can view automod settings.
+      responses:
+        "200":
+          description: Current automod configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomodConfig"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can manage automod.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found or no automod config exists yet.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Upsert automod configuration
+      operationId: updateAutomodConfig
+      tags: [Automod]
+      security:
+        - bearerAuth: []
+      description: >
+        Creates or updates the automod configuration with partial updates.
+        Only the server owner can modify automod settings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                spam_enabled:
+                  type: boolean
+                spam_max_messages:
+                  type: integer
+                  description: Max messages allowed in the spam window.
+                spam_window_secs:
+                  type: integer
+                  description: Spam detection window in seconds.
+                spam_action:
+                  type: string
+                  enum: [delete, timeout, kick, ban]
+                  description: Action to take on spam detection.
+                duplicate_enabled:
+                  type: boolean
+                word_filter_enabled:
+                  type: boolean
+                word_filter_action:
+                  type: string
+                  enum: [delete, timeout, kick, ban]
+                  description: Action to take on word filter match.
+                timeout_minutes:
+                  type: integer
+                  description: Duration of timeout action in minutes.
+      responses:
+        "200":
+          description: Automod configuration upserted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomodConfig"
+        "400":
+          description: Validation error (invalid action value).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can manage automod.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servers/{id}/automod/words:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      summary: List word filters
+      operationId: listWordFilters
+      tags: [Automod]
+      security:
+        - bearerAuth: []
+      description: Only the server owner can view word filters.
+      responses:
+        "200":
+          description: Array of word filter entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AutomodWordFilter"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can manage automod.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      summary: Add a word to the filter list
+      operationId: addWordFilter
+      tags: [Automod]
+      security:
+        - bearerAuth: []
+      description: >
+        Only the server owner can add word filters. Words are normalized to
+        lowercase. Upserting an existing word is a no-op.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [word]
+              properties:
+                word:
+                  type: string
+                  minLength: 1
+                  description: Word or phrase to filter.
+                  example: "badword"
+      responses:
+        "201":
+          description: Word filter added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomodWordFilter"
+        "400":
+          description: Validation error (word is empty).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can manage automod.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servers/{id}/automod/words/{word}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+      - name: word
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The word to remove from the filter list.
+
+    delete:
+      summary: Remove a word from the filter list
+      operationId: removeWordFilter
+      tags: [Automod]
+      security:
+        - bearerAuth: []
+      description: >
+        Only the server owner can remove word filters. Silently succeeds
+        even if the word was not in the list.
+      responses:
+        "204":
+          description: Word filter removed (or was not present).
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can manage automod.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servers/{id}/automod/logs:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      summary: List automod action logs
+      operationId: listAutomodLogs
+      tags: [Automod]
+      security:
+        - bearerAuth: []
+      description: >
+        Returns the 100 most recent automod actions. Only the server owner
+        can view automod logs.
+      responses:
+        "200":
+          description: Array of automod log entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AutomodLog"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can view automod logs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servers/{id}/bans:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      summary: List server bans
+      operationId: listBans
+      tags: [Automod]
+      security:
+        - bearerAuth: []
+      description: Only the server owner can view the ban list.
+      responses:
+        "200":
+          description: Array of server bans.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServerBan"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can manage bans.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servers/{id}/bans/{user_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Banned user's ID.
+
+    delete:
+      summary: Unban a user
+      operationId: removeBan
+      tags: [Automod]
+      security:
+        - bearerAuth: []
+      description: >
+        Only the server owner can remove bans. Silently succeeds even if
+        the user was not banned.
+      responses:
+        "204":
+          description: Ban removed (or user was not banned).
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can manage bans.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ==========================================================================
+  # Audit Logs
+  # ==========================================================================
+
+  /servers/{id}/audit-logs:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      summary: List audit logs for a server
+      operationId: listAuditLogs
+      tags: [Audit Logs]
+      security:
+        - bearerAuth: []
+      description: >
+        Only the server owner can view audit logs. Supports filtering by
+        action, actor, and target type. Cursor-based pagination via the
+        `before` parameter.
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+          description: Filter by action type (e.g. "member_kick", "channel_create").
+        - name: actor_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by actor user ID.
+        - name: target_type
+          in: query
+          schema:
+            type: string
+          description: Filter by target type (e.g. "channel", "member", "role").
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Cursor for pagination — return entries created before this timestamp.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Maximum number of results to return.
+      responses:
+        "200":
+          description: Array of audit log entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+        "401":
+          description: Missing or invalid access token.
+        "403":
+          description: Only the server owner can view audit logs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ==========================================================================
+  # Search
+  # ==========================================================================
+
+  /servers/{id}/search:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    get:
+      operationId: searchMessages
+      summary: Search messages in a server
+      description: |
+        Full-text search using PostgreSQL `to_tsvector` and `plainto_tsquery`.
+        Results are ranked by relevance and highlighted with `<mark>` tags.
+        Supports optional channel scoping and cursor-based pagination.
+
+        The caller must be a member of the server.
+      tags: [Search]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 200
+          description: Search query string (2-200 characters).
+        - name: channel_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional channel ID to limit search scope.
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Cursor for pagination — return results before this message ID.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Maximum results per page (default 50, max 100).
+      responses:
+        "200":
+          description: Paginated search results.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -1908,32 +5493,135 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-    get:
-      operationId: listVoiceParticipants
-      summary: List voice channel participants
-      description: |
-        Returns all users currently in the specified voice channel. Each entry
-        includes `username` so the client can display participant names without
-        a separate user lookup. The response shape matches the
-        `VOICE_STATE_UPDATE` WebSocket broadcast events.
+  # ==========================================================================
+  # Utilities
+  # ==========================================================================
 
-        Caller must be a member of the server.
-      tags: [Voice]
+  /link-preview:
+    get:
+      operationId: getLinkPreview
+      summary: Fetch Open Graph metadata for a URL
+      description: |
+        Returns Open Graph metadata (title, description, image, site name)
+        for the given URL. Results are cached in-memory for 24 hours.
+
+        SSRF protection: all resolved IPs are checked against private/loopback
+        ranges, and the first resolved IP is pinned to prevent DNS rebinding.
+        Only `http` and `https` schemes are accepted. Response body is capped
+        at 1 MB.
+      tags: [Utilities]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: The URL to fetch Open Graph metadata for.
+          example: "https://example.com/article"
       responses:
         "200":
-          description: Array of voice participants with usernames.
+          description: Open Graph metadata extracted from the URL.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkPreviewDto"
+              example:
+                url: "https://example.com/article"
+                title: "Example Article"
+                description: "An example article description."
+                image: "https://example.com/img.png"
+                site_name: "example.com"
+        "400":
+          description: Invalid URL, unsupported scheme, private IP, or unresolvable host.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Invalid URL"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /giphy/search:
+    get:
+      operationId: searchGiphy
+      summary: Search for GIFs via the Giphy API
+      description: |
+        Proxies a search request to the Giphy API and returns matching GIF
+        results. Requires server-side `GIPHY_API_KEY` configuration. Results
+        are filtered to `rating=g`.
+      tags: [Utilities]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query for GIFs.
+          example: "thumbs up"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 25
+            default: 15
+          description: Maximum number of results (default 15, max 25).
+      responses:
+        "200":
+          description: Array of matching GIF results.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/VoiceParticipantDto"
-        "400":
-          description: Channel is not a voice channel.
+                  $ref: "#/components/schemas/GifResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          description: Giphy API key not configured or upstream API error.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Internal server error"
+
+  # ==========================================================================
+  # Read States
+  # ==========================================================================
+
+  /channels/{channel_id}/ack:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server channel ID.
+
+    post:
+      operationId: ackChannel
+      summary: Mark a server channel as read
+      description: |
+        Upserts the caller's read-state for this channel to `NOW()`.
+        Called by the client whenever the user views a channel (tab focus,
+        navigation). The caller must be a member of the channel's server.
+      tags: [Channels]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Read state updated (no body).
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1999,18 +5687,44 @@ tags:
   - name: Health
     description: Server liveness and observability endpoints.
   - name: Authentication
-    description: Account registration and login.
+    description: Account registration, login, and token management.
   - name: Users
     description: Authenticated user profile management.
   - name: Servers
-    description: Community server lifecycle and membership.
+    description: Community server lifecycle, membership, and data export.
   - name: Channels
     description: Text and voice channels within a server.
   - name: Messages
     description: Chat messages within text channels.
+  - name: Threads
+    description: Threaded replies on messages.
+  - name: Reactions
+    description: Emoji reactions on messages.
+  - name: Pins
+    description: Pinned messages in channels.
+  - name: Polls
+    description: Polls within text channels.
+  - name: Events
+    description: Scheduled server events.
+  - name: Direct Messages
+    description: Private messaging between two users.
   - name: Attachments
     description: File uploads attached to messages.
   - name: Voice
-    description: Voice channel presence and state management.
+    description: Voice channel presence, state management, Go Live, and ICE servers.
+  - name: Bots
+    description: Bot account management and authentication.
+  - name: Webhooks
+    description: Outbound webhook delivery with HMAC-SHA256 signing.
+  - name: Custom Emojis
+    description: Server custom emoji management.
+  - name: Automod
+    description: Auto-moderation rules, word filters, bans, and action logs.
+  - name: Audit Logs
+    description: Server audit trail.
+  - name: Search
+    description: Full-text message search within servers.
+  - name: Utilities
+    description: Link previews, GIF search, and other helper endpoints.
   - name: WebSocket
     description: Real-time event gateway.
