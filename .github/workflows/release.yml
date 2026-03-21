@@ -108,8 +108,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             rpm \
-            gnupg \
-            dpkg-sig
+            gnupg
 
       - name: Import GPG key for signing
         if: ${{ vars.GPG_KEY_ID != '' }}
@@ -152,10 +151,10 @@ jobs:
         run: |
           cd clients/desktop/src-tauri/target/release/bundle
 
-          # Sign .deb package
+          # Sign .deb package (detached GPG signature)
           for deb in deb/*.deb; do
             echo "Signing $deb..."
-            dpkg-sig --sign builder -k "$GPG_KEY_ID" "$deb"
+            gpg --batch --yes --detach-sign --armor -u "$GPG_KEY_ID" "$deb"
           done
 
           # Sign .rpm package
@@ -178,6 +177,7 @@ jobs:
             clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
             clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.asc
             clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+            clients/desktop/src-tauri/target/release/bundle/deb/*.deb.asc
             clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm
 
   # ── Android APK (Signed) ─────────────────────────────────────────────────────
@@ -238,24 +238,13 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
 
-      - name: Build Android APK (signed)
-        if: ${{ env.HAS_KEYSTORE == 'true' }}
-        env:
-          ANDROID_KEYSTORE_PATH: /tmp/keystore.jks
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
-        run: |
-          cd clients/desktop
-          ./node_modules/.bin/tauri android build --apk \
-            --signing-key $ANDROID_KEYSTORE_PATH \
-            --signing-key-alias "$ANDROID_KEY_ALIAS" \
-            --signing-key-password "$ANDROID_KEY_PASSWORD"
-
-      - name: Build Android APK (unsigned)
-        if: ${{ env.HAS_KEYSTORE != 'true' }}
+      - name: Build Android APK
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
+          TAURI_SIGNING_STORE_PATH: ${{ env.HAS_KEYSTORE == 'true' && '/tmp/keystore.jks' || '' }}
+          TAURI_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TAURI_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd clients/desktop
           ./node_modules/.bin/tauri android build --apk
@@ -335,8 +324,8 @@ jobs:
             # Verify AppImage
             gpg --verify Together-*.AppImage.asc
 
-            # Verify .deb (dpkg-sig)
-            dpkg-sig --verify together_*.deb
+            # Verify .deb
+            gpg --verify together_*.deb.asc together_*.deb
 
             # Verify .rpm
             rpm --checksig together-*.rpm
