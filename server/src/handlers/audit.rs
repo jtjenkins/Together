@@ -57,7 +57,10 @@ pub async fn log_action(pool: &PgPool, entry: &CreateAuditLog) {
         tracing::error!(
             error = ?e,
             server_id = %entry.server_id,
+            actor_id = %entry.actor_id,
             action = %action_str,
+            target_type = ?entry.target_type,
+            target_id = ?entry.target_id,
             "Failed to write audit log"
         );
     }
