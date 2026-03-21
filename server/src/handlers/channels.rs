@@ -117,7 +117,7 @@ pub async fn create_channel(
             action: AuditAction::ChannelCreate,
             target_type: Some("channel".into()),
             target_id: Some(channel.id),
-            details: serde_json::json!({ "name": channel.name, "type": channel.r#type }),
+            details: serde_json::json!({ "name": &channel.name, "type": &channel.r#type }),
             ip_address: None,
         },
     )
@@ -213,9 +213,9 @@ pub async fn update_channel(
             target_type: Some("channel".into()),
             target_id: Some(channel_id),
             details: serde_json::json!({
-                "name": updated.name,
-                "topic": updated.topic,
-                "category": updated.category,
+                "name": &updated.name,
+                "topic": &updated.topic,
+                "category": &updated.category,
                 "position": updated.position,
             }),
             ip_address: None,

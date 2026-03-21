@@ -129,7 +129,7 @@ pub async fn create_server(
             action: AuditAction::ServerCreate,
             target_type: Some("server".into()),
             target_id: Some(server.id),
-            details: serde_json::json!({ "name": server.name }),
+            details: serde_json::json!({ "name": &server.name }),
             ip_address: None,
         },
     )
@@ -267,8 +267,8 @@ pub async fn update_server(
             target_type: Some("server".into()),
             target_id: Some(server_id),
             details: serde_json::json!({
-                "name": updated.name,
-                "icon_url": updated.icon_url,
+                "name": &updated.name,
+                "icon_url": &updated.icon_url,
                 "is_public": updated.is_public,
             }),
             ip_address: None,
