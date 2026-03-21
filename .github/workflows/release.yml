@@ -157,10 +157,11 @@ jobs:
             gpg --batch --yes --detach-sign --armor -u "$GPG_KEY_ID" "$deb"
           done
 
-          # Sign .rpm package
-          for rpm in rpm/*.rpm; do
-            echo "Signing $rpm..."
-            rpm --addsign "$rpm"
+          # Sign .rpm package (detached GPG signature — rpm --addsign
+          # requires %_gpg_name macro which is unreliable on CI runners)
+          for rpm_file in rpm/*.rpm; do
+            echo "Signing $rpm_file..."
+            gpg --batch --yes --detach-sign --armor -u "$GPG_KEY_ID" "$rpm_file"
           done
 
           # Create detached signature for AppImage
@@ -179,6 +180,7 @@ jobs:
             clients/desktop/src-tauri/target/release/bundle/deb/*.deb
             clients/desktop/src-tauri/target/release/bundle/deb/*.deb.asc
             clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm
+            clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm.asc
 
   # ── Android APK (Signed) ─────────────────────────────────────────────────────
   release-android:
@@ -328,5 +330,5 @@ jobs:
             gpg --verify together_*.deb.asc together_*.deb
 
             # Verify .rpm
-            rpm --checksig together-*.rpm
+            gpg --verify together-*.rpm.asc together-*.rpm
             ```
