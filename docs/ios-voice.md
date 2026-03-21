@@ -24,6 +24,29 @@ coturn:
   network_mode: host
 ```
 
+## ICE Server Endpoint
+
+The Together server provides a `GET /ice-servers` endpoint that returns the ICE server configuration for WebRTC connections. This endpoint requires authentication (`Authorization: Bearer <token>`).
+
+### Response Format
+
+The response includes STUN and (when configured) TURN servers:
+
+- **STUN servers** (Google public: `stun:stun.l.google.com:19302`, `stun:stun1.l.google.com:19302`) are **always included**, even when no TURN server is configured.
+- **TURN servers** are included only when `TURN_URL` and `TURN_SECRET` are set in the environment.
+
+### TURN Credential Generation
+
+TURN credentials are generated using **HMAC-SHA1** with the shared secret configured in `TURN_SECRET`:
+
+- **Username format**: `{timestamp}:{username}` — where `timestamp` is the Unix epoch when the credential expires and `username` is the authenticated user's username. This produces per-user credentials.
+- **TTL**: Credentials are valid for **24 hours** from the time of generation.
+- **Password**: The HMAC-SHA1 digest of the username string, using the shared secret as the key, base64-encoded.
+
+This follows the standard coturn ephemeral credential mechanism (RFC draft `--use-auth-secret`).
+
+---
+
 ## Background Mic Behavior
 
 iOS WebView mutes the microphone when the app goes to background (e.g., user switches

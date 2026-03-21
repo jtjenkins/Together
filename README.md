@@ -34,16 +34,27 @@ Rocket.Chat instead.
 | Servers, channels, roles & permissions      | ✅     |
 | Real-time text chat with threads            | ✅     |
 | Direct messages                             | ✅     |
-| Voice channels (WebRTC SFU)                 | ✅     |
+| Voice channels (P2P WebRTC mesh)            | ✅     |
+| Go Live screen broadcasting                 | ✅     |
 | File & image uploads (up to 50 MB)          | ✅     |
-| Emoji reactions, polls, server events       | ✅     |
+| Emoji reactions & custom server emojis      | ✅     |
+| Polls & server events                       | ✅     |
 | GIF picker (Giphy integration)              | ✅     |
-| Slash commands & Discord-style markdown     | ✅     |
+| Link previews                               | ✅     |
+| Full-text message search                    | ✅     |
+| Message pinning                             | ✅     |
+| Activity / rich presence status             | ✅     |
+| Bot API with token authentication           | ✅     |
+| Webhooks (HMAC-SHA256 signed payloads)      | ✅     |
+| Auto-moderation rules                       | ✅     |
+| Audit logging                               | ✅     |
+| Server data export (ZIP download)           | ✅     |
+| Read-state tracking & unread indicators     | ✅     |
 | Desktop app (Tauri — macOS, Windows, Linux) | ✅     |
 | Web app (any browser)                       | ✅     |
-| Mobile app (Tauri — Android & iOS)          | ✅     |
-| Link previews                               | ✅     |
-| Rate limiting & basic security hardening    | ✅     |
+| Mobile app (Tauri v2 — Android & iOS)       | ✅     |
+| Discord-style markdown formatting            | ✅     |
+| Rate limiting & security hardening          | ✅     |
 
 ---
 
@@ -68,7 +79,7 @@ Verify it's running:
 
 ```bash
 curl http://localhost/api/health
-# {"status":"ok","service":"together-server","version":"0.1.0","database":"ok"}
+# {"status":"ok","service":"together-server","version":"0.1.0","uptime_secs":42,"database":{"status":"ok","latency_ms":1},"connections":{"websocket":0}}
 ```
 
 Open **http://localhost** in a browser and create your first account.
@@ -81,17 +92,17 @@ For a complete guide covering TLS, backups, upgrades, and firewall configuration
 
 ## Architecture
 
-Together is a **single Rust binary** backed by PostgreSQL — no microservices, no message
-queues, no Redis required.
+Together is a **single Rust binary** (~12k lines) backed by PostgreSQL — no microservices, no
+message queues, no Redis required.
 
 ```
 Clients (Desktop · Web · Mobile)
           │  HTTPS / WebSocket
           ▼
   Together Server (Rust/Axum)
-  ├── REST API  (auth, servers, channels, messages, files, polls, events)
-  ├── WebSocket gateway  (real-time MESSAGE_CREATE, PRESENCE_UPDATE, etc.)
-  └── WebRTC signaling relay  (voice channel coordination)
+  ├── REST API  (auth, servers, channels, messages, files, polls, bots, webhooks, etc.)
+  ├── WebSocket gateway  (real-time MESSAGE_CREATE, PRESENCE_UPDATE, VOICE_SIGNAL, etc.)
+  └── WebRTC signaling relay  (P2P voice & Go Live coordination)
           │
           ▼
      PostgreSQL 16
@@ -131,10 +142,10 @@ The mobile clients share the same React frontend as the web app, served via Taur
 ```bash
 # Android emulator
 cd clients/desktop
-npm run tauri android dev
+npx tauri android dev
 
 # iOS simulator (macOS + Xcode required)
-npm run tauri ios dev
+npx tauri ios dev
 ```
 
 > **iOS voice note:** WKWebView on iOS requires a TURN server (coturn) for voice channels to
@@ -161,8 +172,8 @@ cp .env.example .env    # set POSTGRES_PASSWORD and JWT_SECRET
 
 ```bash
 cd clients/web
-npm test          # interactive
-npm test -- --run # single pass
+npm test             # single pass (CI-friendly)
+npm run test:watch   # interactive watch mode
 npm run lint
 npx tsc --noEmit
 ```
@@ -180,6 +191,18 @@ For the full contribution guide (code style, PR process, project structure), see
 | [docs/openapi.yaml](docs/openapi.yaml)                   | OpenAPI 3.1 spec for all REST endpoints        |
 | [docs/websocket-protocol.md](docs/websocket-protocol.md) | WebSocket gateway event reference              |
 | [docs/architecture.md](docs/architecture.md)             | Component design and database schema           |
+| [docs/authentication.md](docs/authentication.md)         | Auth flows (register, login, JWT, password reset) |
+| [docs/direct-messages.md](docs/direct-messages.md)       | DM channels and messaging                      |
+| [docs/reactions.md](docs/reactions.md)                   | Emoji reactions on messages                    |
+| [docs/polls-and-events.md](docs/polls-and-events.md)     | Polls and server events                        |
+| [docs/custom-emojis.md](docs/custom-emojis.md)           | Custom server emoji upload and usage           |
+| [docs/bot-api.md](docs/bot-api.md)                       | Bot API and token authentication               |
+| [docs/webhooks.md](docs/webhooks.md)                     | Webhooks with HMAC-SHA256 signed payloads      |
+| [docs/auto-moderation.md](docs/auto-moderation.md)       | Auto-moderation rules configuration            |
+| [docs/audit-logging.md](docs/audit-logging.md)           | Audit log events reference                     |
+| [docs/server-export.md](docs/server-export.md)           | Server data export (ZIP download)              |
+| [docs/link-previews-and-giphy.md](docs/link-previews-and-giphy.md) | Link previews and GIF search          |
+| [docs/backup-restore.md](docs/backup-restore.md)         | Backup and restore procedures                  |
 | [docs/ios-voice.md](docs/ios-voice.md)                   | TURN server setup for iOS voice                |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                       | How to set up a dev environment and submit PRs |
 | [SECURITY.md](SECURITY.md)                               | Security policy and pre-production disclaimer  |

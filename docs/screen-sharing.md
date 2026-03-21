@@ -59,6 +59,47 @@ Any number of participants can share their screen at the same time. Each active 
 
 ---
 
+## Go Live System
+
+In addition to basic screen sharing (P2P via WebRTC), Together provides a server-managed **Go Live** feature for structured broadcasting within voice channels.
+
+### Server-Side Session Management
+
+Go Live sessions are managed through `handlers/go_live.rs`, which provides dedicated REST endpoints:
+
+| Method | Endpoint                              | Description                        |
+| ------ | ------------------------------------- | ---------------------------------- |
+| POST   | `/channels/:channel_id/go-live`       | Start a Go Live session            |
+| DELETE | `/channels/:channel_id/go-live`       | Stop the current Go Live session   |
+| GET    | `/channels/:channel_id/go-live`       | Get the active Go Live session     |
+
+### Quality Tiers
+
+When starting a Go Live session, the broadcaster selects a quality tier:
+
+| Tier   | Resolution | Use Case                    |
+| ------ | ---------- | --------------------------- |
+| 480p   | 854x480    | Low bandwidth / mobile      |
+| 720p   | 1280x720   | Default / general use       |
+| 1080p  | 1920x1080  | High quality / presentations|
+
+### Enforcement
+
+Only **one broadcaster per channel** is allowed at a time. If a second user attempts to start a Go Live session while one is already active, the request is rejected.
+
+### WebSocket Events
+
+| Event           | Direction       | Description                                      |
+| --------------- | --------------- | ------------------------------------------------ |
+| `GO_LIVE_START` | server → client | Broadcast when a user begins a Go Live session   |
+| `GO_LIVE_STOP`  | server → client | Broadcast when the Go Live session ends           |
+
+### Voice State Integration
+
+The voice state for each user tracks a `self_screen` field indicating whether the user is currently sharing their screen via Go Live. This is included in `VOICE_STATE_UPDATE` events so all channel participants can update their UI accordingly.
+
+---
+
 ## Limitations
 
 | Limitation              | Detail                                                                                                                                                                                                                                                                                                                                              |

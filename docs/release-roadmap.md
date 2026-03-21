@@ -17,7 +17,7 @@ Together is a self-hosted Discord alternative with core features already impleme
 | Category       | Status      | Notes                            |
 | -------------- | ----------- | -------------------------------- |
 | Core Chat      | ✅ Complete | Messages, channels, threads, DMs |
-| Voice          | ✅ Complete | WebRTC SFU, voice channels       |
+| Voice          | ✅ Complete | WebRTC P2P mesh (signaling relay) |
 | Permissions    | ✅ Complete | Roles, channel overrides         |
 | File Uploads   | ✅ Complete | Up to 50MB                       |
 | Cross-Platform | ✅ Complete | Desktop, web, mobile (Tauri)     |
@@ -36,10 +36,10 @@ Together is a self-hosted Discord alternative with core features already impleme
 | -------------------------------- | -------- | -------- | ------------ | ----------- |
 | Security audit (self-assessment) | P0       | 2-3 days | None         | ⬜ Pending  |
 | Password reset flow              | P1       | 1-2 days | Email config | ⬜ Pending  |
-| Input validation hardening       | P0       | 1-2 days | None         | ⬜ Pending  |
-| Audit logging (admin actions)    | P1       | 2-3 days | None         | ⬜ Pending  |
+| Input validation hardening       | P0       | 1-2 days | None         | ✅ Complete |
+| Audit logging (admin actions)    | P1       | 2-3 days | None         | ✅ Complete (schema + query implemented; event emission not yet wired) |
 | Backup/restore documentation     | P1       | 1 day    | None         | ✅ Complete |
-| Health check endpoints           | P1       | 1 day    | None         | ⬜ Pending  |
+| Health check endpoints           | P1       | 1 day    | None         | ✅ Complete |
 
 **Deliverables:**
 
@@ -105,14 +105,14 @@ v1.1+ after email setup
 
 **Target: Finding content & people**
 
-| Feature                            | Priority | Effort   | Dependencies       |
-| ---------------------------------- | -------- | -------- | ------------------ |
-| Full-text message search           | P0       | 4-5 days | PostgreSQL indexes |
-| Server/member search               | P1       | 2-3 days | None               |
-| @mention autocomplete improvements | P1       | 1-2 days | None               |
-| Message pinning                    | P1       | 1 day    | None               |
-| Pinned messages view               | P1       | 1 day    | Pinning            |
-| Bookmark/save messages             | P2       | 2-3 days | None               |
+| Feature                            | Priority | Effort   | Dependencies       | Status      |
+| ---------------------------------- | -------- | -------- | ------------------ | ----------- |
+| Full-text message search           | P0       | 4-5 days | PostgreSQL indexes | ✅ Complete |
+| Server/member search               | P1       | 2-3 days | None               | ⬜ Pending  |
+| @mention autocomplete improvements | P1       | 1-2 days | None               | ⬜ Pending  |
+| Message pinning                    | P1       | 1 day    | None               | ✅ Complete |
+| Pinned messages view               | P1       | 1 day    | Pinning            | ✅ Complete |
+| Bookmark/save messages             | P2       | 2-3 days | None               | ⬜ Pending  |
 
 **Deliverables:**
 
@@ -126,14 +126,14 @@ v1.1+ after email setup
 
 **Target: Stay connected**
 
-| Feature                      | Priority | Effort   | Dependencies             |
-| ---------------------------- | -------- | -------- | ------------------------ |
-| Push notifications (mobile)  | P0       | 5-7 days | Push service integration |
-| Desktop notifications        | P0       | 2-3 days | Tauri notification API   |
-| Email notifications (digest) | P1       | 3-4 days | Email service            |
-| Typing indicators            | P1       | 2 days   | WebSocket events         |
-| Read receipts (optional)     | P1       | 2-3 days | None                     |
-| Online/idle/offline presence | P1       | 1-2 days | Already Partial          |
+| Feature                      | Priority | Effort   | Dependencies             | Status      |
+| ---------------------------- | -------- | -------- | ------------------------ | ----------- |
+| Push notifications (mobile)  | P0       | 5-7 days | Push service integration | ⬜ Pending  |
+| Desktop notifications        | P0       | 2-3 days | Tauri notification API   | ⬜ Pending  |
+| Email notifications (digest) | P1       | 3-4 days | Email service            | ⬜ Pending  |
+| Typing indicators            | P1       | 2 days   | WebSocket events         | ✅ Complete |
+| Read receipts (optional)     | P1       | 2-3 days | None                     | ⬜ Pending  |
+| Online/idle/offline presence | P1       | 1-2 days | Already Partial          | ✅ Complete |
 
 **Deliverables:**
 
@@ -147,11 +147,11 @@ v1.1+ after email setup
 
 **Target: Launch readiness**
 
-| Feature                       | Priority | Effort   | Dependencies        |
-| ----------------------------- | -------- | -------- | ------------------- |
-| Custom emoji                  | P0       | 3-4 days | File upload system  |
-| Message edit indicators       | P1       | 1 day    | None                |
-| Message embeds (URL previews) | ✅ Done  | -        | Link previews exist |
+| Feature                       | Priority | Effort   | Dependencies        | Status      |
+| ----------------------------- | -------- | -------- | ------------------- | ----------- |
+| Custom emoji                  | P0       | 3-4 days | File upload system  | ✅ Complete |
+| Message edit indicators       | P1       | 1 day    | None                | ⬜ Pending  |
+| Message embeds (URL previews) | ✅ Done  | -        | Link previews exist | ✅ Complete |
 | Connection status indicator   | P1       | 1-2 days | WebSocket state     |
 | Reconnection handling         | P1       | 2 days   | WebSocket           |
 | Performance optimization      | P1       | 3-5 days | Profiling           |
@@ -192,12 +192,12 @@ v1.1+ after email setup
 
 ## Post-1.0 Roadmap (v1.1+)
 
-### Phase 8: Bot API & Integrations (v1.1.0)
+### Phase 8: Bot API & Integrations (v1.1.0) — ✅ Complete
 
-- Bot accounts and API tokens
-- WebSocket API for bots
-- REST API for bot actions
-- Webhook support
+- ~~Bot accounts and API tokens~~ ✅
+- ~~WebSocket API for bots~~ ✅
+- ~~REST API for bot actions~~ ✅
+- ~~Webhook support~~ ✅
 
 ### Phase 9: Advanced Voice (v1.2.0)
 
@@ -208,8 +208,8 @@ v1.1+ after email setup
 
 ### Phase 10: Community Features (v1.3.0)
 
-- Server discovery page
-- Public server toggle
+- ~~Server discovery page~~ ✅
+- ~~Public server toggle~~ ✅
 - Server templates
 - Import from Discord tool
 

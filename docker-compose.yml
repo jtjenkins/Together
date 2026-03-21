@@ -14,8 +14,9 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # TURN server for WebRTC NAT traversal (required for iOS cellular)
-  # Without this: voice/video calls fail on iOS cellular and restrictive firewalls
+  # TURN server for WebRTC NAT traversal (required for restrictive NATs and iOS cellular)
+  # Without this: voice/video calls may fail on cellular networks and corporate firewalls
+  # Setup: cp turn.conf.example turn.conf && edit turn.conf, place TLS certs in ./certs/
   coturn:
     image: coturn/coturn:latest
     network_mode: host
@@ -30,10 +31,7 @@ services:
     #   - 49152-65535/udp: Media relay range
 
   server:
-    image: ${TOGETHER_IMAGE:-jtjenkins/together-server}:${TOGETHER_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: jtjenkins/together-server:${TOGETHER_VERSION:-latest}
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,10 +60,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: ${TOGETHER_IMAGE_WEB:-jtjenkins/together-web}:${TOGETHER_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: Dockerfile.web
+    image: jtjenkins/together-web:${TOGETHER_VERSION:-latest}
     depends_on:
       - server
     ports:

@@ -46,14 +46,15 @@ Send a `PRESENCE_UPDATE` op with the desired status and optional custom status t
   "op": "PRESENCE_UPDATE",
   "d": {
     "status": "dnd",
-    "custom_status": "In a voice call"
+    "custom_status": "In a voice call",
+    "activity": "Playing Valorant"
   }
 }
 ```
 
 **Allowed `status` values:** `online`, `away`, `dnd`, `offline`
 
-Sending an unrecognized status value is silently ignored. Omitting `custom_status` leaves the current value unchanged. Sending `custom_status: null` explicitly clears the custom status.
+Sending an unrecognized status value over WebSocket is silently dropped; the same invalid value sent via the REST endpoint (`PATCH /users/@me`) returns `400 Bad Request`. Omitting `custom_status` leaves the current value unchanged. Sending `custom_status: null` explicitly clears the custom status.
 
 ### Receiving status updates (server → client)
 
@@ -66,7 +67,8 @@ When any user's status changes, the server broadcasts a `PRESENCE_UPDATE` dispat
   "d": {
     "user_id": "uuid",
     "status": "away",
-    "custom_status": null
+    "custom_status": null,
+    "activity": null
   }
 }
 ```
@@ -89,7 +91,7 @@ Status and custom status are properties of the user object and are included in a
 }
 ```
 
-There is no dedicated REST endpoint for setting status. Status changes are made exclusively over the WebSocket connection using the `PRESENCE_UPDATE` op described above.
+Status can also be updated via the REST API using `PATCH /users/@me`, which accepts `status`, `custom_status`, and `activity` fields in the JSON body. This is useful for bots or integrations that do not maintain a WebSocket connection.
 
 ---
 
@@ -150,6 +152,7 @@ Status and custom status are stored directly on the `users` table:
 status        TEXT NOT NULL DEFAULT 'offline'
               CHECK (status IN ('online', 'away', 'dnd', 'offline'))
 custom_status TEXT
+activity      TEXT
 ```
 
 The server writes status on every `PRESENCE_UPDATE` op and on WebSocket connect/disconnect. Write failures are non-fatal and logged; the broadcast proceeds regardless so connected clients remain consistent.

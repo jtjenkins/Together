@@ -32,9 +32,8 @@ static-auth-secret=CHANGE_THIS_TO_MATCH_TURN_SECRET
 min-port=49152
 max-port=65535
 
-# Logging
+# Logging (stdout for Docker compatibility)
 log-file=stdout
-no-stdout-log
 
 # TLS certificates (uncomment and configure for production)
 # cert=/etc/ssl/cert.pem
