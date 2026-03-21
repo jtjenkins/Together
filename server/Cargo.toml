@@ -57,7 +57,7 @@ bcrypt = "0.15"              # Password hashing
 sha2 = "0.10"                # SHA-256 for refresh token hashing (deterministic)
 base64 = "0.22"              # Base64 encoding for reset tokens
 rand = "0.8"                 # Random number generation for tokens
-validator = { version = "0.16", features = ["derive"] }  # Input validation
+validator = { version = "0.20", features = ["derive"] }  # Input validation
 regex = "1"                  # Used by username format validator
 once_cell = "1"              # Lazy-initialised statics (regex, config)
 axum-extra = { version = "0.9", features = ["typed-header"] }  # Typed headers for auth
