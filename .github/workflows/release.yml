@@ -282,10 +282,21 @@ jobs:
             echo "linux_signed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Flatten artifacts for upload
+        run: |
+          mkdir -p artifacts/flat
+          find artifacts -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" \
+            -o -name "*.AppImage" -o -name "*.AppImage.asc" \
+            -o -name "*.deb" -o -name "*.deb.asc" \
+            -o -name "*.rpm" -o -name "*.rpm.asc" \
+            -o -name "*.apk" \) -exec cp {} artifacts/flat/ \;
+          echo "Release assets:"
+          ls -lh artifacts/flat/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
+          files: artifacts/flat/*
           prerelease: true
           generate_release_notes: true
           body: |
