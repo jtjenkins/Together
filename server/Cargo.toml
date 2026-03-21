@@ -20,9 +20,10 @@ governor = { version = "0.6", features = ["dashmap"] }
 tower_governor = "0.4"
 
 # Database
-sqlx = { version = "0.7", features = [
+sqlx = { version = "0.8", features = [
     "postgres",
-    "runtime-tokio-native-tls",
+    "runtime-tokio",
+    "tls-native-tls",
     "uuid",
     "chrono",
     "json",
@@ -81,7 +82,7 @@ sha1 = "0.10"
 [dev-dependencies]
 tokio-test = "0.4"
 http-body-util = "0.1"   # BodyExt::collect() for reading response bodies in tests
-sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-native-tls"] }
 
 [[bin]]
 name = "together-server"
