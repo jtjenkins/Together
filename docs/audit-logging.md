@@ -2,7 +2,9 @@
 
 Audit logs record administrative actions taken within a server, giving server owners a tamper-evident history of who did what and when.
 
-> **Note:** The audit logging schema, query endpoint, and event types are implemented. However, event emission is not yet wired into the handlers — no audit events are currently being recorded. This will be completed in a future release.
+> **Note:** Audit events are currently emitted for server and channel operations
+> (create, update, delete). Member and role events (kick, ban, role changes) will
+> be added when those handler endpoints are implemented.
 
 ## Access
 

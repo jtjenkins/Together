@@ -11,7 +11,10 @@ use super::shared::{fetch_server, require_http_url, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
-    models::{CreateServerDto, MemberDto, Server, ServerDto, UpdateServerDto},
+    handlers::audit::log_action,
+    models::{
+        AuditAction, CreateAuditLog, CreateServerDto, MemberDto, Server, ServerDto, UpdateServerDto,
+    },
     state::AppState,
 };
 
@@ -117,6 +120,20 @@ pub async fn create_server(
         .await?;
 
     tx.commit().await?;
+
+    log_action(
+        &state.pool,
+        &CreateAuditLog {
+            server_id: server.id,
+            actor_id: auth.user_id(),
+            action: AuditAction::ServerCreate,
+            target_type: Some("server".into()),
+            target_id: Some(server.id),
+            details: serde_json::json!({ "name": server.name }),
+            ip_address: None,
+        },
+    )
+    .await;
 
     let dto = server_dto(&state.pool, server).await?;
     Ok((StatusCode::CREATED, Json(dto)))
@@ -241,6 +258,20 @@ pub async fn update_server(
     .fetch_one(&state.pool)
     .await?;
 
+    log_action(
+        &state.pool,
+        &CreateAuditLog {
+            server_id,
+            actor_id: auth.user_id(),
+            action: AuditAction::ServerUpdate,
+            target_type: Some("server".into()),
+            target_id: Some(server_id),
+            details: serde_json::json!({ "name": updated.name }),
+            ip_address: None,
+        },
+    )
+    .await;
+
     let dto = server_dto(&state.pool, updated).await?;
     Ok(Json(dto))
 }
@@ -258,6 +289,21 @@ pub async fn delete_server(
             "Only the server owner can delete it".into(),
         ));
     }
+
+    // Log before delete — CASCADE will remove the audit_logs rows for this server.
+    log_action(
+        &state.pool,
+        &CreateAuditLog {
+            server_id,
+            actor_id: auth.user_id(),
+            action: AuditAction::ServerDelete,
+            target_type: Some("server".into()),
+            target_id: Some(server_id),
+            details: serde_json::json!({ "name": server.name }),
+            ip_address: None,
+        },
+    )
+    .await;
 
     sqlx::query("DELETE FROM servers WHERE id = $1")
         .bind(server_id)
