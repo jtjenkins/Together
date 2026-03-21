@@ -7,7 +7,7 @@ Together/
 ├── CLAUDE.md                      # AI assistant project context
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
-├── LICENSE                        # AGPL-3.0
+├── LICENSE                        # PolyForm Noncommercial 1.0.0
 ├── README.md
 ├── SECURITY.md
 ├── .env.example                   # Environment variable template

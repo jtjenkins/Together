@@ -54,7 +54,7 @@ Send a `PRESENCE_UPDATE` op with the desired status and optional custom status t
 
 **Allowed `status` values:** `online`, `away`, `dnd`, `offline`
 
-Sending an unrecognized status value over WebSocket is silently dropped; the same invalid value sent via the REST endpoint (`PATCH /users/me`) returns `400 Bad Request`. Omitting `custom_status` leaves the current value unchanged. Sending `custom_status: null` explicitly clears the custom status.
+Sending an unrecognized status value over WebSocket is silently dropped; the same invalid value sent via the REST endpoint (`PATCH /users/@me`) returns `400 Bad Request`. Omitting `custom_status` leaves the current value unchanged. Sending `custom_status: null` explicitly clears the custom status.
 
 ### Receiving status updates (server → client)
 
@@ -91,7 +91,7 @@ Status and custom status are properties of the user object and are included in a
 }
 ```
 
-Status can also be updated via the REST API using `PATCH /users/me`, which accepts `status`, `custom_status`, and `activity` fields in the JSON body. This is useful for bots or integrations that do not maintain a WebSocket connection.
+Status can also be updated via the REST API using `PATCH /users/@me`, which accepts `status`, `custom_status`, and `activity` fields in the JSON body. This is useful for bots or integrations that do not maintain a WebSocket connection.
 
 ---
 

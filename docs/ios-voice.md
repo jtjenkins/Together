@@ -33,11 +33,11 @@ The Together server provides a `GET /ice-servers` endpoint that returns the ICE 
 The response includes STUN and (when configured) TURN servers:
 
 - **STUN servers** (Google public: `stun:stun.l.google.com:19302`, `stun:stun1.l.google.com:19302`) are **always included**, even when no TURN server is configured.
-- **TURN servers** are included only when `TURN_SERVER_URL` and `TURN_SHARED_SECRET` are set in the environment.
+- **TURN servers** are included only when `TURN_URL` and `TURN_SECRET` are set in the environment.
 
 ### TURN Credential Generation
 
-TURN credentials are generated using **HMAC-SHA1** with the shared secret configured in `TURN_SHARED_SECRET`:
+TURN credentials are generated using **HMAC-SHA1** with the shared secret configured in `TURN_SECRET`:
 
 - **Username format**: `{timestamp}:{username}` — where `timestamp` is the Unix epoch when the credential expires and `username` is the authenticated user's username. This produces per-user credentials.
 - **TTL**: Credentials are valid for **24 hours** from the time of generation.

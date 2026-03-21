@@ -52,9 +52,9 @@ All messages in both directions use the same JSON envelope:
 | `DISPATCH`        | Server → Client | Delivers a named event (`t` field is set)       |
 | `HEARTBEAT`       | Client → Server | Keep-alive ping to prevent connection timeout   |
 | `HEARTBEAT_ACK`   | Server → Client | Pong response to a `HEARTBEAT`                  |
-| `PRESENCE_UPDATE` | Both            | Update or receive a user's online status        |
-| `TYPING_START`    | Client → Server | Notify the server that the user started typing  |
-| `VOICE_SIGNAL`    | Both            | WebRTC signaling payload (SDP or ICE candidate) |
+| `PRESENCE_UPDATE` | Client → Server | Update the user's online status (server broadcasts via `DISPATCH` with `t: "PRESENCE_UPDATE"`) |
+| `TYPING_START`    | Client → Server | Notify the server that the user started typing (server broadcasts via `DISPATCH` with `t: "TYPING_START"`) |
+| `VOICE_SIGNAL`    | Client → Server | WebRTC signaling payload — SDP or ICE candidate (server relays via `DISPATCH` with `t: "VOICE_SIGNAL"`) |
 
 ---
 
@@ -295,7 +295,7 @@ event — refer to the handler source code for full field details.
 | `THREAD_MESSAGE_CREATE`| A new message was posted in a thread the user can see              |
 | `POLL_VOTE`            | A vote was cast on a poll in a visible channel                     |
 | `TYPING_START`         | A user started typing in a channel (server broadcast)              |
-| `TYPING_STOP`          | A user stopped typing in a channel                                 |
+| `TYPING_STOP`          | _(defined but not yet dispatched by the server)_                   |
 | `MESSAGE_PIN`          | A message was pinned in a channel                                  |
 | `MESSAGE_UNPIN`        | A message was unpinned from a channel                              |
 | `CUSTOM_EMOJI_CREATE`  | A custom emoji was added to a server                               |
