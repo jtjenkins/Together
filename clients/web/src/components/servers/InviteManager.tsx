@@ -74,13 +74,17 @@ export function InviteManager({ serverId }: InviteManagerProps) {
     }
   };
 
-  const handleCopy = (invite: ServerInviteDto) => {
+  const handleCopy = async (invite: ServerInviteDto) => {
     const url = `${window.location.origin}/invite/${invite.code}`;
-    navigator.clipboard?.writeText(url).catch(() => {});
-    setCopiedId(invite.id);
-    setTimeout(() => {
-      setCopiedId((prev) => (prev === invite.id ? null : prev));
-    }, 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(invite.id);
+      setTimeout(() => {
+        setCopiedId((prev) => (prev === invite.id ? null : prev));
+      }, 2000);
+    } catch {
+      setError(`Could not copy to clipboard. Invite link: ${url}`);
+    }
   };
 
   const handleDelete = async (inviteId: string, code: string) => {

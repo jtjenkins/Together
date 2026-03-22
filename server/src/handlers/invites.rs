@@ -94,6 +94,14 @@ pub async fn create_invite(
             Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() && attempts < 3 => {
                 continue;
             }
+            Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+                // All 3 attempts collided — astronomically unlikely with 62^8 codes.
+                tracing::error!(
+                    server_id = %server_id,
+                    "Invite code collision after {attempts} attempts"
+                );
+                return Err(AppError::Internal);
+            }
             Err(e) => return Err(e.into()),
         }
     };
@@ -341,9 +349,12 @@ pub async fn accept_invite(
     .rows_affected();
 
     if updated == 0 {
-        // Race condition: invite was maxed out between check and update.
+        // The invite was maxed out or expired between our initial check and
+        // this atomic UPDATE. Returning an error drops `tx` without commit,
+        // which implicitly rolls back the member INSERT above.
+        // This rollback is load-bearing — do not move the INSERT outside the tx.
         return Err(AppError::Validation(
-            "This invite has reached its maximum uses".into(),
+            "This invite has expired or reached its maximum uses".into(),
         ));
     }
 
