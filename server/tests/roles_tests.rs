@@ -414,8 +414,7 @@ async fn hierarchy_cannot_delete_higher_role() {
 
 #[tokio::test]
 async fn hierarchy_cannot_assign_higher_role() {
-    let (app, owner_token, manager_token, server_id, _, _, high_role_id) =
-        setup_role_manager().await;
+    let (app, _, manager_token, server_id, _, _, high_role_id) = setup_role_manager().await;
 
     // Register a third user and join them
     let third_body =
@@ -479,7 +478,7 @@ async fn hierarchy_cannot_remove_higher_role() {
 
 #[tokio::test]
 async fn hierarchy_cannot_escalate_permissions_via_update() {
-    let (app, owner_token, manager_token, server_id, manager_id, _, _) = setup_role_manager().await;
+    let (app, owner_token, manager_token, server_id, _, _, _) = setup_role_manager().await;
 
     // Create a low role the manager CAN edit (position below manager's)
     // The manager's role has position auto-assigned. Create a new role that
