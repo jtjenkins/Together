@@ -53,6 +53,8 @@ Thumbs.db
 coverage/
 .nyc_output/
 .playwright-mcp/
+test-results/
+playwright-report/
 
 # Temporary files
 tmp/
