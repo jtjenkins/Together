@@ -320,6 +320,8 @@ event — refer to the handler source code for full field details.
 | `ROLE_DELETE`           | A role was deleted from the server                         |
 | `MEMBER_ROLE_ADD`       | A role was assigned to a server member                     |
 | `MEMBER_ROLE_REMOVE`    | A role was removed from a server member                    |
+| `INVITE_CREATE`         | A new invite link was created for a server                 |
+| `INVITE_DELETE`         | An invite link was revoked from a server                   |
 
 The server-broadcast `TYPING_START` event payload includes `user_id`, `username`, `channel_id`,
 and `timestamp`. Clients should auto-expire the typing indicator after ~10 seconds if no further
