@@ -12,8 +12,7 @@ CREATE TABLE server_invites (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Fast lookup by invite code (used on every accept)
-CREATE INDEX idx_server_invites_code ON server_invites(code);
+-- The UNIQUE constraint on code already creates an index for lookups.
 
 -- List invites for a server (admin view)
 CREATE INDEX idx_server_invites_server ON server_invites(server_id, created_at DESC);

@@ -327,11 +327,13 @@ pub async fn accept_invite(
         .execute(&mut *tx)
         .await?;
 
-    // Atomic uses increment — the WHERE clause prevents exceeding max_uses even
-    // under concurrent requests.
+    // Atomic uses increment — the WHERE clause prevents exceeding max_uses
+    // and accepting expired invites even under concurrent requests.
     let updated = sqlx::query(
         "UPDATE server_invites SET uses = uses + 1
-         WHERE id = $1 AND (max_uses IS NULL OR uses < max_uses)",
+         WHERE id = $1
+           AND (max_uses IS NULL OR uses < max_uses)
+           AND (expires_at IS NULL OR expires_at > NOW())",
     )
     .bind(invite.id)
     .execute(&mut *tx)
