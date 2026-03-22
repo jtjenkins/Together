@@ -367,6 +367,8 @@ pub fn create_test_app(pool: PgPool) -> Router {
         )
         // Export routes
         .route("/servers/:id/export", get(handlers::export::export_server))
+        // Giphy routes
+        .route("/giphy/search", get(handlers::giphy::search_giphy))
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)
