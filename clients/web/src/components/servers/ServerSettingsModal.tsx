@@ -11,8 +11,9 @@ import { api } from "../../api/client";
 import type { ServerDto } from "../../types";
 import styles from "./ServerModals.module.css";
 import { AutomodSettings } from "./AutomodSettings";
+import { BanListPanel } from "../moderation/BanListPanel";
 
-type SettingsTab = "general" | "automod";
+type SettingsTab = "general" | "automod" | "bans";
 
 interface ServerSettingsModalProps {
   open: boolean;
@@ -90,6 +91,12 @@ export function ServerSettingsModal({
           >
             Automod
           </button>
+          <button
+            className={tab === "bans" ? styles.activeTab : styles.tab}
+            onClick={() => setTab("bans")}
+          >
+            Bans
+          </button>
         </div>
       )}
       {tab === "general" && (
@@ -160,6 +167,7 @@ export function ServerSettingsModal({
         </>
       )}
       {tab === "automod" && isOwner && <AutomodSettings serverId={server.id} />}
+      {tab === "bans" && isOwner && <BanListPanel serverId={server.id} />}
       {tab === "general" && (
         <>
           <hr

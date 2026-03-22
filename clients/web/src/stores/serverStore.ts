@@ -4,6 +4,7 @@ import type {
   CreateServerRequest,
   UpdateServerRequest,
   MemberDto,
+  ServerBan,
 } from "../types";
 import { api, ApiRequestError } from "../api/client";
 import { useCustomEmojiStore } from "./customEmojiStore";
@@ -54,6 +55,10 @@ interface ServerState {
   removeTimeout: (serverId: string, userId: string) => Promise<void>;
   removeMemberLocally: (userId: string) => void;
   setMemberTimeout: (userId: string, expiresAt: string | null) => void;
+  bans: ServerBan[];
+  isBansLoading: boolean;
+  fetchBans: (serverId: string) => Promise<void>;
+  unbanMember: (serverId: string, userId: string) => Promise<void>;
 }
 
 export const useServerStore = create<ServerState>((set, get) => ({
@@ -65,6 +70,8 @@ export const useServerStore = create<ServerState>((set, get) => ({
   discoverableServers: [],
   isBrowseLoading: false,
   browseError: null,
+  bans: [],
+  isBansLoading: false,
 
   setServers: (servers) => set({ servers }),
 
@@ -282,4 +289,29 @@ export const useServerStore = create<ServerState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  fetchBans: async (serverId) => {
+    set({ isBansLoading: true });
+    try {
+      const bans = await api.listBans(serverId);
+      set({ bans, isBansLoading: false });
+    } catch (e) {
+      const msg =
+        e instanceof ApiRequestError ? e.message : "Failed to fetch bans";
+      set({ error: msg, isBansLoading: false });
+    }
+  },
+
+  unbanMember: async (serverId, userId) => {
+    try {
+      await api.removeBan(serverId, userId);
+      set((state) => ({
+        bans: state.bans.filter((b) => b.user_id !== userId),
+      }));
+    } catch (e) {
+      const msg =
+        e instanceof ApiRequestError ? e.message : "Failed to unban user";
+      set({ error: msg });
+    }
+  },
 }));
