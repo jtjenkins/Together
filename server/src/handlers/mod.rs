@@ -12,6 +12,7 @@ pub mod giphy;
 pub mod go_live;
 pub mod health;
 pub mod ice;
+pub mod invites;
 pub mod link_preview;
 pub mod messages;
 pub mod moderation;

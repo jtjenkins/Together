@@ -55,6 +55,7 @@ interface ServerState {
   removeTimeout: (serverId: string, userId: string) => Promise<void>;
   removeMemberLocally: (userId: string) => void;
   setMemberTimeout: (userId: string, expiresAt: string | null) => void;
+  joinServerByInvite: (code: string) => Promise<void>;
   bans: ServerBan[];
   isBansLoading: boolean;
   fetchBans: (serverId: string) => Promise<void>;
@@ -286,6 +287,20 @@ export const useServerStore = create<ServerState>((set, get) => ({
         m.user_id === userId ? { ...m, timeout_expires_at: expiresAt } : m,
       ),
     }));
+  },
+
+  joinServerByInvite: async (code) => {
+    try {
+      await api.acceptInvite(code);
+      await get().fetchServers();
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to join server via invite";
+      set({ error: message });
+      throw err;
+    }
   },
 
   clearError: () => set({ error: null }),

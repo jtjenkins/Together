@@ -473,6 +473,20 @@ async fn main() {
             "/emojis/:emoji_id",
             get(handlers::custom_emojis::serve_custom_emoji_image),
         )
+        // Invite routes (protected, permission-gated)
+        .route(
+            "/servers/:id/invites",
+            get(handlers::invites::list_invites).post(handlers::invites::create_invite),
+        )
+        .route(
+            "/servers/:id/invites/:invite_id",
+            delete(handlers::invites::delete_invite),
+        )
+        .route("/invites/:code", get(handlers::invites::preview_invite))
+        .route(
+            "/invites/:code/accept",
+            post(handlers::invites::accept_invite),
+        )
         // Webhook routes (protected, admin/owner only)
         .route(
             "/servers/:id/webhooks",

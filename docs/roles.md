@@ -6,24 +6,25 @@ Together uses a Discord-compatible role-based permission system. Roles carry a s
 
 ## Permission Bitflags
 
-Permissions are stored as a 64-bit integer. Each permission occupies one bit (bits 0-13, maximum value 16383).
+Permissions are stored as a 64-bit integer. Each permission occupies one bit (bits 0-14, maximum value 32767).
 
-| Bit | Value | Name               | Description                           |
-| --- | ----- | ------------------ | ------------------------------------- |
-| 0   | 1     | `VIEW_CHANNEL`     | View text and voice channels          |
-| 1   | 2     | `SEND_MESSAGES`    | Send messages in text channels        |
-| 2   | 4     | `MANAGE_MESSAGES`  | Delete or pin messages by others      |
-| 3   | 8     | `ATTACH_FILES`     | Upload files and images               |
-| 4   | 16    | `ADD_REACTIONS`    | Add emoji reactions to messages       |
-| 5   | 32    | `CONNECT_VOICE`    | Join voice channels                   |
-| 6   | 64    | `SPEAK`            | Speak in voice channels               |
-| 7   | 128   | `MUTE_MEMBERS`     | Timeout / mute other members          |
-| 8   | 256   | `KICK_MEMBERS`     | Kick members from the server          |
-| 9   | 512   | `BAN_MEMBERS`      | Ban members from the server           |
-| 10  | 1024  | `MANAGE_CHANNELS`  | Create, edit, and delete channels     |
-| 11  | 2048  | `MANAGE_ROLES`     | Create, edit, delete, and assign roles|
-| 12  | 4096  | `MANAGE_SERVER`    | Edit server name, icon, and settings  |
-| 13  | 8192  | `ADMINISTRATOR`    | Grants all permissions implicitly     |
+| Bit | Value | Name              | Description                            |
+| --- | ----- | ----------------- | -------------------------------------- |
+| 0   | 1     | `VIEW_CHANNEL`    | View text and voice channels           |
+| 1   | 2     | `SEND_MESSAGES`   | Send messages in text channels         |
+| 2   | 4     | `MANAGE_MESSAGES` | Delete or pin messages by others       |
+| 3   | 8     | `ATTACH_FILES`    | Upload files and images                |
+| 4   | 16    | `ADD_REACTIONS`   | Add emoji reactions to messages        |
+| 5   | 32    | `CONNECT_VOICE`   | Join voice channels                    |
+| 6   | 64    | `SPEAK`           | Speak in voice channels                |
+| 7   | 128   | `MUTE_MEMBERS`    | Timeout / mute other members           |
+| 8   | 256   | `KICK_MEMBERS`    | Kick members from the server           |
+| 9   | 512   | `BAN_MEMBERS`     | Ban members from the server            |
+| 10  | 1024  | `MANAGE_CHANNELS` | Create, edit, and delete channels      |
+| 11  | 2048  | `MANAGE_ROLES`    | Create, edit, delete, and assign roles |
+| 12  | 4096  | `MANAGE_SERVER`   | Edit server name, icon, and settings   |
+| 13  | 8192  | `ADMINISTRATOR`   | Grants all permissions implicitly      |
+| 14  | 16384 | `CREATE_INVITES`  | Create, list, and delete invite links  |
 
 A role's `permissions` field is the bitwise OR of all granted bits. For example, a "Moderator" role with `MANAGE_MESSAGES`, `MUTE_MEMBERS`, and `KICK_MEMBERS` would have `permissions = 4 | 128 | 256 = 388`.
 
@@ -44,26 +45,26 @@ A role's `permissions` field is the bitwise OR of all granted bits. For example,
 
 ### Role
 
-| Field        | Type     | Description                                     |
-| ------------ | -------- | ----------------------------------------------- |
-| `id`         | UUID     | Unique role identifier                          |
-| `server_id`  | UUID     | Server the role belongs to                      |
-| `name`       | string   | Display name (1-100 characters)                 |
-| `permissions`| integer  | Bitflag value (0-16383)                         |
-| `color`      | string?  | Hex color code (e.g. `#FF5733`), nullable       |
-| `position`   | integer  | Hierarchy position (higher = more authority)    |
-| `created_at` | datetime | UTC creation timestamp                          |
+| Field         | Type     | Description                                  |
+| ------------- | -------- | -------------------------------------------- |
+| `id`          | UUID     | Unique role identifier                       |
+| `server_id`   | UUID     | Server the role belongs to                   |
+| `name`        | string   | Display name (1-100 characters)              |
+| `permissions` | integer  | Bitflag value (0-16383)                      |
+| `color`       | string?  | Hex color code (e.g. `#FF5733`), nullable    |
+| `position`    | integer  | Hierarchy position (higher = more authority) |
+| `created_at`  | datetime | UTC creation timestamp                       |
 
 ### MemberRoleInfo
 
 Lightweight role summary included in member list responses.
 
-| Field      | Type    | Description                |
-| ---------- | ------- | -------------------------- |
-| `id`       | UUID    | Role identifier            |
-| `name`     | string  | Role display name          |
-| `color`    | string? | Hex color code, nullable   |
-| `position` | integer | Hierarchy position         |
+| Field      | Type    | Description              |
+| ---------- | ------- | ------------------------ |
+| `id`       | UUID    | Role identifier          |
+| `name`     | string  | Role display name        |
+| `color`    | string? | Hex color code, nullable |
+| `position` | integer | Hierarchy position       |
 
 ---
 
@@ -89,24 +90,24 @@ Authorization: Bearer <token>
 }
 ```
 
-| Field         | Type    | Required | Description                                           |
-| ------------- | ------- | -------- | ----------------------------------------------------- |
-| `name`        | string  | yes      | 1-100 characters                                      |
-| `permissions` | integer | no       | Defaults to `0`                                       |
-| `color`       | string  | no       | Hex color code                                        |
-| `position`    | integer | no       | Defaults to `MAX(position) + 1` for the server        |
+| Field         | Type    | Required | Description                                    |
+| ------------- | ------- | -------- | ---------------------------------------------- |
+| `name`        | string  | yes      | 1-100 characters                               |
+| `permissions` | integer | no       | Defaults to `0`                                |
+| `color`       | string  | no       | Hex color code                                 |
+| `position`    | integer | no       | Defaults to `MAX(position) + 1` for the server |
 
 **Response:** `201 Created` with the full `Role` object.
 
 **Errors:**
 
-| Condition                             | Status | Message                                                     |
-| ------------------------------------- | ------ | ----------------------------------------------------------- |
-| Missing MANAGE_ROLES permission       | 403    | You need the Manage Roles permission                        |
-| Name empty or > 100 characters        | 400    | Role name must be 1-100 characters                          |
-| Permissions out of range              | 400    | Permissions must be between 0 and 16383                     |
-| Position at or above actor's highest  | 403    | Cannot create a role at or above your highest role position |
-| Granting permissions actor lacks      | 403    | Cannot grant permissions you do not have                    |
+| Condition                            | Status | Message                                                     |
+| ------------------------------------ | ------ | ----------------------------------------------------------- |
+| Missing MANAGE_ROLES permission      | 403    | You need the Manage Roles permission                        |
+| Name empty or > 100 characters       | 400    | Role name must be 1-100 characters                          |
+| Permissions out of range             | 400    | Permissions must be between 0 and 16383                     |
+| Position at or above actor's highest | 403    | Cannot create a role at or above your highest role position |
+| Granting permissions actor lacks     | 403    | Cannot grant permissions you do not have                    |
 
 ---
 
@@ -141,12 +142,12 @@ Authorization: Bearer <token>
 }
 ```
 
-| Field         | Type    | Description                   |
-| ------------- | ------- | ----------------------------- |
-| `name`        | string  | 1-100 characters              |
-| `permissions` | integer | 0-16383                       |
-| `color`       | string  | Hex color code                |
-| `position`    | integer | New hierarchy position        |
+| Field         | Type    | Description            |
+| ------------- | ------- | ---------------------- |
+| `name`        | string  | 1-100 characters       |
+| `permissions` | integer | 0-16383                |
+| `color`       | string  | Hex color code         |
+| `position`    | integer | New hierarchy position |
 
 Only provided fields are updated; omitted fields are left unchanged.
 
@@ -154,15 +155,15 @@ Only provided fields are updated; omitted fields are left unchanged.
 
 **Errors:**
 
-| Condition                                  | Status | Message                                                             |
-| ------------------------------------------ | ------ | ------------------------------------------------------------------- |
-| Missing MANAGE_ROLES permission            | 403    | You need the Manage Roles permission                                |
-| Role not found                             | 404    | Role not found                                                      |
-| Name empty or > 100 characters             | 400    | Role name must be 1-100 characters                                  |
-| Permissions out of range                   | 400    | Permissions must be between 0 and 16383                             |
-| Role at or above actor's highest position  | 403    | Cannot edit a role at or above your highest role position           |
-| Moving role to position at or above actor  | 403    | Cannot move a role to a position at or above your highest role position |
-| Granting permissions actor lacks           | 403    | Cannot grant permissions you do not have                            |
+| Condition                                 | Status | Message                                                                 |
+| ----------------------------------------- | ------ | ----------------------------------------------------------------------- |
+| Missing MANAGE_ROLES permission           | 403    | You need the Manage Roles permission                                    |
+| Role not found                            | 404    | Role not found                                                          |
+| Name empty or > 100 characters            | 400    | Role name must be 1-100 characters                                      |
+| Permissions out of range                  | 400    | Permissions must be between 0 and 16383                                 |
+| Role at or above actor's highest position | 403    | Cannot edit a role at or above your highest role position               |
+| Moving role to position at or above actor | 403    | Cannot move a role to a position at or above your highest role position |
+| Granting permissions actor lacks          | 403    | Cannot grant permissions you do not have                                |
 
 ---
 
@@ -179,11 +180,11 @@ Deleting a role cascades to `member_roles` — all assignments of that role are 
 
 **Errors:**
 
-| Condition                                  | Status | Message                                                       |
-| ------------------------------------------ | ------ | ------------------------------------------------------------- |
-| Missing MANAGE_ROLES permission            | 403    | You need the Manage Roles permission                          |
-| Role not found                             | 404    | Role not found                                                |
-| Role at or above actor's highest position  | 403    | Cannot delete a role at or above your highest role position   |
+| Condition                                 | Status | Message                                                     |
+| ----------------------------------------- | ------ | ----------------------------------------------------------- |
+| Missing MANAGE_ROLES permission           | 403    | You need the Manage Roles permission                        |
+| Role not found                            | 404    | Role not found                                              |
+| Role at or above actor's highest position | 403    | Cannot delete a role at or above your highest role position |
 
 ---
 
@@ -202,12 +203,12 @@ If the member already has the role, the request succeeds silently (idempotent vi
 
 **Errors:**
 
-| Condition                                  | Status | Message                                                       |
-| ------------------------------------------ | ------ | ------------------------------------------------------------- |
-| Missing MANAGE_ROLES permission            | 403    | You need the Manage Roles permission                          |
-| Role not found                             | 404    | Role not found                                                |
-| Target user not a member                   | 404    | Server not found                                              |
-| Role at or above actor's highest position  | 403    | Cannot assign a role at or above your highest role position   |
+| Condition                                 | Status | Message                                                     |
+| ----------------------------------------- | ------ | ----------------------------------------------------------- |
+| Missing MANAGE_ROLES permission           | 403    | You need the Manage Roles permission                        |
+| Role not found                            | 404    | Role not found                                              |
+| Target user not a member                  | 404    | Server not found                                            |
+| Role at or above actor's highest position | 403    | Cannot assign a role at or above your highest role position |
 
 ---
 
@@ -224,13 +225,13 @@ Authorization: Bearer <token>
 
 **Errors:**
 
-| Condition                                  | Status | Message                                                       |
-| ------------------------------------------ | ------ | ------------------------------------------------------------- |
-| Missing MANAGE_ROLES permission            | 403    | You need the Manage Roles permission                          |
-| Role not found                             | 404    | Role not found                                                |
-| Target user not a member                   | 404    | Server not found                                              |
-| Target is the server owner (non-owner)     | 403    | Cannot remove roles from the server owner                     |
-| Role at or above actor's highest position  | 403    | Cannot remove a role at or above your highest role position   |
+| Condition                                 | Status | Message                                                     |
+| ----------------------------------------- | ------ | ----------------------------------------------------------- |
+| Missing MANAGE_ROLES permission           | 403    | You need the Manage Roles permission                        |
+| Role not found                            | 404    | Role not found                                              |
+| Target user not a member                  | 404    | Server not found                                            |
+| Target is the server owner (non-owner)    | 403    | Cannot remove roles from the server owner                   |
+| Role at or above actor's highest position | 403    | Cannot remove a role at or above your highest role position |
 
 ---
 
@@ -344,10 +345,10 @@ The `GET /servers/:id/members` endpoint includes a `roles` array on each member,
 
 All role management operations write to the audit log. Logging is non-blocking — if the write fails, the operation is not rolled back.
 
-| Action              | `target_type` | `target_id`    | `details`                                       |
-| ------------------- | ------------- | -------------- | ----------------------------------------------- |
-| `role_create`       | `role`        | Role UUID      | `{ "name": "...", "permissions": 388 }`         |
-| `role_update`       | `role`        | Role UUID      | `{ "name": "...", "permissions": 2436 }`        |
-| `role_delete`       | `role`        | Role UUID      | `{ "name": "..." }`                             |
-| `member_role_add`   | `user`        | Target user ID | `{ "role_id": "...", "role_name": "..." }`      |
-| `member_role_remove`| `user`        | Target user ID | `{ "role_id": "...", "role_name": "..." }`      |
+| Action               | `target_type` | `target_id`    | `details`                                  |
+| -------------------- | ------------- | -------------- | ------------------------------------------ |
+| `role_create`        | `role`        | Role UUID      | `{ "name": "...", "permissions": 388 }`    |
+| `role_update`        | `role`        | Role UUID      | `{ "name": "...", "permissions": 2436 }`   |
+| `role_delete`        | `role`        | Role UUID      | `{ "name": "..." }`                        |
+| `member_role_add`    | `user`        | Target user ID | `{ "role_id": "...", "role_name": "..." }` |
+| `member_role_remove` | `user`        | Target user ID | `{ "role_id": "...", "role_name": "..." }` |

@@ -175,6 +175,7 @@ export const PERMISSIONS = {
   MANAGE_ROLES: 2048,
   MANAGE_SERVER: 4096,
   ADMINISTRATOR: 8192,
+  CREATE_INVITES: 16384,
 } as const;
 
 export function hasPermission(perms: number, bit: number): boolean {
@@ -700,6 +701,32 @@ export interface MemberModerationEvent {
 export interface MemberTimeoutEvent extends MemberModerationEvent {
   expires_at: string;
   duration_minutes: number;
+}
+
+// ─── Invite Types ───────────────────────────────────────────────────────────
+
+export interface ServerInviteDto {
+  id: string;
+  server_id: string;
+  code: string;
+  created_by: string | null;
+  max_uses: number | null;
+  uses: number;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface InvitePreviewDto {
+  code: string;
+  server_name: string;
+  server_icon_url: string | null;
+  member_count: number;
+  expires_at: string | null;
+}
+
+export interface CreateInviteRequest {
+  max_uses?: number;
+  expires_in_hours?: number;
 }
 
 // ─── Webhook Types ───────────────────────────────────────────────────────────

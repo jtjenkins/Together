@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Modal } from "../common/Modal";
 import { useServerStore } from "../../stores/serverStore";
 import styles from "./ServerModals.module.css";
+import { api } from "../../api/client";
 
 interface BrowseServersModalProps {
   open: boolean;
@@ -20,11 +21,40 @@ export function BrowseServersModal({ open, onClose }: BrowseServersModalProps) {
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
 
+  // Invite code
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteJoining, setInviteJoining] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const fetchServers = useServerStore((s) => s.fetchServers);
+
   useEffect(() => {
     if (open) {
       fetchDiscoverableServers();
     }
   }, [open, fetchDiscoverableServers]);
+
+  const handleInviteJoin = async (e: FormEvent) => {
+    e.preventDefault();
+    const code = inviteCode.trim();
+    if (!code) return;
+    setInviteJoining(true);
+    setInviteError(null);
+    setInviteSuccess(null);
+    try {
+      await api.acceptInvite(code);
+      await fetchServers();
+      await fetchDiscoverableServers();
+      setInviteSuccess("Joined server successfully!");
+      setInviteCode("");
+    } catch (err) {
+      setInviteError(
+        err instanceof Error ? err.message : "Failed to join via invite code",
+      );
+    } finally {
+      setInviteJoining(false);
+    }
+  };
 
   const joinedIds = new Set(servers.map((s) => s.id));
 
@@ -45,6 +75,49 @@ export function BrowseServersModal({ open, onClose }: BrowseServersModalProps) {
 
   return (
     <Modal open={open} onClose={onClose} title="Browse Servers">
+      {/* Invite code input */}
+      <form
+        onSubmit={handleInviteJoin}
+        style={{
+          display: "flex",
+          gap: "8px",
+          marginBottom: "16px",
+          alignItems: "center",
+        }}
+      >
+        <input
+          className={styles.input}
+          type="text"
+          placeholder="Enter invite code"
+          value={inviteCode}
+          onChange={(e) => setInviteCode(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <button
+          type="submit"
+          className={styles.joinBtn}
+          disabled={!inviteCode.trim() || inviteJoining}
+        >
+          {inviteJoining ? "Joining..." : "Join"}
+        </button>
+      </form>
+      {inviteError && <div className={styles.error}>{inviteError}</div>}
+      {inviteSuccess && (
+        <div
+          style={{
+            background: "rgba(67, 181, 129, 0.1)",
+            border: "1px solid rgba(67, 181, 129, 0.3)",
+            color: "#43b581",
+            padding: "8px 12px",
+            borderRadius: "var(--radius-md)",
+            fontSize: "13px",
+            marginBottom: "8px",
+          }}
+        >
+          {inviteSuccess}
+        </div>
+      )}
+
       {browseError && <div className={styles.error}>{browseError}</div>}
       {joinError && <div className={styles.error}>{joinError}</div>}
 

@@ -45,6 +45,9 @@ import type {
   GoLiveSession,
   StartGoLiveRequest,
   ServerTemplate,
+  ServerInviteDto,
+  CreateInviteRequest,
+  InvitePreviewDto,
   WebhookDto,
   CreateWebhookRequest,
   WebhookCreatedResponse,
@@ -789,6 +792,41 @@ class ApiClient {
     return this.request(`/servers/${serverId}/members/${userId}/timeout`, {
       method: "DELETE",
     });
+  }
+
+  // ─── Invites ──────────────────────────────────────────────────────────────
+
+  listInvites(serverId: string): Promise<ServerInviteDto[]> {
+    return this.request<ServerInviteDto[]>(`/servers/${serverId}/invites`);
+  }
+
+  createInvite(
+    serverId: string,
+    data: CreateInviteRequest,
+  ): Promise<ServerInviteDto> {
+    return this.request<ServerInviteDto>(`/servers/${serverId}/invites`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteInvite(serverId: string, inviteId: string): Promise<void> {
+    return this.request<void>(`/servers/${serverId}/invites/${inviteId}`, {
+      method: "DELETE",
+    });
+  }
+
+  previewInvite(code: string): Promise<InvitePreviewDto> {
+    return this.request<InvitePreviewDto>(
+      `/invites/${encodeURIComponent(code)}`,
+    );
+  }
+
+  acceptInvite(code: string): Promise<{ message: string; server_id: string }> {
+    return this.request<{ message: string; server_id: string }>(
+      `/invites/${encodeURIComponent(code)}/accept`,
+      { method: "POST" },
+    );
   }
 
   // ─── Webhooks ─────────────────────────────────────────────────────────────

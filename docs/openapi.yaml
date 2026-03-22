@@ -1820,6 +1820,101 @@ components:
           description: Always true when the process can respond.
           example: true
 
+    # -- Invites --------------------------------------------------------------
+
+    ServerInvite:
+      type: object
+      description: A server invite link.
+      required:
+        - id
+        - server_id
+        - code
+        - uses
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique invite identifier.
+        server_id:
+          type: string
+          format: uuid
+          description: Server the invite belongs to.
+        code:
+          type: string
+          description: 8-character alphanumeric invite code.
+          example: "aB3xK9mZ"
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: User who created the invite.
+        max_uses:
+          type: integer
+          nullable: true
+          description: Maximum number of times the invite can be used.
+          example: 10
+        uses:
+          type: integer
+          description: Number of times the invite has been used.
+          example: 3
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: UTC expiry timestamp, null for no expiry.
+        created_at:
+          type: string
+          format: date-time
+          description: UTC creation timestamp.
+
+    InvitePreviewDto:
+      type: object
+      description: Preview information shown before accepting an invite.
+      required:
+        - code
+        - server_name
+        - member_count
+      properties:
+        code:
+          type: string
+          description: The invite code.
+          example: "aB3xK9mZ"
+        server_name:
+          type: string
+          description: Name of the server.
+          example: "My Gaming Server"
+        server_icon_url:
+          type: string
+          nullable: true
+          description: Server icon URL.
+        member_count:
+          type: integer
+          format: int64
+          description: Current number of members in the server.
+          example: 42
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: UTC expiry timestamp, null for no expiry.
+
+    CreateInviteRequest:
+      type: object
+      description: Request body for creating a server invite.
+      properties:
+        max_uses:
+          type: integer
+          nullable: true
+          description: Maximum uses (must be > 0 if provided).
+          example: 10
+        expires_in_hours:
+          type: integer
+          format: int64
+          nullable: true
+          description: Hours until expiry (1-720). Omit for no expiry.
+          example: 24
+
     # -- Shared error ---------------------------------------------------------
 
     ErrorResponse:
@@ -6099,6 +6194,244 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ==========================================================================
+  # Invites
+  # ==========================================================================
+
+  /servers/{id}/invites:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    post:
+      operationId: createInvite
+      summary: Create an invite link
+      description: |
+        Creates a new invite link for the server. The invite code is an
+        8-character alphanumeric string generated server-side. Both `max_uses`
+        and `expires_in_hours` are optional — omitting both creates a permanent,
+        unlimited-use invite.
+
+        Requires the `CREATE_INVITES` permission (bit 14), `ADMINISTRATOR`, or
+        server ownership.
+      tags: [Invites]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInviteRequest"
+      responses:
+        "201":
+          description: Invite created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerInvite"
+        "400":
+          description: Validation error (max_uses <= 0 or expires_in_hours out of range).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Missing CREATE_INVITES permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    get:
+      operationId: listInvites
+      summary: List invites for a server
+      description: |
+        Returns all invites for the server (including expired and fully used
+        ones), ordered by `created_at DESC`.
+
+        Requires the `CREATE_INVITES` permission (bit 14), `ADMINISTRATOR`, or
+        server ownership.
+      tags: [Invites]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Array of invites for the server.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServerInvite"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Missing CREATE_INVITES permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /servers/{id}/invites/{invite_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+      - name: invite_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Invite ID.
+
+    delete:
+      operationId: deleteInvite
+      summary: Delete (revoke) an invite
+      description: |
+        Permanently deletes an invite link. The invite code can no longer be
+        used to join the server.
+
+        Requires the `CREATE_INVITES` permission (bit 14), `ADMINISTRATOR`, or
+        server ownership.
+      tags: [Invites]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Invite deleted (no body).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Missing CREATE_INVITES permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Invite not found or server not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /invites/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 8-character invite code.
+
+    get:
+      operationId: previewInvite
+      summary: Preview an invite
+      description: |
+        Returns basic server information for the invite without joining.
+        Any authenticated user can call this endpoint. Expired invites and
+        invites that have reached their maximum uses return 404.
+      tags: [Invites]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Invite preview with server info.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitePreviewDto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Invite not found, expired, or max uses reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /invites/{code}/accept:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 8-character invite code.
+
+    post:
+      operationId: acceptInvite
+      summary: Accept an invite and join the server
+      description: |
+        Accepts the invite and adds the caller as a member of the server.
+        The invite's use count is incremented atomically inside a database
+        transaction to prevent race conditions.
+
+        Banned users are rejected with 403. Users who are already members
+        receive 409 Conflict.
+      tags: [Invites]
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Successfully joined the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - server_id
+                properties:
+                  message:
+                    type: string
+                    example: "Joined server"
+                  server_id:
+                    type: string
+                    format: uuid
+        "400":
+          description: Invite expired or max uses reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: User is banned from the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Invite code not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already a member of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ==========================================================================
   # Search
   # ==========================================================================
 
@@ -6397,6 +6730,8 @@ tags:
     description: Outbound webhook delivery with HMAC-SHA256 signing.
   - name: Custom Emojis
     description: Server custom emoji management.
+  - name: Invites
+    description: Shareable invite links with optional expiry and max uses.
   - name: Moderation
     description: Manual member moderation — kick, ban, and timeout.
   - name: Automod

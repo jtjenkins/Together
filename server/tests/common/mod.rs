@@ -130,6 +130,20 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/servers/:id/members/:user_id/roles/:role_id",
             put(handlers::roles::assign_role).delete(handlers::roles::remove_role),
         )
+        // Invite routes
+        .route(
+            "/servers/:id/invites",
+            get(handlers::invites::list_invites).post(handlers::invites::create_invite),
+        )
+        .route(
+            "/servers/:id/invites/:invite_id",
+            delete(handlers::invites::delete_invite),
+        )
+        .route("/invites/:code", get(handlers::invites::preview_invite))
+        .route(
+            "/invites/:code/accept",
+            post(handlers::invites::accept_invite),
+        )
         // Channel routes
         .route(
             "/servers/:id/channels",
