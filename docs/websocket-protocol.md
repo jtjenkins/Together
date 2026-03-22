@@ -47,24 +47,24 @@ All messages in both directions use the same JSON envelope:
 
 ## Opcodes
 
-| Opcode            | Direction       | Description                                     |
-| ----------------- | --------------- | ----------------------------------------------- |
-| `DISPATCH`        | Server → Client | Delivers a named event (`t` field is set)       |
-| `HEARTBEAT`       | Client → Server | Keep-alive ping to prevent connection timeout   |
-| `HEARTBEAT_ACK`   | Server → Client | Pong response to a `HEARTBEAT`                  |
-| `PRESENCE_UPDATE` | Client → Server | Update the user's online status (server broadcasts via `DISPATCH` with `t: "PRESENCE_UPDATE"`) |
+| Opcode            | Direction       | Description                                                                                                |
+| ----------------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
+| `DISPATCH`        | Server → Client | Delivers a named event (`t` field is set)                                                                  |
+| `HEARTBEAT`       | Client → Server | Keep-alive ping to prevent connection timeout                                                              |
+| `HEARTBEAT_ACK`   | Server → Client | Pong response to a `HEARTBEAT`                                                                             |
+| `PRESENCE_UPDATE` | Client → Server | Update the user's online status (server broadcasts via `DISPATCH` with `t: "PRESENCE_UPDATE"`)             |
 | `TYPING_START`    | Client → Server | Notify the server that the user started typing (server broadcasts via `DISPATCH` with `t: "TYPING_START"`) |
-| `VOICE_SIGNAL`    | Client → Server | WebRTC signaling payload — SDP or ICE candidate (server relays via `DISPATCH` with `t: "VOICE_SIGNAL"`) |
+| `VOICE_SIGNAL`    | Client → Server | WebRTC signaling payload — SDP or ICE candidate (server relays via `DISPATCH` with `t: "VOICE_SIGNAL"`)    |
 
 ---
 
 ## Operational Limits
 
-| Parameter                  | Value   | Behavior on violation                     |
-| -------------------------- | ------- | ----------------------------------------- |
-| Idle timeout               | 300 s   | Server closes connection after 5 min idle |
-| Max frame size             | 16 KB   | Oversized frames close the connection     |
-| Per-connection rate limit  | 20 msg/s| Excess messages are silently dropped      |
+| Parameter                 | Value    | Behavior on violation                     |
+| ------------------------- | -------- | ----------------------------------------- |
+| Idle timeout              | 300 s    | Server closes connection after 5 min idle |
+| Max frame size            | 16 KB    | Oversized frames close the connection     |
+| Per-connection rate limit | 20 msg/s | Excess messages are silently dropped      |
 
 ---
 
@@ -142,12 +142,8 @@ The server list uses the raw server shape (not the REST `ServerDto`) — it does
         "last_message_at": "2025-01-15T08:30:00Z"
       }
     ],
-    "unread_counts": [
-      { "channel_id": "uuid", "unread_count": 5 }
-    ],
-    "mention_counts": [
-      { "channel_id": "uuid", "count": 2 }
-    ]
+    "unread_counts": [{ "channel_id": "uuid", "unread_count": 5 }],
+    "mention_counts": [{ "channel_id": "uuid", "count": 2 }]
   }
 }
 ```
@@ -286,22 +282,26 @@ candidate string. The `stream_type` field is forwarded as-is from the sender (e.
 The following events are dispatched via the same `DISPATCH` envelope. Payload shapes vary by
 event — refer to the handler source code for full field details.
 
-| Event                  | Description                                                        |
-| ---------------------- | ------------------------------------------------------------------ |
-| `DM_CHANNEL_CREATE`    | A new DM channel was opened with the connected user                |
-| `DM_MESSAGE_CREATE`    | A new message was sent in one of the user's DM channels            |
-| `REACTION_ADD`         | A reaction was added to a message in a visible channel             |
-| `REACTION_REMOVE`      | A reaction was removed from a message in a visible channel         |
-| `THREAD_MESSAGE_CREATE`| A new message was posted in a thread the user can see              |
-| `POLL_VOTE`            | A vote was cast on a poll in a visible channel                     |
-| `TYPING_START`         | A user started typing in a channel (server broadcast)              |
-| `TYPING_STOP`          | _(defined but not yet dispatched by the server)_                   |
-| `MESSAGE_PIN`          | A message was pinned in a channel                                  |
-| `MESSAGE_UNPIN`        | A message was unpinned from a channel                              |
-| `CUSTOM_EMOJI_CREATE`  | A custom emoji was added to a server                               |
-| `CUSTOM_EMOJI_DELETE`  | A custom emoji was removed from a server                           |
-| `GO_LIVE_START`        | A user started a live stream in a voice channel                    |
-| `GO_LIVE_STOP`         | A user stopped their live stream in a voice channel                |
+| Event                   | Description                                                |
+| ----------------------- | ---------------------------------------------------------- |
+| `DM_CHANNEL_CREATE`     | A new DM channel was opened with the connected user        |
+| `DM_MESSAGE_CREATE`     | A new message was sent in one of the user's DM channels    |
+| `REACTION_ADD`          | A reaction was added to a message in a visible channel     |
+| `REACTION_REMOVE`       | A reaction was removed from a message in a visible channel |
+| `THREAD_MESSAGE_CREATE` | A new message was posted in a thread the user can see      |
+| `POLL_VOTE`             | A vote was cast on a poll in a visible channel             |
+| `TYPING_START`          | A user started typing in a channel (server broadcast)      |
+| `TYPING_STOP`           | _(defined but not yet dispatched by the server)_           |
+| `MESSAGE_PIN`           | A message was pinned in a channel                          |
+| `MESSAGE_UNPIN`         | A message was unpinned from a channel                      |
+| `MEMBER_KICK`           | A member was kicked from the server                        |
+| `MEMBER_BAN`            | A member was banned from the server                        |
+| `MEMBER_TIMEOUT`        | A member was timed out (cannot send messages until expiry) |
+| `MEMBER_TIMEOUT_REMOVE` | A member's timeout was removed early                       |
+| `CUSTOM_EMOJI_CREATE`   | A custom emoji was added to a server                       |
+| `CUSTOM_EMOJI_DELETE`   | A custom emoji was removed from a server                   |
+| `GO_LIVE_START`         | A user started a live stream in a voice channel            |
+| `GO_LIVE_STOP`          | A user stopped their live stream in a voice channel        |
 
 The server-broadcast `TYPING_START` event payload includes `user_id`, `username`, `channel_id`,
 and `timestamp`. Clients should auto-expire the typing indicator after ~10 seconds if no further

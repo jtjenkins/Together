@@ -46,6 +46,7 @@ Rocket.Chat instead.
 | Activity / rich presence status             | ✅     |
 | Bot API with token authentication           | ✅     |
 | Webhooks (HMAC-SHA256 signed payloads)      | ✅     |
+| Member moderation (kick, ban, timeout)      | ✅     |
 | Auto-moderation rules                       | ✅     |
 | Audit logging                               | ✅     |
 | Server data export (ZIP download)           | ✅     |
@@ -53,7 +54,7 @@ Rocket.Chat instead.
 | Desktop app (Tauri — macOS, Windows, Linux) | ✅     |
 | Web app (any browser)                       | ✅     |
 | Mobile app (Tauri v2 — Android & iOS)       | ✅     |
-| Discord-style markdown formatting            | ✅     |
+| Discord-style markdown formatting           | ✅     |
 | Rate limiting & security hardening          | ✅     |
 
 ---
@@ -185,27 +186,27 @@ For the full contribution guide (code style, PR process, project structure), see
 
 ## Documentation
 
-| Document                                                 | Description                                    |
-| -------------------------------------------------------- | ---------------------------------------------- |
-| [docs/self-hosting.md](docs/self-hosting.md)             | Full deployment guide (TLS, backup, upgrade)   |
-| [docs/openapi.yaml](docs/openapi.yaml)                   | OpenAPI 3.1 spec for all REST endpoints        |
-| [docs/websocket-protocol.md](docs/websocket-protocol.md) | WebSocket gateway event reference              |
-| [docs/architecture.md](docs/architecture.md)             | Component design and database schema           |
-| [docs/authentication.md](docs/authentication.md)         | Auth flows (register, login, JWT, password reset) |
-| [docs/direct-messages.md](docs/direct-messages.md)       | DM channels and messaging                      |
-| [docs/reactions.md](docs/reactions.md)                   | Emoji reactions on messages                    |
-| [docs/polls-and-events.md](docs/polls-and-events.md)     | Polls and server events                        |
-| [docs/custom-emojis.md](docs/custom-emojis.md)           | Custom server emoji upload and usage           |
-| [docs/bot-api.md](docs/bot-api.md)                       | Bot API and token authentication               |
-| [docs/webhooks.md](docs/webhooks.md)                     | Webhooks with HMAC-SHA256 signed payloads      |
-| [docs/auto-moderation.md](docs/auto-moderation.md)       | Auto-moderation rules configuration            |
-| [docs/audit-logging.md](docs/audit-logging.md)           | Audit log events reference                     |
-| [docs/server-export.md](docs/server-export.md)           | Server data export (ZIP download)              |
-| [docs/link-previews-and-giphy.md](docs/link-previews-and-giphy.md) | Link previews and GIF search          |
-| [docs/backup-restore.md](docs/backup-restore.md)         | Backup and restore procedures                  |
-| [docs/ios-voice.md](docs/ios-voice.md)                   | TURN server setup for iOS voice                |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                       | How to set up a dev environment and submit PRs |
-| [SECURITY.md](SECURITY.md)                               | Security policy and pre-production disclaimer  |
+| Document                                                           | Description                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------- |
+| [docs/self-hosting.md](docs/self-hosting.md)                       | Full deployment guide (TLS, backup, upgrade)      |
+| [docs/openapi.yaml](docs/openapi.yaml)                             | OpenAPI 3.1 spec for all REST endpoints           |
+| [docs/websocket-protocol.md](docs/websocket-protocol.md)           | WebSocket gateway event reference                 |
+| [docs/architecture.md](docs/architecture.md)                       | Component design and database schema              |
+| [docs/authentication.md](docs/authentication.md)                   | Auth flows (register, login, JWT, password reset) |
+| [docs/direct-messages.md](docs/direct-messages.md)                 | DM channels and messaging                         |
+| [docs/reactions.md](docs/reactions.md)                             | Emoji reactions on messages                       |
+| [docs/polls-and-events.md](docs/polls-and-events.md)               | Polls and server events                           |
+| [docs/custom-emojis.md](docs/custom-emojis.md)                     | Custom server emoji upload and usage              |
+| [docs/bot-api.md](docs/bot-api.md)                                 | Bot API and token authentication                  |
+| [docs/webhooks.md](docs/webhooks.md)                               | Webhooks with HMAC-SHA256 signed payloads         |
+| [docs/auto-moderation.md](docs/auto-moderation.md)                 | Auto-moderation rules configuration               |
+| [docs/audit-logging.md](docs/audit-logging.md)                     | Audit log events reference                        |
+| [docs/server-export.md](docs/server-export.md)                     | Server data export (ZIP download)                 |
+| [docs/link-previews-and-giphy.md](docs/link-previews-and-giphy.md) | Link previews and GIF search                      |
+| [docs/backup-restore.md](docs/backup-restore.md)                   | Backup and restore procedures                     |
+| [docs/ios-voice.md](docs/ios-voice.md)                             | TURN server setup for iOS voice                   |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                 | How to set up a dev environment and submit PRs    |
+| [SECURITY.md](SECURITY.md)                                         | Security policy and pre-production disclaimer     |
 
 ---
 
