@@ -3,9 +3,8 @@
 Audit logs record administrative actions taken within a server, giving server owners a tamper-evident history of who did what and when.
 
 > **Note:** Audit events are emitted for server operations, channel operations,
-> and member moderation (kick, ban, unban, timeout, timeout removal). Role
-> events (role changes, member role add/remove) will be added when those
-> handler endpoints are implemented.
+> member moderation (kick, ban, unban, timeout, timeout removal), and role
+> management (role create, update, delete, member role add/remove).
 
 ## Access
 

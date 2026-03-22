@@ -1408,6 +1408,128 @@ components:
           type: string
           format: date-time
 
+    # -- Roles ----------------------------------------------------------------
+
+    Role:
+      type: object
+      description: A server role with permission bitflags and hierarchy position.
+      required:
+        - id
+        - server_id
+        - name
+        - permissions
+        - position
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "Moderator"
+        permissions:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 16383
+          description: >
+            Bitflag integer. Bits 0-13 map to VIEW_CHANNEL (1), SEND_MESSAGES (2),
+            MANAGE_MESSAGES (4), ATTACH_FILES (8), ADD_REACTIONS (16),
+            CONNECT_VOICE (32), SPEAK (64), MUTE_MEMBERS (128), KICK_MEMBERS (256),
+            BAN_MEMBERS (512), MANAGE_CHANNELS (1024), MANAGE_ROLES (2048),
+            MANAGE_SERVER (4096), ADMINISTRATOR (8192).
+          example: 388
+        color:
+          type: string
+          nullable: true
+          description: Hex color code for display (e.g. "#FF5733").
+          example: "#3498DB"
+        position:
+          type: integer
+          description: Hierarchy position. Higher values outrank lower ones.
+          example: 5
+        created_at:
+          type: string
+          format: date-time
+
+    MemberRoleInfo:
+      type: object
+      description: Lightweight role summary included in member list responses.
+      required:
+        - id
+        - name
+        - position
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Moderator"
+        color:
+          type: string
+          nullable: true
+          example: "#3498DB"
+        position:
+          type: integer
+          example: 5
+
+    CreateRoleRequest:
+      type: object
+      description: Request body for creating a new role.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "Moderator"
+        permissions:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 16383
+          description: Defaults to 0 if omitted.
+          example: 388
+        color:
+          type: string
+          nullable: true
+          example: "#3498DB"
+        position:
+          type: integer
+          nullable: true
+          description: Defaults to MAX(position) + 1 if omitted.
+          example: 5
+
+    UpdateRoleRequest:
+      type: object
+      description: Request body for updating a role. All fields are optional.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "Senior Moderator"
+        permissions:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 16383
+          example: 2436
+        color:
+          type: string
+          nullable: true
+          example: "#E74C3C"
+        position:
+          type: integer
+          example: 8
+
     # -- Audit Logs -----------------------------------------------------------
 
     AuditLog:
@@ -2782,6 +2904,249 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Server not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Roles
+  # ==========================================================================
+
+  /servers/{id}/roles:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+
+    post:
+      operationId: createRole
+      summary: Create a new role
+      description: |
+        Creates a role in the server. Requires the MANAGE_ROLES permission.
+        Non-owners cannot create a role at or above their own highest role
+        position, and cannot grant permission bits they do not already have.
+
+        Default position is MAX(position) + 1 for the server.
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "201":
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Missing MANAGE_ROLES, hierarchy violation, or granting forbidden permissions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listRoles
+      summary: List all roles in a server
+      description: |
+        Returns all roles for the server, ordered by position descending.
+        Any server member can call this endpoint.
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Array of roles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /servers/{id}/roles/{role_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+      - name: role_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Role ID.
+
+    patch:
+      operationId: updateRole
+      summary: Update a role
+      description: |
+        Updates a role's name, permissions, color, or position. All fields are
+        optional; only provided fields are changed.
+
+        Requires MANAGE_ROLES. Non-owners cannot edit a role at or above their
+        own highest position, move a role to such a position, or grant
+        permissions they do not have.
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Updated role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Missing MANAGE_ROLES, hierarchy violation, or granting forbidden permissions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: deleteRole
+      summary: Delete a role
+      description: |
+        Deletes a role. All member-role assignments for this role are removed
+        via CASCADE. Requires MANAGE_ROLES. Non-owners cannot delete a role
+        at or above their own highest position.
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Role deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Missing MANAGE_ROLES or hierarchy violation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /servers/{id}/members/{user_id}/roles/{role_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server ID.
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Target member's user ID.
+      - name: role_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Role ID.
+
+    put:
+      operationId: assignRole
+      summary: Assign a role to a member
+      description: |
+        Assigns a role to a server member. Idempotent — if the member already
+        has the role, the request succeeds silently.
+
+        Requires MANAGE_ROLES. Non-owners cannot assign a role at or above
+        their own highest position.
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Role assigned (or already present).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Missing MANAGE_ROLES or hierarchy violation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: removeRole
+      summary: Remove a role from a member
+      description: |
+        Removes a role from a server member.
+
+        Requires MANAGE_ROLES. Non-owners cannot remove a role at or above
+        their own highest position, and cannot remove roles from the server
+        owner.
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Role removed.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Missing MANAGE_ROLES, hierarchy violation, or target is server owner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
