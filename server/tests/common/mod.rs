@@ -104,6 +104,19 @@ pub fn create_test_app(pool: PgPool) -> Router {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Moderation routes
+        .route(
+            "/servers/:id/members/:user_id/kick",
+            post(handlers::moderation::kick_member),
+        )
+        .route(
+            "/servers/:id/members/:user_id/ban",
+            post(handlers::moderation::ban_member),
+        )
+        .route(
+            "/servers/:id/members/:user_id/timeout",
+            post(handlers::moderation::timeout_member).delete(handlers::moderation::remove_timeout),
+        )
         // Channel routes
         .route(
             "/servers/:id/channels",

@@ -1,0 +1,82 @@
+.banList {
+  padding: 0.5rem 0;
+}
+
+.heading {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.banEntry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-secondary, #2a2a2e);
+  border-radius: 6px;
+  gap: 0.75rem;
+}
+
+.banInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.userId {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.reason {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #a0a0a0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.date {
+  font-size: 0.75rem;
+  color: var(--text-muted, #808080);
+}
+
+.unbanButton {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border-color, #444);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary, #e0e0e0);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.unbanButton:hover:not(:disabled) {
+  background: var(--bg-hover, #3a3a3e);
+}
+
+.unbanButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loading,
+.empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 0.9rem;
+}

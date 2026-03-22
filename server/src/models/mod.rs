@@ -698,6 +698,8 @@ pub enum AuditAction {
     MemberKick,
     MemberBan,
     MemberUnban,
+    MemberTimeout,
+    MemberTimeoutRemove,
     MemberRoleAdd,
     MemberRoleRemove,
 
@@ -705,6 +707,27 @@ pub enum AuditAction {
     RoleCreate,
     RoleUpdate,
     RoleDelete,
+}
+
+// ── Moderation Request DTOs ─────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KickMemberRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BanMemberRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TimeoutMemberRequest {
+    pub reason: Option<String>,
+    pub duration_minutes: i64,
 }
 
 /// Query parameters for listing audit logs.

@@ -1338,6 +1338,76 @@ components:
           type: string
           format: date-time
 
+    # -- Moderation -----------------------------------------------------------
+
+    KickMemberRequest:
+      type: object
+      description: Optional request body for kicking a member.
+      properties:
+        reason:
+          type: string
+          nullable: true
+          description: Human-readable reason for the kick.
+          example: "Spamming in general chat"
+
+    BanMemberRequest:
+      type: object
+      description: Optional request body for banning a member.
+      properties:
+        reason:
+          type: string
+          nullable: true
+          description: Human-readable reason for the ban.
+          example: "Repeated harassment"
+
+    TimeoutMemberRequest:
+      type: object
+      description: Request body for timing out a member.
+      required:
+        - duration_minutes
+      properties:
+        duration_minutes:
+          type: integer
+          minimum: 1
+          maximum: 40320
+          description: Timeout duration in minutes. Maximum is 40320 (28 days).
+          example: 60
+        reason:
+          type: string
+          nullable: true
+          description: Human-readable reason for the timeout.
+          example: "Cool down"
+
+    AutomodTimeout:
+      type: object
+      description: An active timeout record.
+      required:
+        - user_id
+        - server_id
+        - expires_at
+        - created_at
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        expires_at:
+          type: string
+          format: date-time
+          description: When the timeout expires.
+        reason:
+          type: string
+          nullable: true
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
     # -- Audit Logs -----------------------------------------------------------
 
     AuditLog:
@@ -2402,6 +2472,250 @@ paths:
                   $ref: "#/components/schemas/MemberDto"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
+  # Member Moderation
+  # ==========================================================================
+
+  /servers/{id}/members/{user_id}/kick:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server UUID.
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Target member's user UUID.
+
+    post:
+      operationId: kickMember
+      summary: Kick a member from the server
+      description: |
+        Removes the target user from the server. They can rejoin unless also
+        banned. Requires `KICK_MEMBERS` permission (bit 8), `ADMINISTRATOR`,
+        or server ownership.
+
+        Cannot target yourself (400) or the server owner (403).
+        Non-members receive 404 to avoid leaking server existence.
+
+        If the target is in a voice channel, their voice state is cleaned up
+        and a `VOICE_STATE_UPDATE` leave event is broadcast. A `MEMBER_KICK`
+        event is broadcast before the membership row is deleted.
+      tags: [Moderation]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KickMemberRequest"
+      responses:
+        "204":
+          description: Member kicked.
+        "400":
+          description: Cannot kick yourself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "You cannot moderate yourself"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Cannot kick the server owner, or missing permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Cannot moderate the server owner"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /servers/{id}/members/{user_id}/ban:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server UUID.
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Target member's user UUID.
+
+    post:
+      operationId: banMember
+      summary: Ban a member from the server
+      description: |
+        Bans the target user — removes membership and prevents rejoin.
+        Requires `BAN_MEMBERS` permission (bit 9), `ADMINISTRATOR`, or
+        server ownership.
+
+        Cannot target yourself (400) or the server owner (403).
+
+        If the user was already banned, the `banned_by` and `reason` fields
+        are updated. Voice state is cleaned up and `MEMBER_BAN` is broadcast
+        before the membership row is deleted.
+      tags: [Moderation]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BanMemberRequest"
+      responses:
+        "204":
+          description: Member banned.
+        "400":
+          description: Cannot ban yourself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "You cannot moderate yourself"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Cannot ban the server owner, or missing permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Cannot moderate the server owner"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /servers/{id}/members/{user_id}/timeout:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Server UUID.
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Target member's user UUID.
+
+    post:
+      operationId: timeoutMember
+      summary: Timeout a member
+      description: |
+        Applies a timeout to the target member, preventing them from sending
+        messages for the specified duration. Requires `MUTE_MEMBERS`
+        permission (bit 7), `ADMINISTRATOR`, or server ownership.
+
+        Cannot target yourself (400) or the server owner (403).
+        `duration_minutes` must be between 1 and 40320 (28 days).
+
+        If the user already has an active timeout, it is replaced with the
+        new duration and reason. A `MEMBER_TIMEOUT` event is broadcast.
+      tags: [Moderation]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimeoutMemberRequest"
+      responses:
+        "200":
+          description: Timeout applied. Returns the timeout record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomodTimeout"
+        "400":
+          description: Cannot timeout yourself, or duration out of range.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "duration_minutes must be between 1 and 40320 (28 days)"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Cannot timeout the server owner, or missing permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Cannot moderate the server owner"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: removeTimeout
+      summary: Remove a member's timeout
+      description: |
+        Removes an active timeout from the target member. Requires
+        `MUTE_MEMBERS` permission (bit 7), `ADMINISTRATOR`, or server
+        ownership.
+
+        Cannot target yourself (400) or the server owner (403).
+        Silently succeeds even if the user has no active timeout.
+        A `MEMBER_TIMEOUT_REMOVE` event is broadcast.
+      tags: [Moderation]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Timeout removed (or user had no active timeout).
+        "400":
+          description: Cannot target yourself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "You cannot moderate yourself"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Cannot target the server owner, or missing permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Cannot moderate the server owner"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5271,7 +5585,7 @@ paths:
       tags: [Automod]
       security:
         - bearerAuth: []
-      description: Only the server owner can view the ban list.
+      description: Requires BAN_MEMBERS permission, ADMINISTRATOR, or server ownership.
       responses:
         "200":
           description: Array of server bans.
@@ -5284,7 +5598,7 @@ paths:
         "401":
           description: Missing or invalid access token.
         "403":
-          description: Only the server owner can manage bans.
+          description: Missing BAN_MEMBERS permission.
           content:
             application/json:
               schema:
@@ -5320,15 +5634,15 @@ paths:
       security:
         - bearerAuth: []
       description: >
-        Only the server owner can remove bans. Silently succeeds even if
-        the user was not banned.
+        Requires BAN_MEMBERS permission, ADMINISTRATOR, or server ownership.
+        Silently succeeds even if the user was not banned.
       responses:
         "204":
           description: Ban removed (or user was not banned).
         "401":
           description: Missing or invalid access token.
         "403":
-          description: Only the server owner can manage bans.
+          description: Missing BAN_MEMBERS permission.
           content:
             application/json:
               schema:
@@ -5718,6 +6032,8 @@ tags:
     description: Outbound webhook delivery with HMAC-SHA256 signing.
   - name: Custom Emojis
     description: Server custom emoji management.
+  - name: Moderation
+    description: Manual member moderation — kick, ban, and timeout.
   - name: Automod
     description: Auto-moderation rules, word filters, bans, and action logs.
   - name: Audit Logs

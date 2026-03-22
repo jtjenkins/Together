@@ -110,6 +110,7 @@ export interface MemberDto {
   activity: string | null;
   nickname: string | null;
   joined_at: string;
+  timeout_expires_at?: string | null;
 }
 
 // ─── Channel Types ───────────────────────────────────────────
@@ -603,6 +604,33 @@ export interface AutoModActionEvent {
   rule_type: string;
   action_taken: string;
   matched_term?: string;
+}
+
+// ─── Moderation Types ────────────────────────────────────────────────────────
+
+export interface KickMemberRequest {
+  reason?: string;
+}
+
+export interface BanMemberRequest {
+  reason?: string;
+}
+
+export interface TimeoutMemberRequest {
+  reason?: string;
+  duration_minutes: number;
+}
+
+export interface MemberModerationEvent {
+  server_id: string;
+  user_id: string;
+  actor_id: string;
+  reason?: string;
+}
+
+export interface MemberTimeoutEvent extends MemberModerationEvent {
+  expires_at: string;
+  duration_minutes: number;
 }
 
 // ─── Webhook Types ───────────────────────────────────────────────────────────

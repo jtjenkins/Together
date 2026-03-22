@@ -4,6 +4,7 @@ import type {
   CreateServerRequest,
   UpdateServerRequest,
   MemberDto,
+  ServerBan,
 } from "../types";
 import { api, ApiRequestError } from "../api/client";
 import { useCustomEmojiStore } from "./customEmojiStore";
@@ -35,6 +36,29 @@ interface ServerState {
   ) => void;
   fetchDiscoverableServers: () => Promise<void>;
   clearError: () => void;
+  kickMember: (
+    serverId: string,
+    userId: string,
+    reason?: string,
+  ) => Promise<void>;
+  banMember: (
+    serverId: string,
+    userId: string,
+    reason?: string,
+  ) => Promise<void>;
+  timeoutMember: (
+    serverId: string,
+    userId: string,
+    durationMinutes: number,
+    reason?: string,
+  ) => Promise<void>;
+  removeTimeout: (serverId: string, userId: string) => Promise<void>;
+  removeMemberLocally: (userId: string) => void;
+  setMemberTimeout: (userId: string, expiresAt: string | null) => void;
+  bans: ServerBan[];
+  isBansLoading: boolean;
+  fetchBans: (serverId: string) => Promise<void>;
+  unbanMember: (serverId: string, userId: string) => Promise<void>;
 }
 
 export const useServerStore = create<ServerState>((set, get) => ({
@@ -46,6 +70,8 @@ export const useServerStore = create<ServerState>((set, get) => ({
   discoverableServers: [],
   isBrowseLoading: false,
   browseError: null,
+  bans: [],
+  isBansLoading: false,
 
   setServers: (servers) => set({ servers }),
 
@@ -186,5 +212,108 @@ export const useServerStore = create<ServerState>((set, get) => ({
     }
   },
 
+  kickMember: async (serverId, userId, reason) => {
+    try {
+      await api.kickMember(serverId, userId, reason ? { reason } : undefined);
+      set((state) => ({
+        members: state.members.filter((m) => m.user_id !== userId),
+      }));
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError ? err.message : "Failed to kick member";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  banMember: async (serverId, userId, reason) => {
+    try {
+      await api.banMember(serverId, userId, reason ? { reason } : undefined);
+      set((state) => ({
+        members: state.members.filter((m) => m.user_id !== userId),
+      }));
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError ? err.message : "Failed to ban member";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  timeoutMember: async (serverId, userId, durationMinutes, reason) => {
+    try {
+      await api.timeoutMember(serverId, userId, {
+        duration_minutes: durationMinutes,
+        reason,
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to timeout member";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  removeTimeout: async (serverId, userId) => {
+    try {
+      await api.removeTimeout(serverId, userId);
+      set((state) => ({
+        members: state.members.map((m) =>
+          m.user_id === userId ? { ...m, timeout_expires_at: null } : m,
+        ),
+      }));
+    } catch (err) {
+      const message =
+        err instanceof ApiRequestError
+          ? err.message
+          : "Failed to remove timeout";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  removeMemberLocally: (userId) => {
+    set((state) => ({
+      members: state.members.filter((m) => m.user_id !== userId),
+    }));
+  },
+
+  setMemberTimeout: (userId, expiresAt) => {
+    set((state) => ({
+      members: state.members.map((m) =>
+        m.user_id === userId ? { ...m, timeout_expires_at: expiresAt } : m,
+      ),
+    }));
+  },
+
   clearError: () => set({ error: null }),
+
+  fetchBans: async (serverId) => {
+    set({ isBansLoading: true });
+    try {
+      const bans = await api.listBans(serverId);
+      set({ bans, isBansLoading: false });
+    } catch (e) {
+      const msg =
+        e instanceof ApiRequestError ? e.message : "Failed to fetch bans";
+      set({ error: msg, isBansLoading: false });
+      throw e;
+    }
+  },
+
+  unbanMember: async (serverId, userId) => {
+    try {
+      await api.removeBan(serverId, userId);
+      set((state) => ({
+        bans: state.bans.filter((b) => b.user_id !== userId),
+      }));
+    } catch (e) {
+      const msg =
+        e instanceof ApiRequestError ? e.message : "Failed to unban user";
+      set({ error: msg });
+      throw e;
+    }
+  },
 }));

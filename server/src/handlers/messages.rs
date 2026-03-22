@@ -8,7 +8,7 @@ use serde_json::json;
 use uuid::Uuid;
 use validator::Validate;
 
-use super::automod::check_automod;
+use super::automod::{check_automod, check_timeout};
 use super::shared::{
     fetch_channel_by_id, fetch_message, fetch_message_including_deleted, fetch_server,
     require_member, validation_error,
@@ -196,7 +196,10 @@ pub async fn create_message(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
-    // Pre-insert automod check (word filter, duplicate detection, timeout check)
+    // Check for active timeout (manual or automated) before any automod processing.
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    // Pre-insert automod check (word filter, duplicate detection)
     check_automod(
         &state.pool,
         channel.server_id,

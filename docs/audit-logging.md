@@ -2,9 +2,10 @@
 
 Audit logs record administrative actions taken within a server, giving server owners a tamper-evident history of who did what and when.
 
-> **Note:** Audit events are currently emitted for server and channel operations
-> (create, update, delete). Member and role events (kick, ban, role changes) will
-> be added when those handler endpoints are implemented.
+> **Note:** Audit events are emitted for server operations, channel operations,
+> and member moderation (kick, ban, unban, timeout, timeout removal). Role
+> events (role changes, member role add/remove) will be added when those
+> handler endpoints are implemented.
 
 ## Access
 
@@ -37,24 +38,26 @@ Every entry captures the following fields:
 
 ### Logged Actions
 
-| Action               | `target_type` | Triggered When                              |
-| -------------------- | ------------- | ------------------------------------------- |
-| `server_create`      | `server`      | A new server is created                     |
-| `server_update`      | `server`      | Server name, icon, or settings are changed  |
-| `server_delete`      | `server`      | A server is permanently deleted             |
-| `channel_create`     | `channel`     | A text or voice channel is created          |
-| `channel_update`     | `channel`     | A channel's name, type, or settings change  |
-| `channel_delete`     | `channel`     | A channel is deleted                        |
-| `member_kick`        | `user`        | A member is kicked from the server          |
-| `member_ban`         | `user`        | A member is banned                          |
-| `member_unban`       | `user`        | A ban is lifted                             |
-| `member_role_add`    | `user`        | A role is assigned to a member              |
-| `member_role_remove` | `user`        | A role is removed from a member             |
-| `role_create`        | `role`        | A new role is created                       |
-| `role_update`        | `role`        | A role's name, color, or permissions change |
-| `role_delete`        | `role`        | A role is deleted                           |
+| Action                  | `target_type` | Triggered When                              |
+| ----------------------- | ------------- | ------------------------------------------- |
+| `server_create`         | `server`      | A new server is created                     |
+| `server_update`         | `server`      | Server name, icon, or settings are changed  |
+| `server_delete`         | `server`      | A server is permanently deleted             |
+| `channel_create`        | `channel`     | A text or voice channel is created          |
+| `channel_update`        | `channel`     | A channel's name, type, or settings change  |
+| `channel_delete`        | `channel`     | A channel is deleted                        |
+| `member_kick`           | `user`        | A member is kicked from the server          |
+| `member_ban`            | `user`        | A member is banned                          |
+| `member_unban`          | `user`        | A ban is lifted                             |
+| `member_timeout`        | `user`        | A member is timed out                       |
+| `member_timeout_remove` | `user`        | A member's timeout is removed early         |
+| `member_role_add`       | `user`        | A role is assigned to a member              |
+| `member_role_remove`    | `user`        | A role is removed from a member             |
+| `role_create`           | `role`        | A new role is created                       |
+| `role_update`           | `role`        | A role's name, color, or permissions change |
+| `role_delete`           | `role`        | A role is deleted                           |
 
-The `details` JSONB field carries action-specific context. For example, a `member_kick` entry may include `{ "reason": "Spamming" }`, and a `channel_update` entry may include the previous and new channel name.
+The `details` JSONB field carries action-specific context. For example, a `member_kick` entry may include `{ "reason": "Spamming" }`, a `member_timeout` entry includes `{ "duration_minutes": 60, "reason": "Cool down" }`, and a `channel_update` entry may include the previous and new channel name.
 
 ---
 

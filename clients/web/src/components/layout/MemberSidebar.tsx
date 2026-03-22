@@ -1,17 +1,33 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useAuthStore } from "../../stores/authStore";
 import { Mail } from "lucide-react";
 import { useServerStore } from "../../stores/serverStore";
 import { useDmStore } from "../../stores/dmStore";
 import type { MemberDto, UserStatus } from "../../types";
 import { UserProfileCard } from "../users/UserProfileCard";
+import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
+import {
+  KickModal,
+  BanModal,
+  TimeoutModal,
+} from "../moderation/ModerationModals";
 import styles from "./MemberSidebar.module.css";
 
 function StatusIndicator({ status }: { status: UserStatus }) {
   return <span className={`${styles.status} ${styles[status]}`} />;
 }
 
-function MemberItem({ member }: { member: MemberDto }) {
+type ModerationAction = "kick" | "ban" | "timeout";
+
+function MemberItem({
+  member,
+  isOwner,
+  serverId,
+}: {
+  member: MemberDto;
+  isOwner: boolean;
+  serverId: string | null;
+}) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const openOrCreateDm = useDmStore((s) => s.openOrCreateDm);
   const setActiveDmChannel = useDmStore((s) => s.setActiveDmChannel);
@@ -19,6 +35,10 @@ function MemberItem({ member }: { member: MemberDto }) {
 
   const [showProfile, setShowProfile] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const [modAction, setModAction] = useState<ModerationAction | null>(null);
 
   const handleMessage = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -31,12 +51,35 @@ function MemberItem({ member }: { member: MemberDto }) {
     setShowProfile((prev) => !prev);
   };
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      // Only show moderation context menu if current user is the owner
+      // and the target is not the current user
+      if (!isOwner || member.user_id === currentUserId) return;
+      e.preventDefault();
+      setCtxMenu({ x: e.clientX, y: e.clientY });
+    },
+    [isOwner, member.user_id, currentUserId],
+  );
+
+  const closeCtxMenu = useCallback(() => setCtxMenu(null), []);
+
+  const openModAction = useCallback((action: ModerationAction) => {
+    setCtxMenu(null);
+    setModAction(action);
+  }, []);
+
+  const isTimedOut =
+    member.timeout_expires_at != null &&
+    new Date(member.timeout_expires_at) > new Date();
+
   return (
     <>
       <div
         ref={rowRef}
         className={`${styles.member} ${member.status === "offline" ? styles.offline : ""}`}
         onClick={handleRowClick}
+        onContextMenu={handleContextMenu}
         style={{ cursor: "pointer" }}
         role="button"
         tabIndex={0}
@@ -58,6 +101,15 @@ function MemberItem({ member }: { member: MemberDto }) {
         <div className={styles.info}>
           <span className={styles.username}>
             {member.nickname || member.username}
+            {isTimedOut && (
+              <span
+                className={styles.timeoutIcon}
+                title="Timed out"
+                aria-label="Timed out"
+              >
+                {"\u23F1"}
+              </span>
+            )}
           </span>
           {member.activity && (
             <span className={styles.activity}>{member.activity}</span>
@@ -82,12 +134,66 @@ function MemberItem({ member }: { member: MemberDto }) {
           onClose={() => setShowProfile(false)}
         />
       )}
+
+      {ctxMenu && (
+        <ContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={closeCtxMenu}>
+          <ContextMenuItem
+            label="Kick"
+            onClick={() => openModAction("kick")}
+          />
+          <ContextMenuItem
+            label="Timeout"
+            onClick={() => openModAction("timeout")}
+          />
+          <ContextMenuItem
+            label="Ban"
+            onClick={() => openModAction("ban")}
+            danger
+          />
+        </ContextMenu>
+      )}
+
+      {serverId && modAction === "kick" && (
+        <KickModal
+          open
+          onClose={() => setModAction(null)}
+          serverId={serverId}
+          userId={member.user_id}
+          username={member.nickname || member.username}
+        />
+      )}
+
+      {serverId && modAction === "ban" && (
+        <BanModal
+          open
+          onClose={() => setModAction(null)}
+          serverId={serverId}
+          userId={member.user_id}
+          username={member.nickname || member.username}
+        />
+      )}
+
+      {serverId && modAction === "timeout" && (
+        <TimeoutModal
+          open
+          onClose={() => setModAction(null)}
+          serverId={serverId}
+          userId={member.user_id}
+          username={member.nickname || member.username}
+        />
+      )}
     </>
   );
 }
 
 export function MemberSidebar() {
   const members = useServerStore((s) => s.members);
+  const activeServerId = useServerStore((s) => s.activeServerId);
+  const servers = useServerStore((s) => s.servers);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+
+  const activeServer = servers.find((s) => s.id === activeServerId);
+  const isOwner = activeServer?.owner_id === currentUserId;
 
   const onlineMembers = members.filter((m) => m.status !== "offline");
   const offlineMembers = members.filter((m) => m.status === "offline");
@@ -100,7 +206,12 @@ export function MemberSidebar() {
             Online &mdash; {onlineMembers.length}
           </h3>
           {onlineMembers.map((m) => (
-            <MemberItem key={m.user_id} member={m} />
+            <MemberItem
+              key={m.user_id}
+              member={m}
+              isOwner={isOwner}
+              serverId={activeServerId}
+            />
           ))}
         </div>
       )}
@@ -110,7 +221,12 @@ export function MemberSidebar() {
             Offline &mdash; {offlineMembers.length}
           </h3>
           {offlineMembers.map((m) => (
-            <MemberItem key={m.user_id} member={m} />
+            <MemberItem
+              key={m.user_id}
+              member={m}
+              isOwner={isOwner}
+              serverId={activeServerId}
+            />
           ))}
         </div>
       )}

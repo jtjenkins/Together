@@ -15,6 +15,8 @@ import type {
   CustomEmoji,
   GoLiveStartEvent,
   GoLiveStopEvent,
+  MemberModerationEvent,
+  MemberTimeoutEvent,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -39,6 +41,11 @@ interface EventHandlers {
   CUSTOM_EMOJI_DELETE: EventHandler<{ server_id: string; emoji_id: string }>;
   GO_LIVE_START: EventHandler<GoLiveStartEvent>;
   GO_LIVE_STOP: EventHandler<GoLiveStopEvent>;
+  MEMBER_KICK: EventHandler<MemberModerationEvent>;
+  MEMBER_BAN: EventHandler<MemberModerationEvent>;
+  MEMBER_TIMEOUT: EventHandler<MemberTimeoutEvent>;
+  MEMBER_TIMEOUT_REMOVE: EventHandler<MemberModerationEvent>;
+  MEMBER_UNBAN: EventHandler<MemberModerationEvent>;
 
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
