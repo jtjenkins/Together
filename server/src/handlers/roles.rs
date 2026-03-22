@@ -460,6 +460,13 @@ pub async fn remove_role(
 
     let is_owner = server.owner_id == auth.user_id();
 
+    // Non-owners cannot remove roles from the server owner.
+    if !is_owner && target_user_id == server.owner_id {
+        return Err(AppError::Forbidden(
+            "Cannot remove roles from the server owner".into(),
+        ));
+    }
+
     if !is_owner {
         let actor_highest =
             get_user_highest_position(&state.pool, server_id, auth.user_id()).await?;

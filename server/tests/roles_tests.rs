@@ -310,6 +310,46 @@ async fn cannot_grant_permissions_you_dont_have() {
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
+#[tokio::test]
+async fn cannot_remove_role_from_owner() {
+    let (app, owner_token, member_token, server_id, member_id) = setup_server_with_member().await;
+
+    // Create a role with MANAGE_ROLES, assign to member
+    let manager_role = create_role(app.clone(), &owner_token, &server_id, "Manager", 2048).await;
+    let manager_role_id = manager_role["id"].as_str().unwrap();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{manager_role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Also assign a role to the owner
+    let vip_role = create_role(app.clone(), &owner_token, &server_id, "VIP", 0).await;
+    let vip_role_id = vip_role["id"].as_str().unwrap();
+
+    // Get owner user ID
+    let (_, owner_profile) = common::get_authed(app.clone(), "/users/@me", &owner_token).await;
+    let owner_id = owner_profile["id"].as_str().unwrap();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{owner_id}/roles/{vip_role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Member with MANAGE_ROLES tries to remove a role from the owner
+    let (status, _) = common::delete_authed(
+        app,
+        &format!("/servers/{server_id}/members/{owner_id}/roles/{vip_role_id}"),
+        &member_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
 // ============================================================================
 // Audit log verification
 // ============================================================================
