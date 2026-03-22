@@ -18,15 +18,17 @@ use axum::{
 use sqlx::Row;
 use uuid::Uuid;
 
-use super::shared::fetch_server;
+use super::shared::{fetch_server, require_permission, PERMISSION_BAN_MEMBERS};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
+    handlers::audit::log_action,
     models::{
-        AddWordFilterRequest, AutomodConfig, AutomodLog, AutomodWordFilter, ServerBan,
-        UpdateAutomodConfigRequest,
+        AddWordFilterRequest, AuditAction, AutomodConfig, AutomodLog, AutomodWordFilter,
+        CreateAuditLog, ServerBan, UpdateAutomodConfigRequest,
     },
     state::AppState,
+    websocket::{broadcast_to_server, events::EVENT_MEMBER_TIMEOUT_REMOVE},
 };
 
 // ============================================================================
@@ -264,19 +266,22 @@ pub async fn list_automod_logs(
 
 /// GET /servers/:id/bans — List all bans for a server.
 ///
-/// Only the server owner can view the ban list.
+/// Requires BAN_MEMBERS permission (or server owner / ADMINISTRATOR).
 pub async fn list_bans(
     Path(server_id): Path<Uuid>,
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> AppResult<Json<Vec<ServerBan>>> {
-    let server = fetch_server(&state.pool, server_id).await?;
+    fetch_server(&state.pool, server_id).await?;
 
-    if auth.user_id() != server.owner_id {
-        return Err(AppError::Forbidden(
-            "Only the server owner can manage bans".into(),
-        ));
-    }
+    require_permission(
+        &state.pool,
+        server_id,
+        auth.user_id(),
+        PERMISSION_BAN_MEMBERS,
+        "You need the Ban Members permission to view bans",
+    )
+    .await?;
 
     let bans = sqlx::query_as::<_, ServerBan>(
         "SELECT user_id, server_id, banned_by, reason, created_at
@@ -291,20 +296,23 @@ pub async fn list_bans(
 
 /// DELETE /servers/:id/bans/:user_id — Unban a user from a server.
 ///
-/// Only the server owner can remove bans.
+/// Requires BAN_MEMBERS permission (or server owner / ADMINISTRATOR).
 /// Silently succeeds even if the user was not banned.
 pub async fn remove_ban(
     Path((server_id, banned_user_id)): Path<(Uuid, Uuid)>,
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> AppResult<StatusCode> {
-    let server = fetch_server(&state.pool, server_id).await?;
+    fetch_server(&state.pool, server_id).await?;
 
-    if auth.user_id() != server.owner_id {
-        return Err(AppError::Forbidden(
-            "Only the server owner can manage bans".into(),
-        ));
-    }
+    require_permission(
+        &state.pool,
+        server_id,
+        auth.user_id(),
+        PERMISSION_BAN_MEMBERS,
+        "You need the Ban Members permission to manage bans",
+    )
+    .await?;
 
     sqlx::query("DELETE FROM server_bans WHERE server_id = $1 AND user_id = $2")
         .bind(server_id)
@@ -312,12 +320,54 @@ pub async fn remove_ban(
         .execute(&state.pool)
         .await?;
 
+    // Broadcast unban event.
+    let payload = serde_json::json!({
+        "server_id": server_id,
+        "user_id": banned_user_id,
+    });
+    broadcast_to_server(&state, server_id, EVENT_MEMBER_TIMEOUT_REMOVE, payload).await;
+
+    log_action(
+        &state.pool,
+        &CreateAuditLog {
+            server_id,
+            actor_id: auth.user_id(),
+            action: AuditAction::MemberUnban,
+            target_type: Some("user".into()),
+            target_id: Some(banned_user_id),
+            details: serde_json::json!({}),
+            ip_address: None,
+        },
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
 // ============================================================================
 // Enforcement
 // ============================================================================
+
+/// Check if a user is currently timed out in a server.
+///
+/// This is independent of automod config — manual timeouts also use the
+/// `automod_timeouts` table, so this check applies to both automated and
+/// manually-applied timeouts.
+pub async fn check_timeout(pool: &sqlx::PgPool, server_id: Uuid, user_id: Uuid) -> AppResult<()> {
+    let timed_out: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM automod_timeouts WHERE server_id = $1 AND user_id = $2 AND expires_at > NOW())",
+    )
+    .bind(server_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    if timed_out {
+        return Err(AppError::Forbidden("User is timed out".into()));
+    }
+
+    Ok(())
+}
 
 /// Returns Ok(()) if the message should be allowed, or Err(AppError::Forbidden) if blocked.
 /// message_id is None for pre-insert checks, Some(id) for post-insert spam check.

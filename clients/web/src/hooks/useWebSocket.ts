@@ -20,6 +20,8 @@ import type {
   PollVoteEvent,
   TypingStartEvent,
   CustomEmoji,
+  MemberModerationEvent,
+  MemberTimeoutEvent,
 } from "../types";
 
 export function useWebSocket() {
@@ -46,6 +48,9 @@ export function useWebSocket() {
   const incrementMention = useReadStateStore((s) => s.incrementMention);
 
   const addTypingUser = useTypingStore((s) => s.addTypingUser);
+
+  const removeMemberLocally = useServerStore((s) => s.removeMemberLocally);
+  const setMemberTimeout = useServerStore((s) => s.setMemberTimeout);
 
   useEffect(() => {
     const unsubs = [
@@ -140,6 +145,54 @@ export function useWebSocket() {
         },
       ),
 
+      gateway.on("MEMBER_KICK", (event: MemberModerationEvent) => {
+        const currentUserId = useAuthStore.getState().user?.id;
+        if (event.user_id === currentUserId) {
+          // Current user was kicked — remove server from list
+          useServerStore
+            .getState()
+            .setServers(
+              useServerStore
+                .getState()
+                .servers.filter((s) => s.id !== event.server_id),
+            );
+          if (useServerStore.getState().activeServerId === event.server_id) {
+            useServerStore.getState().setActiveServer(null);
+          }
+          alert("You have been kicked from the server.");
+        } else {
+          removeMemberLocally(event.user_id);
+        }
+      }),
+
+      gateway.on("MEMBER_BAN", (event: MemberModerationEvent) => {
+        const currentUserId = useAuthStore.getState().user?.id;
+        if (event.user_id === currentUserId) {
+          // Current user was banned — remove server from list
+          useServerStore
+            .getState()
+            .setServers(
+              useServerStore
+                .getState()
+                .servers.filter((s) => s.id !== event.server_id),
+            );
+          if (useServerStore.getState().activeServerId === event.server_id) {
+            useServerStore.getState().setActiveServer(null);
+          }
+          alert("You have been banned from the server.");
+        } else {
+          removeMemberLocally(event.user_id);
+        }
+      }),
+
+      gateway.on("MEMBER_TIMEOUT", (event: MemberTimeoutEvent) => {
+        setMemberTimeout(event.user_id, event.expires_at);
+      }),
+
+      gateway.on("MEMBER_TIMEOUT_REMOVE", (event: MemberModerationEvent) => {
+        setMemberTimeout(event.user_id, null);
+      }),
+
       gateway.on("connected", () => {
         if (activeServerId) {
           fetchMembers(activeServerId);
@@ -171,5 +224,7 @@ export function useWebSocket() {
     incrementMention,
     updateMessagePoll,
     addTypingUser,
+    removeMemberLocally,
+    setMemberTimeout,
   ]);
 }

@@ -49,6 +49,9 @@ import type {
   CreateWebhookRequest,
   WebhookCreatedResponse,
   UpdateWebhookRequest,
+  KickMemberRequest,
+  BanMemberRequest,
+  TimeoutMemberRequest,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -742,6 +745,47 @@ class ApiClient {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  // ─── Moderation ──────────────────────────────────────────────────────────
+
+  kickMember(
+    serverId: string,
+    userId: string,
+    data?: KickMemberRequest,
+  ): Promise<void> {
+    return this.request(`/servers/${serverId}/members/${userId}/kick`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    });
+  }
+
+  banMember(
+    serverId: string,
+    userId: string,
+    data?: BanMemberRequest,
+  ): Promise<void> {
+    return this.request(`/servers/${serverId}/members/${userId}/ban`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    });
+  }
+
+  timeoutMember(
+    serverId: string,
+    userId: string,
+    data: TimeoutMemberRequest,
+  ): Promise<void> {
+    return this.request(`/servers/${serverId}/members/${userId}/timeout`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  removeTimeout(serverId: string, userId: string): Promise<void> {
+    return this.request(`/servers/${serverId}/members/${userId}/timeout`, {
+      method: "DELETE",
+    });
   }
 
   // ─── Webhooks ─────────────────────────────────────────────────────────────

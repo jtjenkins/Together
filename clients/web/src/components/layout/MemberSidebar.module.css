@@ -111,7 +111,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeoutIcon {
+  font-size: 12px;
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 .dmBtn {

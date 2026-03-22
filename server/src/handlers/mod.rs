@@ -14,6 +14,7 @@ pub mod health;
 pub mod ice;
 pub mod link_preview;
 pub mod messages;
+pub mod moderation;
 pub mod pins;
 pub mod polls;
 pub mod reactions;

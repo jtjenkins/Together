@@ -333,6 +333,21 @@ pub async fn join_server(
         return Err(AppError::NotFound("Server not found".into()));
     }
 
+    // Check if the user is banned from this server.
+    let is_banned: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM server_bans WHERE server_id = $1 AND user_id = $2)",
+    )
+    .bind(server_id)
+    .bind(auth.user_id())
+    .fetch_one(&state.pool)
+    .await?;
+
+    if is_banned {
+        return Err(AppError::Forbidden(
+            "You are banned from this server".into(),
+        ));
+    }
+
     // Check not already a member (ON CONFLICT would also handle this, but
     // returning a meaningful error is more helpful).
     let existing = sqlx::query_scalar::<_, bool>(

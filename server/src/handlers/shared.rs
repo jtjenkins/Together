@@ -129,6 +129,9 @@ pub async fn require_member(
 // Permission bitflag constants (mirrors migrations/20240216000003_roles_and_permissions.sql)
 const PERMISSION_MANAGE_MESSAGES: i64 = 4; // bit 2
 const PERMISSION_ADMINISTRATOR: i64 = 8192; // bit 13
+pub const PERMISSION_MUTE_MEMBERS: i64 = 128; // bit 7
+pub const PERMISSION_KICK_MEMBERS: i64 = 256; // bit 8
+pub const PERMISSION_BAN_MEMBERS: i64 = 512; // bit 9
 
 /// Verify the user has the MANAGE_MESSAGES permission in the given server.
 ///
@@ -229,4 +232,108 @@ pub fn sanitize_header_filename(name: &str) -> String {
         .filter(|c| !matches!(c, '\r' | '\n' | '\0'))
         .map(|c| if c == '"' { '\'' } else { c })
         .collect()
+}
+
+/// Verify the user has a specific permission bit in the given server.
+///
+/// Grants access if the user is the server owner, or if any of their roles
+/// have the specified permission bit or ADMINISTRATOR (bit 13) set.
+/// Returns 403 Forbidden with the provided message when the permission is missing.
+pub async fn require_permission(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    user_id: Uuid,
+    permission_bit: i64,
+    error_message: &str,
+) -> AppResult<()> {
+    let is_owner: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM servers WHERE id = $1 AND owner_id = $2)")
+            .bind(server_id)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
+
+    if is_owner {
+        return Ok(());
+    }
+
+    let has_perm: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM member_roles mr
+             JOIN roles r ON r.id = mr.role_id
+             WHERE mr.user_id = $1
+               AND mr.server_id = $2
+               AND (r.permissions & $3 != 0 OR r.permissions & $4 != 0)
+         )",
+    )
+    .bind(user_id)
+    .bind(server_id)
+    .bind(permission_bit)
+    .bind(PERMISSION_ADMINISTRATOR)
+    .fetch_one(pool)
+    .await?;
+
+    if has_perm {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(error_message.into()))
+    }
+}
+
+/// Verify the actor can moderate the target user in the given server.
+///
+/// Rules:
+/// - Cannot target self (400)
+/// - Cannot target the server owner (403)
+/// - Server owner always passes
+/// - Otherwise requires the specified permission bit or ADMINISTRATOR
+pub async fn can_moderate(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    actor_id: Uuid,
+    target_id: Uuid,
+    permission_bit: i64,
+) -> AppResult<()> {
+    if actor_id == target_id {
+        return Err(AppError::Validation("You cannot moderate yourself".into()));
+    }
+
+    let owner_id: Uuid = sqlx::query_scalar("SELECT owner_id FROM servers WHERE id = $1")
+        .bind(server_id)
+        .fetch_one(pool)
+        .await?;
+
+    if target_id == owner_id {
+        return Err(AppError::Forbidden(
+            "Cannot moderate the server owner".into(),
+        ));
+    }
+
+    if actor_id == owner_id {
+        return Ok(());
+    }
+
+    let has_perm: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM member_roles mr
+             JOIN roles r ON r.id = mr.role_id
+             WHERE mr.user_id = $1
+               AND mr.server_id = $2
+               AND (r.permissions & $3 != 0 OR r.permissions & $4 != 0)
+         )",
+    )
+    .bind(actor_id)
+    .bind(server_id)
+    .bind(permission_bit)
+    .bind(PERMISSION_ADMINISTRATOR)
+    .fetch_one(pool)
+    .await?;
+
+    if has_perm {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "You lack the required permission for this action".into(),
+        ))
+    }
 }

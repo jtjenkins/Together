@@ -258,6 +258,19 @@ async fn main() {
             delete(handlers::servers::leave_server),
         )
         .route("/servers/:id/members", get(handlers::servers::list_members))
+        // Moderation routes (permission-gated)
+        .route(
+            "/servers/:id/members/:user_id/kick",
+            post(handlers::moderation::kick_member),
+        )
+        .route(
+            "/servers/:id/members/:user_id/ban",
+            post(handlers::moderation::ban_member),
+        )
+        .route(
+            "/servers/:id/members/:user_id/timeout",
+            post(handlers::moderation::timeout_member).delete(handlers::moderation::remove_timeout),
+        )
         // Server data export (owner only)
         .route("/servers/:id/export", get(handlers::export::export_server))
         // Audit logs (owner only)
