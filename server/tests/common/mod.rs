@@ -325,6 +325,48 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/emojis/:emoji_id",
             get(handlers::custom_emojis::serve_custom_emoji_image),
         )
+        // Bot routes
+        .route("/bots", post(handlers::bots::create_bot))
+        .route("/bots", get(handlers::bots::list_bots))
+        .route("/bots/connect", post(handlers::bots::bot_connect))
+        .route("/bots/:id", get(handlers::bots::get_bot))
+        .route("/bots/:id", patch(handlers::bots::update_bot))
+        .route("/bots/:id", delete(handlers::bots::revoke_bot))
+        .route("/bots/:id/logs", get(handlers::bots::bot_logs))
+        .route(
+            "/bots/:id/token/regenerate",
+            post(handlers::bots::regenerate_bot_token),
+        )
+        // Webhook routes
+        .route(
+            "/servers/:id/webhooks",
+            get(handlers::webhooks::list_webhooks).post(handlers::webhooks::create_webhook),
+        )
+        .route(
+            "/servers/:id/webhooks/:webhook_id",
+            get(handlers::webhooks::get_webhook)
+                .patch(handlers::webhooks::update_webhook)
+                .delete(handlers::webhooks::delete_webhook),
+        )
+        .route(
+            "/servers/:id/webhooks/:webhook_id/test",
+            post(handlers::webhooks::test_webhook),
+        )
+        // Go Live routes
+        .route(
+            "/channels/:channel_id/go-live",
+            post(handlers::go_live::start_go_live),
+        )
+        .route(
+            "/channels/:channel_id/go-live",
+            delete(handlers::go_live::stop_go_live),
+        )
+        .route(
+            "/channels/:channel_id/go-live",
+            get(handlers::go_live::get_go_live),
+        )
+        // Export routes
+        .route("/servers/:id/export", get(handlers::export::export_server))
         // WebSocket gateway
         .route("/ws", get(websocket_handler))
         .with_state(state)

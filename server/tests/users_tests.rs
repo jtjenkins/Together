@@ -274,3 +274,210 @@ async fn update_user_custom_status_too_long_rejected() {
         "129-char custom_status should be rejected: {body}"
     );
 }
+
+// ── Test 12: PATCH /users/@me — update bio ────────────────────────────────
+
+#[tokio::test]
+async fn update_user_bio() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+    let (status, body) = common::patch_json_authed(
+        app,
+        "/users/@me",
+        &token,
+        json!({ "bio": "Hello, I am a gamer." }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["bio"], "Hello, I am a gamer.");
+}
+
+// ── Test 13: PATCH /users/@me — bio too long rejected ─────────────────────
+
+#[tokio::test]
+async fn update_user_bio_too_long_rejected() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+
+    let long_bio = "x".repeat(501);
+    let (status, body) =
+        common::patch_json_authed(app, "/users/@me", &token, json!({ "bio": long_bio })).await;
+
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "501-char bio should be rejected: {body}"
+    );
+}
+
+// ── Test 14: PATCH /users/@me — update pronouns ──────────────────────────
+
+#[tokio::test]
+async fn update_user_pronouns() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+    let (status, body) = common::patch_json_authed(
+        app,
+        "/users/@me",
+        &token,
+        json!({ "pronouns": "they/them" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["pronouns"], "they/them");
+}
+
+// ── Test 15: PATCH /users/@me — pronouns too long rejected ────────────────
+
+#[tokio::test]
+async fn update_user_pronouns_too_long_rejected() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+
+    let long_pronouns = "x".repeat(41);
+    let (status, body) = common::patch_json_authed(
+        app,
+        "/users/@me",
+        &token,
+        json!({ "pronouns": long_pronouns }),
+    )
+    .await;
+
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "41-char pronouns should be rejected: {body}"
+    );
+}
+
+// ── Test 16: PATCH /users/@me — update activity ──────────────────────────
+
+#[tokio::test]
+async fn update_user_activity() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+    let (status, body) = common::patch_json_authed(
+        app,
+        "/users/@me",
+        &token,
+        json!({ "activity": "Playing Minecraft" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["activity"], "Playing Minecraft");
+}
+
+// ── Test 17: PATCH /users/@me — activity too long rejected ────────────────
+
+#[tokio::test]
+async fn update_user_activity_too_long_rejected() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+
+    let long_activity = "x".repeat(129);
+    let (status, body) = common::patch_json_authed(
+        app,
+        "/users/@me",
+        &token,
+        json!({ "activity": long_activity }),
+    )
+    .await;
+
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "129-char activity should be rejected: {body}"
+    );
+}
+
+// ── Test 18: PATCH /users/@me — bio preserved when updating other fields ──
+
+#[tokio::test]
+async fn update_user_bio_preserved_when_not_sent() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+
+    // Set bio.
+    let (status, _) = common::patch_json_authed(
+        app.clone(),
+        "/users/@me",
+        &token,
+        json!({ "bio": "My bio" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Update pronouns only — bio should be preserved.
+    let (status, body) =
+        common::patch_json_authed(app, "/users/@me", &token, json!({ "pronouns": "she/her" }))
+            .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["bio"], "My bio", "bio should be preserved");
+    assert_eq!(body["pronouns"], "she/her");
+}
+
+// ── Test 19: PATCH /users/@me — update multiple fields at once ────────────
+
+#[tokio::test]
+async fn update_user_multiple_fields() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let username = common::unique_username();
+
+    let token = common::register_and_get_token(app.clone(), &username, "password123").await;
+    let (status, body) = common::patch_json_authed(
+        app,
+        "/users/@me",
+        &token,
+        json!({
+            "bio": "Gamer",
+            "pronouns": "he/him",
+            "activity": "Playing Valorant",
+            "status": "dnd"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["bio"], "Gamer");
+    assert_eq!(body["pronouns"], "he/him");
+    assert_eq!(body["activity"], "Playing Valorant");
+    assert_eq!(body["status"], "dnd");
+}
+
+// ── Test 20: PATCH /users/@me — no auth → 401 ────────────────────────────
+
+#[tokio::test]
+async fn update_user_no_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let (status, _) = common::patch_no_auth(app, "/users/@me", json!({ "bio": "sneaky" })).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
