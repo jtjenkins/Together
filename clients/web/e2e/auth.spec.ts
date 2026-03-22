@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   registerUser,
   loginUser,
+  logout,
   uniqueUsername,
   waitForAppReady,
 } from "./helpers";
@@ -20,16 +21,11 @@ test.describe("Authentication", () => {
 
   test("login with registered credentials", async ({ page }) => {
     const username = uniqueUsername();
-
-    // Register first
     await registerUser(page, username, password);
     await waitForAppReady(page);
 
     // Log out
-    await page.getByLabel("Sign Out").click();
-
-    // Should be back on the login page
-    await expect(page.getByRole("button", { name: "Sign In" })).toBeVisible();
+    await logout(page);
 
     // Log back in
     await loginUser(page, username, password);
@@ -43,27 +39,30 @@ test.describe("Authentication", () => {
     await registerUser(page, username, password);
     await waitForAppReady(page);
 
-    await page.getByLabel("Sign Out").click();
+    await logout(page);
 
-    // Should see the login form heading
-    await expect(page.getByText("Welcome back!")).toBeVisible();
+    // Should see the login form
+    await expect(
+      page.getByRole("heading", { name: "Welcome back!" }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign In" })).toBeVisible();
   });
 
   test("wrong password shows error", async ({ page }) => {
     const username = uniqueUsername();
-
-    // Register the user
     await registerUser(page, username, password);
     await waitForAppReady(page);
 
-    // Log out
-    await page.getByLabel("Sign Out").click();
+    await logout(page);
 
     // Try to login with wrong password
-    await loginUser(page, username, "WrongPassword999!");
+    await page.getByRole("textbox", { name: "Username" }).fill(username);
+    await page
+      .getByRole("textbox", { name: "Password" })
+      .fill("WrongPassword999!");
+    await page.getByRole("button", { name: "Sign In" }).click();
 
-    // Should show an error alert
+    // Should show an error
     await expect(page.getByRole("alert")).toBeVisible({ timeout: 5000 });
   });
 });

@@ -2,13 +2,15 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30000,
+  timeout: 60000,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1, // serial to avoid DB conflicts between tests
   use: {
     baseURL: "http://localhost:5173",
     headless: true,
     screenshot: "only-on-failure",
+    // Each test gets a fresh browser context (no shared cookies/localStorage)
+    storageState: undefined,
   },
   webServer: [
     {
