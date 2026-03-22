@@ -45,6 +45,7 @@ interface EventHandlers {
   MEMBER_BAN: EventHandler<MemberModerationEvent>;
   MEMBER_TIMEOUT: EventHandler<MemberTimeoutEvent>;
   MEMBER_TIMEOUT_REMOVE: EventHandler<MemberModerationEvent>;
+  MEMBER_UNBAN: EventHandler<MemberModerationEvent>;
 
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;

@@ -28,7 +28,7 @@ use crate::{
         CreateAuditLog, ServerBan, UpdateAutomodConfigRequest,
     },
     state::AppState,
-    websocket::{broadcast_to_server, events::EVENT_MEMBER_TIMEOUT_REMOVE},
+    websocket::{broadcast_to_server, events::EVENT_MEMBER_UNBAN},
 };
 
 // ============================================================================
@@ -325,7 +325,7 @@ pub async fn remove_ban(
         "server_id": server_id,
         "user_id": banned_user_id,
     });
-    broadcast_to_server(&state, server_id, EVENT_MEMBER_TIMEOUT_REMOVE, payload).await;
+    broadcast_to_server(&state, server_id, EVENT_MEMBER_UNBAN, payload).await;
 
     log_action(
         &state.pool,

@@ -299,6 +299,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
       const msg =
         e instanceof ApiRequestError ? e.message : "Failed to fetch bans";
       set({ error: msg, isBansLoading: false });
+      throw e;
     }
   },
 
@@ -312,6 +313,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
       const msg =
         e instanceof ApiRequestError ? e.message : "Failed to unban user";
       set({ error: msg });
+      throw e;
     }
   },
 }));

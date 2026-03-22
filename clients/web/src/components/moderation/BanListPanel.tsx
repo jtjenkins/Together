@@ -16,8 +16,13 @@ export function BanListPanel({ serverId }: BanListPanelProps) {
 
   const handleUnban = async (userId: string) => {
     setUnbanningId(userId);
-    await unbanMember(serverId, userId);
-    setUnbanningId(null);
+    try {
+      await unbanMember(serverId, userId);
+    } catch {
+      // Error is set on the store; button resets below.
+    } finally {
+      setUnbanningId(null);
+    }
   };
 
   if (isBansLoading) {

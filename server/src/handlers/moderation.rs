@@ -65,8 +65,13 @@ pub async fn kick_member(
 
     if voice_removed.is_some() {
         let leave_dto = VoiceStateDto::leave(target_user_id);
-        if let Ok(payload) = serde_json::to_value(&leave_dto) {
-            broadcast_to_server(&state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+        match serde_json::to_value(&leave_dto) {
+            Ok(payload) => {
+                broadcast_to_server(&state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to serialize VoiceStateDto");
+            }
         }
     }
 
@@ -133,8 +138,13 @@ pub async fn ban_member(
 
     if voice_removed.is_some() {
         let leave_dto = VoiceStateDto::leave(target_user_id);
-        if let Ok(payload) = serde_json::to_value(&leave_dto) {
-            broadcast_to_server(&state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+        match serde_json::to_value(&leave_dto) {
+            Ok(payload) => {
+                broadcast_to_server(&state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to serialize VoiceStateDto");
+            }
         }
     }
 
@@ -146,7 +156,9 @@ pub async fn ban_member(
     });
     broadcast_to_server(&state, server_id, EVENT_MEMBER_BAN, ban_payload).await;
 
-    // Insert ban record.
+    // Ban + remove membership atomically.
+    let mut tx = state.pool.begin().await?;
+
     sqlx::query(
         r#"INSERT INTO server_bans (user_id, server_id, banned_by, reason)
            VALUES ($1, $2, $3, $4)
@@ -158,15 +170,16 @@ pub async fn ban_member(
     .bind(server_id)
     .bind(auth.user_id())
     .bind(&reason)
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?;
 
-    // Remove membership.
     sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
         .bind(server_id)
         .bind(target_user_id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
+
+    tx.commit().await?;
 
     log_action(
         &state.pool,

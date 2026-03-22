@@ -193,6 +193,11 @@ export function useWebSocket() {
         setMemberTimeout(event.user_id, null);
       }),
 
+      gateway.on("MEMBER_UNBAN", () => {
+        // Unban is informational — no local state change needed.
+        // The ban list panel re-fetches on open.
+      }),
+
       gateway.on("connected", () => {
         if (activeServerId) {
           fetchMembers(activeServerId);
