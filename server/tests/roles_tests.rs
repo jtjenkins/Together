@@ -351,6 +351,196 @@ async fn cannot_remove_role_from_owner() {
 }
 
 // ============================================================================
+// Position hierarchy enforcement (non-owner with MANAGE_ROLES)
+// ============================================================================
+
+/// Helper: set up a member with MANAGE_ROLES at a specific position.
+/// Returns (app, owner_token, manager_token, server_id, manager_id, low_role_id, high_role_id).
+async fn setup_role_manager() -> (axum::Router, String, String, String, String, String, String) {
+    let (app, owner_token, manager_token, server_id, manager_id) = setup_server_with_member().await;
+
+    // Create a low-position role (pos 1) with MANAGE_ROLES, assign to manager
+    let low_role = create_role(app.clone(), &owner_token, &server_id, "Manager", 2048).await;
+    let low_role_id = low_role["id"].as_str().unwrap().to_owned();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{manager_id}/roles/{low_role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Create a high-position role (pos 2+) that the manager cannot touch
+    let high_role = create_role(app.clone(), &owner_token, &server_id, "Admin", 8192).await;
+    let high_role_id = high_role["id"].as_str().unwrap().to_owned();
+
+    (
+        app,
+        owner_token,
+        manager_token,
+        server_id,
+        manager_id,
+        low_role_id,
+        high_role_id,
+    )
+}
+
+#[tokio::test]
+async fn hierarchy_cannot_update_higher_role() {
+    let (app, _, manager_token, server_id, _, _, high_role_id) = setup_role_manager().await;
+
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles/{high_role_id}"),
+        &manager_token,
+        json!({ "name": "Hacked Admin" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn hierarchy_cannot_delete_higher_role() {
+    let (app, _, manager_token, server_id, _, _, high_role_id) = setup_role_manager().await;
+
+    let (status, _) = common::delete_authed(
+        app,
+        &format!("/servers/{server_id}/roles/{high_role_id}"),
+        &manager_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn hierarchy_cannot_assign_higher_role() {
+    let (app, owner_token, manager_token, server_id, _, _, high_role_id) =
+        setup_role_manager().await;
+
+    // Register a third user and join them
+    let third_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let third_token = third_body["access_token"].as_str().unwrap();
+    let third_id = third_body["user"]["id"].as_str().unwrap();
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        third_token,
+        json!({}),
+    )
+    .await;
+
+    // Manager tries to assign the high-position role — should fail
+    let (status, _) = common::put_authed(
+        app,
+        &format!("/servers/{server_id}/members/{third_id}/roles/{high_role_id}"),
+        &manager_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn hierarchy_cannot_remove_higher_role() {
+    let (app, owner_token, manager_token, server_id, _, _, high_role_id) =
+        setup_role_manager().await;
+
+    // Register a third user, join them, assign the high role via owner
+    let third_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let third_token = third_body["access_token"].as_str().unwrap();
+    let third_id = third_body["user"]["id"].as_str().unwrap();
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        third_token,
+        json!({}),
+    )
+    .await;
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{third_id}/roles/{high_role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Manager tries to remove the high-position role — should fail
+    let (status, _) = common::delete_authed(
+        app,
+        &format!("/servers/{server_id}/members/{third_id}/roles/{high_role_id}"),
+        &manager_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn hierarchy_cannot_escalate_permissions_via_update() {
+    let (app, owner_token, manager_token, server_id, manager_id, _, _) = setup_role_manager().await;
+
+    // Create a low role the manager CAN edit (position below manager's)
+    // The manager's role has position auto-assigned. Create a new role that
+    // will have a lower position since it was created after the manager role.
+    // Actually, positions auto-increment, so we need to create a role with
+    // explicit low position. Use owner to create at position 0.
+    let (status, editable_role) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Peon", "permissions": 0, "position": 0 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let editable_role_id = editable_role["id"].as_str().unwrap();
+
+    // Manager tries to update the Peon role to add BAN_MEMBERS (512)
+    // Manager only has MANAGE_ROLES (2048), not BAN_MEMBERS
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles/{editable_role_id}"),
+        &manager_token,
+        json!({ "permissions": 512 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ============================================================================
+// Validation
+// ============================================================================
+
+#[tokio::test]
+async fn create_role_rejects_empty_name() {
+    let (app, owner_token, _, server_id, _) = setup_server_with_member().await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn create_role_rejects_invalid_permissions() {
+    let (app, owner_token, _, server_id, _) = setup_server_with_member().await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Bad", "permissions": 99999 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+// ============================================================================
 // Audit log verification
 // ============================================================================
 
