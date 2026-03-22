@@ -15,5 +15,13 @@ export default defineConfig({
     setupFiles: ["./src/__tests__/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     css: true,
+    coverage: {
+      exclude: [
+        "**/*.module.css",
+        "**/*.css",
+        "src/__tests__/**",
+        "node_modules/**",
+      ],
+    },
   },
 });

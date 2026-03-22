@@ -99,12 +99,7 @@ export function RoleAssignmentMenu({
             if (!canManage) {
               return (
                 <div key={role.id} className={styles.roleRowDisabled}>
-                  <input
-                    type="checkbox"
-                    checked={hasRole}
-                    disabled
-                    readOnly
-                  />
+                  <input type="checkbox" checked={hasRole} disabled readOnly />
                   <span
                     className={styles.roleDot}
                     style={{ background: role.color || "#95a5a6" }}

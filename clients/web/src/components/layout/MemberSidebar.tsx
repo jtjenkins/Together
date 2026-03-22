@@ -40,18 +40,14 @@ function MemberItem({
 
   const [showProfile, setShowProfile] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(
-    null,
-  );
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [modAction, setModAction] = useState<ModerationAction | null>(null);
   const [roleMenu, setRoleMenu] = useState<{ x: number; y: number } | null>(
     null,
   );
 
-  const canKick =
-    isOwner || hasPermission(myPerms, PERMISSIONS.KICK_MEMBERS);
-  const canBan =
-    isOwner || hasPermission(myPerms, PERMISSIONS.BAN_MEMBERS);
+  const canKick = isOwner || hasPermission(myPerms, PERMISSIONS.KICK_MEMBERS);
+  const canBan = isOwner || hasPermission(myPerms, PERMISSIONS.BAN_MEMBERS);
   const canTimeout =
     isOwner || hasPermission(myPerms, PERMISSIONS.MUTE_MEMBERS);
   const canManageRoles =
@@ -87,13 +83,10 @@ function MemberItem({
     setModAction(action);
   }, []);
 
-  const openRoleMenu = useCallback(
-    (x: number, y: number) => {
-      setCtxMenu(null);
-      setRoleMenu({ x, y });
-    },
-    [],
-  );
+  const openRoleMenu = useCallback((x: number, y: number) => {
+    setCtxMenu(null);
+    setRoleMenu({ x, y });
+  }, []);
 
   const isTimedOut =
     member.timeout_expires_at != null &&

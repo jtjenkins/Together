@@ -125,4 +125,36 @@ describe("parseMarkdown", () => {
     const r = parseMarkdown("**unclosed");
     expect(r).toEqual([{ type: "text", content: "**unclosed" }]);
   });
+
+  it("parses __bold__ with underscores", () => {
+    const r = parseMarkdown("__hello__");
+    expect(r).toEqual([
+      { type: "bold", content: [{ type: "text", content: "hello" }] },
+    ]);
+  });
+
+  it("parses blockquote followed by normal text", () => {
+    const r = parseMarkdown("> quoted\nnormal text");
+    expect(r).toEqual([
+      {
+        type: "blockquote",
+        content: [{ type: "text", content: "quoted" }],
+      },
+      { type: "text", content: "normal text" },
+    ]);
+  });
+
+  it("parses multi-line blockquote", () => {
+    const r = parseMarkdown("> line1\n> line2\nnot quoted");
+    expect(r.length).toBe(2);
+    expect(r[0].type).toBe("blockquote");
+    expect(r[1]).toEqual({ type: "text", content: "not quoted" });
+  });
+
+  it("parses ||spoiler||", () => {
+    const r = parseMarkdown("||hidden||");
+    expect(r).toEqual([
+      { type: "spoiler", content: [{ type: "text", content: "hidden" }] },
+    ]);
+  });
 });
