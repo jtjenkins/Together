@@ -58,7 +58,6 @@ struct ExportRole {
     name: String,
     permissions: i64,
     color: Option<String>,
-    hoist: bool,
     position: i32,
 }
 
@@ -161,7 +160,7 @@ pub async fn export_server(
     .ok_or_else(|| AppError::NotFound("Server not found".into()))?;
 
     let channels = sqlx::query_as::<_, ExportChannel>(
-        "SELECT id, name, type AS channel_type, position, category, topic, created_at
+        "SELECT id, name, type, position, category, topic, created_at
          FROM channels WHERE server_id = $1 ORDER BY position",
     )
     .bind(server_id)
@@ -180,7 +179,7 @@ pub async fn export_server(
     .await?;
 
     let roles = sqlx::query_as::<_, ExportRole>(
-        "SELECT id, name, permissions, color, hoist, position
+        "SELECT id, name, permissions, color, position
          FROM roles WHERE server_id = $1 ORDER BY position",
     )
     .bind(server_id)
@@ -253,11 +252,9 @@ pub async fn export_server(
         "SELECT dmc.id,
                 COALESCE(u.username, 'unknown') AS partner_username
          FROM direct_message_channels dmc
-         JOIN users u ON u.id = CASE
-             WHEN dmc.user1_id = $1 THEN dmc.user2_id
-             ELSE dmc.user1_id
-         END
-         WHERE dmc.user1_id = $1 OR dmc.user2_id = $1
+         JOIN direct_message_members my ON my.channel_id = dmc.id AND my.user_id = $1
+         JOIN direct_message_members other ON other.channel_id = dmc.id AND other.user_id != $1
+         JOIN users u ON u.id = other.user_id
          ORDER BY dmc.created_at",
     )
     .bind(auth.user_id())

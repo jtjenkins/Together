@@ -624,3 +624,375 @@ async fn forgot_password_requires_admin() {
 
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
+
+// ============================================================================
+// forgot_password_admin_generates_token
+// ============================================================================
+
+#[tokio::test]
+async fn forgot_password_admin_generates_token() {
+    let pool = common::test_pool().await;
+    let admin_username = common::unique_username();
+    let target_username = common::unique_username();
+    let target_email = format!("{}@example.com", target_username);
+
+    // Register admin
+    let app = common::create_test_app(pool.clone());
+    let admin_token = common::register_and_get_token(app, &admin_username, "password123").await;
+
+    // Promote to admin
+    sqlx::query("UPDATE users SET is_admin = true WHERE username = $1")
+        .bind(&admin_username)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Register target user with email
+    let app = common::create_test_app(pool.clone());
+    let (status, _) = common::post_json(
+        app,
+        "/auth/register",
+        json!({
+            "username": target_username,
+            "password": "password123",
+            "email": target_email
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Admin triggers forgot-password
+    let app = common::create_test_app(pool);
+    let (status, body) = common::post_json_authed(
+        app,
+        "/auth/forgot-password",
+        &admin_token,
+        json!({ "email": target_email }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert!(body["token"].is_string(), "expected reset token: {body}");
+    assert_eq!(body["expires_in_seconds"], 3600);
+}
+
+// ============================================================================
+// forgot_password_unknown_email_returns_404
+// ============================================================================
+
+#[tokio::test]
+async fn forgot_password_unknown_email_returns_404() {
+    let pool = common::test_pool().await;
+    let admin_username = common::unique_username();
+
+    let app = common::create_test_app(pool.clone());
+    let admin_token = common::register_and_get_token(app, &admin_username, "password123").await;
+
+    sqlx::query("UPDATE users SET is_admin = true WHERE username = $1")
+        .bind(&admin_username)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let app = common::create_test_app(pool);
+    let (status, _) = common::post_json_authed(
+        app,
+        "/auth/forgot-password",
+        &admin_token,
+        json!({ "email": "nonexistent@example.com" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
+// forgot_password_invalid_email_returns_400
+// ============================================================================
+
+#[tokio::test]
+async fn forgot_password_invalid_email_returns_400() {
+    let pool = common::test_pool().await;
+    let admin_username = common::unique_username();
+
+    let app = common::create_test_app(pool.clone());
+    let admin_token = common::register_and_get_token(app, &admin_username, "password123").await;
+
+    sqlx::query("UPDATE users SET is_admin = true WHERE username = $1")
+        .bind(&admin_username)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let app = common::create_test_app(pool);
+    let (status, _) = common::post_json_authed(
+        app,
+        "/auth/forgot-password",
+        &admin_token,
+        json!({ "email": "not-an-email" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+// ============================================================================
+// reset_password_happy_path
+// ============================================================================
+
+#[tokio::test]
+async fn reset_password_happy_path() {
+    let pool = common::test_pool().await;
+    let admin_username = common::unique_username();
+    let target_username = common::unique_username();
+    let target_email = format!("{}@example.com", target_username);
+    let old_password = "password123";
+    let new_password = "newpassword456";
+
+    // Register admin
+    let app = common::create_test_app(pool.clone());
+    let admin_token = common::register_and_get_token(app, &admin_username, "password123").await;
+    sqlx::query("UPDATE users SET is_admin = true WHERE username = $1")
+        .bind(&admin_username)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Register target user with email
+    let app = common::create_test_app(pool.clone());
+    let (status, _) = common::post_json(
+        app,
+        "/auth/register",
+        json!({
+            "username": target_username,
+            "password": old_password,
+            "email": target_email
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Generate reset token
+    let app = common::create_test_app(pool.clone());
+    let (status, body) = common::post_json_authed(
+        app,
+        "/auth/forgot-password",
+        &admin_token,
+        json!({ "email": target_email }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let reset_token = body["token"].as_str().unwrap().to_owned();
+
+    // Reset password
+    let app = common::create_test_app(pool.clone());
+    let (status, body) = common::post_json(
+        app,
+        "/auth/reset-password",
+        json!({
+            "token": reset_token,
+            "new_password": new_password
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert!(body["message"].is_string());
+
+    // Old password should no longer work
+    let app = common::create_test_app(pool.clone());
+    let (status, _) = common::post_json(
+        app,
+        "/auth/login",
+        json!({ "username": target_username, "password": old_password }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // New password should work
+    let app = common::create_test_app(pool);
+    let (status, _) = common::post_json(
+        app,
+        "/auth/login",
+        json!({ "username": target_username, "password": new_password }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+// ============================================================================
+// reset_password_invalid_token_returns_401
+// ============================================================================
+
+#[tokio::test]
+async fn reset_password_invalid_token_returns_401() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let (status, _) = common::post_json(
+        app,
+        "/auth/reset-password",
+        json!({
+            "token": "totally-bogus-token",
+            "new_password": "newpassword456"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+// ============================================================================
+// reset_password_token_single_use
+// ============================================================================
+
+#[tokio::test]
+async fn reset_password_token_single_use() {
+    let pool = common::test_pool().await;
+    let admin_username = common::unique_username();
+    let target_username = common::unique_username();
+    let target_email = format!("{}@example.com", target_username);
+
+    // Setup admin
+    let app = common::create_test_app(pool.clone());
+    let admin_token = common::register_and_get_token(app, &admin_username, "password123").await;
+    sqlx::query("UPDATE users SET is_admin = true WHERE username = $1")
+        .bind(&admin_username)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Register target
+    let app = common::create_test_app(pool.clone());
+    let (status, _) = common::post_json(
+        app,
+        "/auth/register",
+        json!({
+            "username": target_username,
+            "password": "password123",
+            "email": target_email
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Generate token
+    let app = common::create_test_app(pool.clone());
+    let (_, body) = common::post_json_authed(
+        app,
+        "/auth/forgot-password",
+        &admin_token,
+        json!({ "email": target_email }),
+    )
+    .await;
+    let reset_token = body["token"].as_str().unwrap().to_owned();
+
+    // First reset succeeds
+    let app = common::create_test_app(pool.clone());
+    let (status, _) = common::post_json(
+        app,
+        "/auth/reset-password",
+        json!({ "token": reset_token, "new_password": "newpass12345" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Second use of the same token fails (single-use)
+    let app = common::create_test_app(pool);
+    let (status, _) = common::post_json(
+        app,
+        "/auth/reset-password",
+        json!({ "token": reset_token, "new_password": "anotherpass123" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+// ============================================================================
+// reset_password_short_password_returns_400
+// ============================================================================
+
+#[tokio::test]
+async fn reset_password_short_password_returns_400() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    // Even with a valid token, short password should fail validation first.
+    let (status, _) = common::post_json(
+        app,
+        "/auth/reset-password",
+        json!({ "token": "sometoken", "new_password": "short" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+// ============================================================================
+// reset_password_invalidates_all_sessions
+// ============================================================================
+
+#[tokio::test]
+async fn reset_password_invalidates_all_sessions() {
+    let pool = common::test_pool().await;
+    let admin_username = common::unique_username();
+    let target_username = common::unique_username();
+    let target_email = format!("{}@example.com", target_username);
+
+    // Setup admin
+    let app = common::create_test_app(pool.clone());
+    let admin_token = common::register_and_get_token(app, &admin_username, "password123").await;
+    sqlx::query("UPDATE users SET is_admin = true WHERE username = $1")
+        .bind(&admin_username)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Register target
+    let app = common::create_test_app(pool.clone());
+    let target_body = common::register_user(app, &target_username, "password123").await;
+    let target_access_token = target_body["access_token"].as_str().unwrap().to_owned();
+
+    // Set email on target user
+    sqlx::query("UPDATE users SET email = $1 WHERE username = $2")
+        .bind(&target_email)
+        .bind(&target_username)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Verify the target's token works before reset
+    let app = common::create_test_app(pool.clone());
+    let (status, _) = common::get_authed(app, "/users/@me", &target_access_token).await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Generate reset token and reset password
+    let app = common::create_test_app(pool.clone());
+    let (_, body) = common::post_json_authed(
+        app,
+        "/auth/forgot-password",
+        &admin_token,
+        json!({ "email": target_email }),
+    )
+    .await;
+    let reset_token = body["token"].as_str().unwrap().to_owned();
+
+    let app = common::create_test_app(pool.clone());
+    let (status, _) = common::post_json(
+        app,
+        "/auth/reset-password",
+        json!({ "token": reset_token, "new_password": "brandnewpass1" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // The old refresh token should no longer work
+    let app = common::create_test_app(pool);
+    let old_refresh = target_body["refresh_token"].as_str().unwrap();
+    let (status, _) = common::post_json(
+        app,
+        "/auth/refresh",
+        json!({ "refresh_token": old_refresh }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}

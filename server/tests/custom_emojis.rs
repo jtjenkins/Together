@@ -130,6 +130,107 @@ async fn delete_emoji() {
 // GET /servers/:id/emojis — non-member cannot list
 // ============================================================================
 
+// ============================================================================
+// POST /servers/:id/emojis — invalid name characters rejected
+// ============================================================================
+
+#[tokio::test]
+async fn invalid_emoji_name_rejected() {
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+    let (token, sid) = setup_server(app.clone()).await;
+
+    // Uppercase letters are not allowed.
+    let (status, _) = upload_emoji(app.clone(), &token, &sid, "CamelCase").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // Spaces are not allowed.
+    let (status, _) = upload_emoji(app.clone(), &token, &sid, "has space").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+// ============================================================================
+// POST /servers/:id/emojis — empty name rejected
+// ============================================================================
+
+#[tokio::test]
+async fn empty_emoji_name_rejected() {
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+    let (token, sid) = setup_server(app.clone()).await;
+
+    let (status, _) = upload_emoji(app.clone(), &token, &sid, "").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+// ============================================================================
+// POST /servers/:id/emojis — name too long rejected
+// ============================================================================
+
+#[tokio::test]
+async fn emoji_name_too_long_rejected() {
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+    let (token, sid) = setup_server(app.clone()).await;
+
+    let long_name = "a".repeat(33);
+    let (status, _) = upload_emoji(app.clone(), &token, &sid, &long_name).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+// ============================================================================
+// DELETE /servers/:id/emojis/:emoji_id — non-existent emoji → 404
+// ============================================================================
+
+#[tokio::test]
+async fn delete_nonexistent_emoji() {
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+    let (token, sid) = setup_server(app.clone()).await;
+
+    let fake_id = uuid::Uuid::new_v4();
+    let (status, _) = delete_authed(
+        app.clone(),
+        &format!("/servers/{sid}/emojis/{fake_id}"),
+        &token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
+// POST /servers/:id/emojis — no auth → 401
+// ============================================================================
+
+#[tokio::test]
+async fn upload_emoji_no_auth() {
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+    let (_token, sid) = setup_server(app.clone()).await;
+
+    let png = tiny_png();
+    let files = [
+        MultipartFile {
+            field_name: "name",
+            filename: "",
+            content_type: "text/plain",
+            data: b"noauth",
+        },
+        MultipartFile {
+            field_name: "image",
+            filename: "emoji.png",
+            content_type: "image/png",
+            data: &png,
+        },
+    ];
+    let (status, _) = post_multipart_no_auth(app, &format!("/servers/{sid}/emojis"), &files).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+// ============================================================================
+// GET /servers/:id/emojis — non-member cannot list
+// ============================================================================
+
 #[tokio::test]
 async fn non_member_cannot_list() {
     let pool = test_pool().await;

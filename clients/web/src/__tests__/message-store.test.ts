@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useMessageStore } from "../stores/messageStore";
 import { api } from "../api/client";
-import type { Message } from "../types";
+import type { Message, PollDto } from "../types";
 
 vi.mock("../api/client", () => ({
   api: {
@@ -13,6 +13,7 @@ vi.mock("../api/client", () => ({
     uploadAttachments: vi.fn().mockResolvedValue([]),
     listThreadReplies: vi.fn(),
     createThreadReply: vi.fn(),
+    getMessage: vi.fn(),
   },
   ApiRequestError: class extends Error {
     status: number;
@@ -62,8 +63,12 @@ beforeEach(() => {
     error: null,
     replyingTo: null,
     attachmentCache: {},
+    replyTargetCache: {},
+    highlightedMessageId: null,
     threadCache: {},
     activeThreadId: null,
+    isThreadLoading: false,
+    threadError: null,
   });
   vi.clearAllMocks();
   vi.mocked(api.listAttachments).mockResolvedValue([]);
@@ -75,7 +80,6 @@ beforeEach(() => {
 describe("messageStore", () => {
   describe("fetchMessages", () => {
     it("should fetch and store messages (oldest-first after reversal)", async () => {
-      // API returns newest-first (DESC); the store must reverse to oldest-first.
       const newestFirst = [
         mockMsg({ id: "msg-2", created_at: "2024-01-01T00:00:02Z" }),
         mockMsg({ id: "msg-1", created_at: "2024-01-01T00:00:01Z" }),
@@ -95,8 +99,6 @@ describe("messageStore", () => {
     });
 
     it("should reverse API response so store holds oldest-first", async () => {
-      // API returns newest-first (DESC); the store must reverse to oldest-first
-      // to match the append order used by addMessage() for WebSocket events.
       const newestFirst = [
         mockMsg({ id: "msg-2", created_at: "2024-01-01T00:00:02Z" }),
         mockMsg({ id: "msg-1", created_at: "2024-01-01T00:00:01Z" }),
@@ -133,6 +135,58 @@ describe("messageStore", () => {
       expect(useMessageStore.getState().messages).toHaveLength(2);
       expect(useMessageStore.getState().messages[0].id).toBe("msg-1");
     });
+
+    it("should set isLoading true before fetching", async () => {
+      vi.mocked(api.listMessages).mockImplementation(async () => {
+        expect(useMessageStore.getState().isLoading).toBe(true);
+        return [];
+      });
+
+      await useMessageStore.getState().fetchMessages("ch-1");
+    });
+
+    it("should set error and isLoading false on fetch failure with generic Error", async () => {
+      vi.mocked(api.listMessages).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      await useMessageStore.getState().fetchMessages("ch-1");
+
+      expect(useMessageStore.getState().error).toBe("Failed to fetch messages");
+      expect(useMessageStore.getState().isLoading).toBe(false);
+    });
+
+    it("should extract message from ApiRequestError on fetch failure", async () => {
+      const { ApiRequestError: MockApiRequestError } = await import(
+        "../api/client"
+      );
+      vi.mocked(api.listMessages).mockRejectedValueOnce(
+        new MockApiRequestError(500, "Server error"),
+      );
+
+      await useMessageStore.getState().fetchMessages("ch-1");
+
+      expect(useMessageStore.getState().error).toBe("Server error");
+    });
+
+    it("should handle rejected attachment fetches gracefully", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
+      const messages = [mockMsg({ id: "msg-1" })];
+      vi.mocked(api.listMessages).mockResolvedValueOnce(messages);
+      vi.mocked(api.listAttachments).mockRejectedValueOnce(
+        new Error("Attachment fetch failed"),
+      );
+
+      await useMessageStore.getState().fetchMessages("ch-1");
+
+      // Should not throw — attachment failures are non-fatal
+      expect(
+        useMessageStore.getState().attachmentCache["msg-1"],
+      ).toBeUndefined();
+      consoleSpy.mockRestore();
+    });
   });
 
   describe("addMessage", () => {
@@ -165,6 +219,18 @@ describe("messageStore", () => {
       expect(useMessageStore.getState().messages[0].content).toBe("Updated");
       expect(useMessageStore.getState().messages[0].edited_at).not.toBeNull();
     });
+
+    it("should not modify other messages", () => {
+      const msg1 = mockMsg({ id: "msg-1", content: "First" });
+      const msg2 = mockMsg({ id: "msg-2", content: "Second" });
+      useMessageStore.setState({ messages: [msg1, msg2] });
+
+      const updated = { ...msg1, content: "Updated" };
+      useMessageStore.getState().updateMessage(updated);
+
+      expect(useMessageStore.getState().messages[0].content).toBe("Updated");
+      expect(useMessageStore.getState().messages[1].content).toBe("Second");
+    });
   });
 
   describe("removeMessage", () => {
@@ -178,6 +244,19 @@ describe("messageStore", () => {
 
       expect(useMessageStore.getState().messages[0].deleted).toBe(true);
       expect(useMessageStore.getState().messages[0].content).toBe("");
+    });
+
+    it("should not modify other messages", () => {
+      const msg1 = mockMsg({ id: "msg-1" });
+      const msg2 = mockMsg({ id: "msg-2", content: "Keep me" });
+      useMessageStore.setState({ messages: [msg1, msg2] });
+
+      useMessageStore
+        .getState()
+        .removeMessage({ id: "msg-1", channel_id: "ch-1" });
+
+      expect(useMessageStore.getState().messages[1].deleted).toBe(false);
+      expect(useMessageStore.getState().messages[1].content).toBe("Keep me");
     });
   });
 
@@ -201,6 +280,9 @@ describe("messageStore", () => {
         messages: [mockMsg()],
         hasMore: false,
         replyingTo: mockMsg(),
+        attachmentCache: { "msg-1": [mockAttachment()] },
+        replyTargetCache: { "msg-reply": mockMsg({ id: "msg-reply" }) },
+        highlightedMessageId: "msg-1",
         threadCache: {
           "root-1": [mockMsg({ id: "reply-1", thread_id: "root-1" })],
         },
@@ -212,6 +294,9 @@ describe("messageStore", () => {
       expect(useMessageStore.getState().messages).toEqual([]);
       expect(useMessageStore.getState().hasMore).toBe(true);
       expect(useMessageStore.getState().replyingTo).toBeNull();
+      expect(useMessageStore.getState().attachmentCache).toEqual({});
+      expect(useMessageStore.getState().replyTargetCache).toEqual({});
+      expect(useMessageStore.getState().highlightedMessageId).toBeNull();
       expect(useMessageStore.getState().threadCache).toEqual({});
       expect(useMessageStore.getState().activeThreadId).toBeNull();
     });
@@ -230,6 +315,33 @@ describe("messageStore", () => {
         content: "Hello",
       });
       expect(useMessageStore.getState().replyingTo).toBeNull();
+    });
+
+    it("should set error and re-throw on sendMessage failure with generic Error", async () => {
+      vi.mocked(api.createMessage).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      await expect(
+        useMessageStore.getState().sendMessage("ch-1", { content: "Hi" }),
+      ).rejects.toBeDefined();
+
+      expect(useMessageStore.getState().error).toBe("Failed to send message");
+    });
+
+    it("should extract message from ApiRequestError on send failure", async () => {
+      const { ApiRequestError: MockApiRequestError } = await import(
+        "../api/client"
+      );
+      vi.mocked(api.createMessage).mockRejectedValueOnce(
+        new MockApiRequestError(403, "Timed out"),
+      );
+
+      await expect(
+        useMessageStore.getState().sendMessage("ch-1", { content: "Hi" }),
+      ).rejects.toBeDefined();
+
+      expect(useMessageStore.getState().error).toBe("Timed out");
     });
   });
 
@@ -251,6 +363,240 @@ describe("messageStore", () => {
         content: "Edited",
       });
       expect(useMessageStore.getState().messages[0].content).toBe("Edited");
+    });
+
+    it("should set error and re-throw on edit failure with generic Error", async () => {
+      vi.mocked(api.updateMessage).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      await expect(
+        useMessageStore.getState().editMessage("msg-1", "Edited"),
+      ).rejects.toBeDefined();
+
+      expect(useMessageStore.getState().error).toBe("Failed to edit message");
+    });
+
+    it("should extract message from ApiRequestError on edit failure", async () => {
+      const { ApiRequestError: MockApiRequestError } = await import(
+        "../api/client"
+      );
+      vi.mocked(api.updateMessage).mockRejectedValueOnce(
+        new MockApiRequestError(403, "Not your message"),
+      );
+
+      await expect(
+        useMessageStore.getState().editMessage("msg-1", "Edited"),
+      ).rejects.toBeDefined();
+
+      expect(useMessageStore.getState().error).toBe("Not your message");
+    });
+  });
+
+  describe("deleteMessage", () => {
+    it("should call api.deleteMessage", async () => {
+      vi.mocked(api.deleteMessage).mockResolvedValueOnce(undefined);
+
+      await useMessageStore.getState().deleteMessage("msg-1");
+
+      expect(api.deleteMessage).toHaveBeenCalledWith("msg-1");
+    });
+
+    it("should set error and re-throw on delete failure with generic Error", async () => {
+      vi.mocked(api.deleteMessage).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      await expect(
+        useMessageStore.getState().deleteMessage("msg-1"),
+      ).rejects.toBeDefined();
+
+      expect(useMessageStore.getState().error).toBe("Failed to delete message");
+    });
+
+    it("should extract message from ApiRequestError on delete failure", async () => {
+      const { ApiRequestError: MockApiRequestError } = await import(
+        "../api/client"
+      );
+      vi.mocked(api.deleteMessage).mockRejectedValueOnce(
+        new MockApiRequestError(403, "Not allowed"),
+      );
+
+      await expect(
+        useMessageStore.getState().deleteMessage("msg-1"),
+      ).rejects.toBeDefined();
+
+      expect(useMessageStore.getState().error).toBe("Not allowed");
+    });
+  });
+
+  describe("cacheAttachments", () => {
+    it("should store attachments in the cache keyed by message ID", () => {
+      const attachments = [mockAttachment()];
+
+      useMessageStore.getState().cacheAttachments("msg-1", attachments);
+
+      expect(useMessageStore.getState().attachmentCache["msg-1"]).toEqual(
+        attachments,
+      );
+    });
+
+    it("should merge with existing cache entries", () => {
+      useMessageStore.setState({
+        attachmentCache: { "msg-existing": [mockAttachment()] },
+      });
+      const newAttachments = [
+        { ...mockAttachment(), id: "att-2", message_id: "msg-2" },
+      ];
+
+      useMessageStore.getState().cacheAttachments("msg-2", newAttachments);
+
+      expect(
+        useMessageStore.getState().attachmentCache["msg-existing"],
+      ).toBeDefined();
+      expect(useMessageStore.getState().attachmentCache["msg-2"]).toBeDefined();
+    });
+  });
+
+  describe("ensureReplyTarget", () => {
+    it("should fetch and cache a message not in the main list", async () => {
+      const replyTarget = mockMsg({ id: "msg-reply", content: "Original" });
+      vi.mocked(api.getMessage).mockResolvedValueOnce(replyTarget);
+
+      await useMessageStore.getState().ensureReplyTarget("ch-1", "msg-reply");
+
+      expect(api.getMessage).toHaveBeenCalledWith("ch-1", "msg-reply");
+      expect(useMessageStore.getState().replyTargetCache["msg-reply"]).toEqual(
+        replyTarget,
+      );
+    });
+
+    it("should skip fetch if message is already in main list", async () => {
+      const msg = mockMsg({ id: "msg-1" });
+      useMessageStore.setState({ messages: [msg] });
+
+      await useMessageStore.getState().ensureReplyTarget("ch-1", "msg-1");
+
+      expect(api.getMessage).not.toHaveBeenCalled();
+    });
+
+    it("should skip fetch if message is already in reply cache", async () => {
+      const cached = mockMsg({ id: "msg-reply" });
+      useMessageStore.setState({
+        replyTargetCache: { "msg-reply": cached },
+      });
+
+      await useMessageStore.getState().ensureReplyTarget("ch-1", "msg-reply");
+
+      expect(api.getMessage).not.toHaveBeenCalled();
+    });
+
+    it("should not throw on API failure (non-fatal)", async () => {
+      vi.mocked(api.getMessage).mockRejectedValueOnce(new Error("Not found"));
+
+      await expect(
+        useMessageStore.getState().ensureReplyTarget("ch-1", "msg-missing"),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("setHighlightedMessageId", () => {
+    it("should set the highlighted message ID", () => {
+      useMessageStore.getState().setHighlightedMessageId("msg-1");
+      expect(useMessageStore.getState().highlightedMessageId).toBe("msg-1");
+    });
+
+    it("should clear the highlighted message ID", () => {
+      useMessageStore.setState({ highlightedMessageId: "msg-1" });
+      useMessageStore.getState().setHighlightedMessageId(null);
+      expect(useMessageStore.getState().highlightedMessageId).toBeNull();
+    });
+  });
+
+  describe("updateMessagePoll", () => {
+    it("should update the poll on a matching message", () => {
+      const poll: PollDto = {
+        id: "poll-1",
+        question: "Yes?",
+        options: [],
+        total_votes: 0,
+        user_vote: null,
+      };
+      const msg = mockMsg({ id: "msg-1", poll });
+      useMessageStore.setState({ messages: [msg] });
+
+      const updatedPoll: PollDto = { ...poll, total_votes: 1 };
+      useMessageStore.getState().updateMessagePoll("poll-1", updatedPoll);
+
+      expect(useMessageStore.getState().messages[0].poll?.total_votes).toBe(1);
+    });
+
+    it("should not modify messages without the matching poll ID", () => {
+      const msg = mockMsg({ id: "msg-1" }); // no poll
+      useMessageStore.setState({ messages: [msg] });
+
+      useMessageStore.getState().updateMessagePoll("poll-nonexistent", {
+        id: "poll-nonexistent",
+        question: "Q?",
+        options: [],
+        total_votes: 0,
+        user_vote: null,
+      });
+
+      expect(useMessageStore.getState().messages[0].poll).toBeUndefined();
+    });
+  });
+
+  describe("updatePinnedStatus", () => {
+    it("should set pinned to true for the matching message", () => {
+      const msg = mockMsg({
+        id: "msg-1",
+        pinned: false,
+        pinned_by: null,
+        pinned_at: null,
+      });
+      useMessageStore.setState({ messages: [msg] });
+
+      useMessageStore.getState().updatePinnedStatus("msg-1", true);
+
+      expect(useMessageStore.getState().messages[0].pinned).toBe(true);
+    });
+
+    it("should set pinned to false and clear pinned_by and pinned_at", () => {
+      const msg = mockMsg({
+        id: "msg-1",
+        pinned: true,
+        pinned_by: "user-1",
+        pinned_at: "2024-06-01T00:00:00Z",
+      });
+      useMessageStore.setState({ messages: [msg] });
+
+      useMessageStore.getState().updatePinnedStatus("msg-1", false);
+
+      const updated = useMessageStore.getState().messages[0];
+      expect(updated.pinned).toBe(false);
+      expect(updated.pinned_by).toBeNull();
+      expect(updated.pinned_at).toBeNull();
+    });
+
+    it("should not modify other messages", () => {
+      const msg1 = mockMsg({ id: "msg-1", pinned: false });
+      const msg2 = mockMsg({ id: "msg-2", pinned: false });
+      useMessageStore.setState({ messages: [msg1, msg2] });
+
+      useMessageStore.getState().updatePinnedStatus("msg-1", true);
+
+      expect(useMessageStore.getState().messages[1].pinned).toBe(false);
+    });
+  });
+
+  describe("clearError", () => {
+    it("should clear the error", () => {
+      useMessageStore.setState({ error: "Some error" });
+
+      useMessageStore.getState().clearError();
+
+      expect(useMessageStore.getState().error).toBeNull();
     });
   });
 
@@ -315,6 +661,44 @@ describe("messageStore", () => {
       expect(useMessageStore.getState().error).toBeTruthy();
     });
 
+    it("should extract ApiRequestError message on upload failure", async () => {
+      const { ApiRequestError: MockApiRequestError } = await import(
+        "../api/client"
+      );
+      const msg = mockMsg({ id: "msg-1" });
+      vi.mocked(api.createMessage).mockResolvedValueOnce(msg);
+      vi.mocked(api.uploadAttachments).mockRejectedValueOnce(
+        new MockApiRequestError(413, "File too large"),
+      );
+
+      const file = new File(["data"], "big.bin", {
+        type: "application/octet-stream",
+      });
+      await useMessageStore
+        .getState()
+        .sendMessage("ch-1", { content: "Hi" }, [file]);
+
+      expect(useMessageStore.getState().error).toBe("File too large");
+    });
+
+    it("should not call uploadAttachments when no files provided", async () => {
+      vi.mocked(api.createMessage).mockResolvedValueOnce(mockMsg());
+
+      await useMessageStore.getState().sendMessage("ch-1", { content: "Hi" });
+
+      expect(api.uploadAttachments).not.toHaveBeenCalled();
+    });
+
+    it("should not call uploadAttachments when files array is empty", async () => {
+      vi.mocked(api.createMessage).mockResolvedValueOnce(mockMsg());
+
+      await useMessageStore
+        .getState()
+        .sendMessage("ch-1", { content: "Hi" }, []);
+
+      expect(api.uploadAttachments).not.toHaveBeenCalled();
+    });
+
     it("should clear attachmentCache on clearMessages", () => {
       useMessageStore.setState({
         attachmentCache: { "msg-1": [mockAttachment()] },
@@ -365,16 +749,37 @@ describe("messageStore", () => {
         expect(useMessageStore.getState().isThreadLoading).toBe(false);
       });
 
+      it("should extract message from ApiRequestError on thread fetch failure", async () => {
+        const { ApiRequestError: MockApiRequestError } = await import(
+          "../api/client"
+        );
+        vi.mocked(api.listThreadReplies).mockRejectedValueOnce(
+          new MockApiRequestError(404, "Thread not found"),
+        );
+
+        await useMessageStore.getState().fetchThreadReplies("ch-1", "root-1");
+
+        expect(useMessageStore.getState().threadError).toBe("Thread not found");
+      });
+
       it("should clear prior threadError before fetching", async () => {
         useMessageStore.setState({ threadError: "old error" });
         vi.mocked(api.listThreadReplies).mockResolvedValueOnce([]);
 
-        // Don't await — check state during the async gap
         const promise = useMessageStore
           .getState()
           .fetchThreadReplies("ch-1", "root-1");
         expect(useMessageStore.getState().threadError).toBeNull();
         await promise;
+      });
+
+      it("should set isThreadLoading true before fetching", async () => {
+        vi.mocked(api.listThreadReplies).mockImplementation(async () => {
+          expect(useMessageStore.getState().isThreadLoading).toBe(true);
+          return [];
+        });
+
+        await useMessageStore.getState().fetchThreadReplies("ch-1", "root-1");
       });
     });
 
@@ -405,7 +810,6 @@ describe("messageStore", () => {
 
       it("should create threadCache entry from ?? [] when messageId not pre-populated", async () => {
         const reply = mockMsg({ id: "reply-1", thread_id: "root-1" });
-        // Do not pre-seed threadCache — exercises the `?? []` guard path
         useMessageStore.setState({ threadCache: {} });
         vi.mocked(api.createThreadReply).mockResolvedValueOnce(reply);
 
@@ -415,6 +819,28 @@ describe("messageStore", () => {
 
         expect(useMessageStore.getState().threadCache["root-1"]).toContainEqual(
           reply,
+        );
+      });
+
+      it("should not duplicate reply if already in cache", async () => {
+        const reply = mockMsg({ id: "reply-1", thread_id: "root-1" });
+        const root = mockMsg({ id: "root-1", thread_reply_count: 1 });
+        useMessageStore.setState({
+          messages: [root],
+          threadCache: { "root-1": [reply] },
+        });
+        vi.mocked(api.createThreadReply).mockResolvedValueOnce(reply);
+
+        await useMessageStore
+          .getState()
+          .sendThreadReply("ch-1", "root-1", "Hello again");
+
+        expect(useMessageStore.getState().threadCache["root-1"]).toHaveLength(
+          1,
+        );
+        // Count should not change since reply was already cached
+        expect(useMessageStore.getState().messages[0].thread_reply_count).toBe(
+          1,
         );
       });
 
@@ -430,6 +856,21 @@ describe("messageStore", () => {
         expect(useMessageStore.getState().error).toBe(
           "Failed to send thread reply",
         );
+      });
+
+      it("should extract message from ApiRequestError on send reply failure", async () => {
+        const { ApiRequestError: MockApiRequestError } = await import(
+          "../api/client"
+        );
+        vi.mocked(api.createThreadReply).mockRejectedValueOnce(
+          new MockApiRequestError(403, "Thread locked"),
+        );
+
+        await expect(
+          useMessageStore.getState().sendThreadReply("ch-1", "root-1", "Hello"),
+        ).rejects.toBeDefined();
+
+        expect(useMessageStore.getState().error).toBe("Thread locked");
       });
     });
 
@@ -465,7 +906,6 @@ describe("messageStore", () => {
         expect(useMessageStore.getState().threadCache["root-1"]).toHaveLength(
           1,
         );
-        // Count must not increase again — the message was already cached
         expect(useMessageStore.getState().messages[0].thread_reply_count).toBe(
           1,
         );
@@ -481,7 +921,6 @@ describe("messageStore", () => {
         expect(
           useMessageStore.getState().threadCache["root-1"],
         ).toBeUndefined();
-        // Count still increments so the thread footer badge stays accurate
         expect(useMessageStore.getState().messages[0].thread_reply_count).toBe(
           1,
         );
