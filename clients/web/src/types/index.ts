@@ -111,6 +111,74 @@ export interface MemberDto {
   nickname: string | null;
   joined_at: string;
   timeout_expires_at?: string | null;
+  roles?: MemberRoleInfo[];
+}
+
+// ─── Role Types ─────────────────────────────────────────────
+
+export interface RoleDto {
+  id: string;
+  server_id: string;
+  name: string;
+  permissions: number;
+  color: string | null;
+  position: number;
+  created_at: string;
+}
+
+export interface MemberRoleInfo {
+  id: string;
+  name: string;
+  color: string | null;
+  position: number;
+}
+
+export interface CreateRoleRequest {
+  name: string;
+  permissions?: number;
+  color?: string;
+  position?: number;
+}
+
+export interface UpdateRoleRequest {
+  name?: string;
+  permissions?: number;
+  color?: string;
+  position?: number;
+}
+
+export interface RoleDeleteEvent {
+  server_id: string;
+  role_id: string;
+}
+
+export interface MemberRoleEvent {
+  server_id: string;
+  user_id: string;
+  role_id: string;
+  role_name: string;
+  role_color: string | null;
+}
+
+export const PERMISSIONS = {
+  VIEW_CHANNEL: 1,
+  SEND_MESSAGES: 2,
+  MANAGE_MESSAGES: 4,
+  ATTACH_FILES: 8,
+  ADD_REACTIONS: 16,
+  CONNECT_VOICE: 32,
+  SPEAK: 64,
+  MUTE_MEMBERS: 128,
+  KICK_MEMBERS: 256,
+  BAN_MEMBERS: 512,
+  MANAGE_CHANNELS: 1024,
+  MANAGE_ROLES: 2048,
+  MANAGE_SERVER: 4096,
+  ADMINISTRATOR: 8192,
+} as const;
+
+export function hasPermission(perms: number, bit: number): boolean {
+  return (perms & bit) !== 0 || (perms & PERMISSIONS.ADMINISTRATOR) !== 0;
 }
 
 // ─── Channel Types ───────────────────────────────────────────
@@ -350,6 +418,7 @@ export interface ReadyEvent {
   dm_channels: DirectMessageChannel[];
   unread_counts: UnreadCount[];
   mention_counts: MentionCount[];
+  server_roles?: Record<string, RoleDto[]>;
 }
 
 export interface DmChannelCreateEvent extends DirectMessageChannel {}

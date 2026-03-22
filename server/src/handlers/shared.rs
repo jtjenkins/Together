@@ -128,10 +128,11 @@ pub async fn require_member(
 
 // Permission bitflag constants (mirrors migrations/20240216000003_roles_and_permissions.sql)
 const PERMISSION_MANAGE_MESSAGES: i64 = 4; // bit 2
-const PERMISSION_ADMINISTRATOR: i64 = 8192; // bit 13
+pub const PERMISSION_ADMINISTRATOR: i64 = 8192; // bit 13
 pub const PERMISSION_MUTE_MEMBERS: i64 = 128; // bit 7
 pub const PERMISSION_KICK_MEMBERS: i64 = 256; // bit 8
 pub const PERMISSION_BAN_MEMBERS: i64 = 512; // bit 9
+pub const PERMISSION_MANAGE_ROLES: i64 = 2048; // bit 11
 
 /// Verify the user has the MANAGE_MESSAGES permission in the given server.
 ///
@@ -336,4 +337,47 @@ pub async fn can_moderate(
             "You lack the required permission for this action".into(),
         ))
     }
+}
+
+/// Return the highest role position held by `user_id` in `server_id`, or 0
+/// if the user has no roles.
+pub async fn get_user_highest_position(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    user_id: Uuid,
+) -> AppResult<i32> {
+    let pos: Option<i32> = sqlx::query_scalar(
+        "SELECT MAX(r.position)
+         FROM member_roles mr
+         JOIN roles r ON r.id = mr.role_id
+         WHERE mr.server_id = $1 AND mr.user_id = $2",
+    )
+    .bind(server_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(pos.unwrap_or(0))
+}
+
+/// Return the bitwise OR of all role permissions for `user_id` in `server_id`,
+/// or 0 if the user has no roles.
+pub async fn get_user_permissions(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    user_id: Uuid,
+) -> AppResult<i64> {
+    // PostgreSQL BIT_OR aggregate returns NULL when there are no rows.
+    let perms: Option<i64> = sqlx::query_scalar(
+        "SELECT BIT_OR(r.permissions)
+         FROM member_roles mr
+         JOIN roles r ON r.id = mr.role_id
+         WHERE mr.server_id = $1 AND mr.user_id = $2",
+    )
+    .bind(server_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(perms.unwrap_or(0))
 }

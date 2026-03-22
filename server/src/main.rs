@@ -271,6 +271,19 @@ async fn main() {
             "/servers/:id/members/:user_id/timeout",
             post(handlers::moderation::timeout_member).delete(handlers::moderation::remove_timeout),
         )
+        // Role management routes (permission-gated)
+        .route(
+            "/servers/:id/roles",
+            get(handlers::roles::list_roles).post(handlers::roles::create_role),
+        )
+        .route(
+            "/servers/:id/roles/:role_id",
+            patch(handlers::roles::update_role).delete(handlers::roles::delete_role),
+        )
+        .route(
+            "/servers/:id/members/:user_id/roles/:role_id",
+            axum::routing::put(handlers::roles::assign_role).delete(handlers::roles::remove_role),
+        )
         // Server data export (owner only)
         .route("/servers/:id/export", get(handlers::export::export_server))
         // Audit logs (owner only)

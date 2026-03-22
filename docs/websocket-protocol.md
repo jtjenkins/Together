@@ -143,7 +143,20 @@ The server list uses the raw server shape (not the REST `ServerDto`) — it does
       }
     ],
     "unread_counts": [{ "channel_id": "uuid", "unread_count": 5 }],
-    "mention_counts": [{ "channel_id": "uuid", "count": 2 }]
+    "mention_counts": [{ "channel_id": "uuid", "count": 2 }],
+    "server_roles": {
+      "server-uuid": [
+        {
+          "id": "role-uuid",
+          "server_id": "server-uuid",
+          "name": "Admin",
+          "permissions": 8192,
+          "color": "#E74C3C",
+          "position": 10,
+          "created_at": "2025-01-01T00:00:00Z"
+        }
+      ]
+    }
   }
 }
 ```
@@ -302,6 +315,11 @@ event — refer to the handler source code for full field details.
 | `CUSTOM_EMOJI_DELETE`   | A custom emoji was removed from a server                   |
 | `GO_LIVE_START`         | A user started a live stream in a voice channel            |
 | `GO_LIVE_STOP`          | A user stopped their live stream in a voice channel        |
+| `ROLE_CREATE`           | A new role was created in the server                       |
+| `ROLE_UPDATE`           | A role's name, permissions, color, or position was changed |
+| `ROLE_DELETE`           | A role was deleted from the server                         |
+| `MEMBER_ROLE_ADD`       | A role was assigned to a server member                     |
+| `MEMBER_ROLE_REMOVE`    | A role was removed from a server member                    |
 
 The server-broadcast `TYPING_START` event payload includes `user_id`, `username`, `channel_id`,
 and `timestamp`. Clients should auto-expire the typing indicator after ~10 seconds if no further

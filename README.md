@@ -46,6 +46,7 @@ Rocket.Chat instead.
 | Activity / rich presence status             | ✅     |
 | Bot API with token authentication           | ✅     |
 | Webhooks (HMAC-SHA256 signed payloads)      | ✅     |
+| Role-based permissions and management        | ✅     |
 | Member moderation (kick, ban, timeout)      | ✅     |
 | Auto-moderation rules                       | ✅     |
 | Audit logging                               | ✅     |
@@ -200,6 +201,7 @@ For the full contribution guide (code style, PR process, project structure), see
 | [docs/bot-api.md](docs/bot-api.md)                                 | Bot API and token authentication                  |
 | [docs/webhooks.md](docs/webhooks.md)                               | Webhooks with HMAC-SHA256 signed payloads         |
 | [docs/auto-moderation.md](docs/auto-moderation.md)                 | Auto-moderation rules configuration               |
+| [docs/roles.md](docs/roles.md)                                     | Role management and permission bitflags            |
 | [docs/audit-logging.md](docs/audit-logging.md)                     | Audit log events reference                        |
 | [docs/server-export.md](docs/server-export.md)                     | Server data export (ZIP download)                 |
 | [docs/link-previews-and-giphy.md](docs/link-previews-and-giphy.md) | Link previews and GIF search                      |

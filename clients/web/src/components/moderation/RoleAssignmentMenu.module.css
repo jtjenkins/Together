@@ -1,0 +1,75 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.menu {
+  position: fixed;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  padding: 8px;
+  min-width: 200px;
+  max-width: 260px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1001;
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  padding: 4px 8px 8px;
+}
+
+.roleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.roleRow:hover {
+  background: var(--bg-hover);
+}
+
+.roleRowDisabled {
+  composes: roleRow;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.roleRowDisabled:hover {
+  background: transparent;
+}
+
+.roleDot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.roleName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 12px 8px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}

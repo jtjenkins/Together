@@ -2,8 +2,10 @@ import { useCallback, useRef, useState } from "react";
 import { useAuthStore } from "../../stores/authStore";
 import { Mail } from "lucide-react";
 import { useServerStore } from "../../stores/serverStore";
+import { useRoleStore } from "../../stores/roleStore";
 import { useDmStore } from "../../stores/dmStore";
 import type { MemberDto, UserStatus } from "../../types";
+import { hasPermission, PERMISSIONS } from "../../types";
 import { UserProfileCard } from "../users/UserProfileCard";
 import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
 import {
@@ -11,6 +13,7 @@ import {
   BanModal,
   TimeoutModal,
 } from "../moderation/ModerationModals";
+import { RoleAssignmentMenu } from "../moderation/RoleAssignmentMenu";
 import styles from "./MemberSidebar.module.css";
 
 function StatusIndicator({ status }: { status: UserStatus }) {
@@ -22,10 +25,12 @@ type ModerationAction = "kick" | "ban" | "timeout";
 function MemberItem({
   member,
   isOwner,
+  myPerms,
   serverId,
 }: {
   member: MemberDto;
   isOwner: boolean;
+  myPerms: number;
   serverId: string | null;
 }) {
   const currentUserId = useAuthStore((s) => s.user?.id);
@@ -39,6 +44,19 @@ function MemberItem({
     null,
   );
   const [modAction, setModAction] = useState<ModerationAction | null>(null);
+  const [roleMenu, setRoleMenu] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+
+  const canKick =
+    isOwner || hasPermission(myPerms, PERMISSIONS.KICK_MEMBERS);
+  const canBan =
+    isOwner || hasPermission(myPerms, PERMISSIONS.BAN_MEMBERS);
+  const canTimeout =
+    isOwner || hasPermission(myPerms, PERMISSIONS.MUTE_MEMBERS);
+  const canManageRoles =
+    isOwner || hasPermission(myPerms, PERMISSIONS.MANAGE_ROLES);
+  const hasAnyModPerm = canKick || canBan || canTimeout || canManageRoles;
 
   const handleMessage = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -53,13 +71,13 @@ function MemberItem({
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
-      // Only show moderation context menu if current user is the owner
+      // Only show context menu if user has moderation permissions
       // and the target is not the current user
-      if (!isOwner || member.user_id === currentUserId) return;
+      if (!hasAnyModPerm || member.user_id === currentUserId) return;
       e.preventDefault();
       setCtxMenu({ x: e.clientX, y: e.clientY });
     },
-    [isOwner, member.user_id, currentUserId],
+    [hasAnyModPerm, member.user_id, currentUserId],
   );
 
   const closeCtxMenu = useCallback(() => setCtxMenu(null), []);
@@ -69,9 +87,22 @@ function MemberItem({
     setModAction(action);
   }, []);
 
+  const openRoleMenu = useCallback(
+    (x: number, y: number) => {
+      setCtxMenu(null);
+      setRoleMenu({ x, y });
+    },
+    [],
+  );
+
   const isTimedOut =
     member.timeout_expires_at != null &&
     new Date(member.timeout_expires_at) > new Date();
+
+  const memberRoles = member.roles || [];
+  const sortedMemberRoles = [...memberRoles].sort(
+    (a, b) => b.position - a.position,
+  );
 
   return (
     <>
@@ -111,6 +142,22 @@ function MemberItem({
               </span>
             )}
           </span>
+          {sortedMemberRoles.length > 0 && (
+            <span className={styles.roleBadges}>
+              {sortedMemberRoles.map((r) => (
+                <span
+                  key={r.id}
+                  className={styles.roleBadge}
+                  style={{
+                    background: r.color || "#95a5a6",
+                  }}
+                  title={r.name}
+                >
+                  {r.name}
+                </span>
+              ))}
+            </span>
+          )}
           {member.activity && (
             <span className={styles.activity}>{member.activity}</span>
           )}
@@ -137,20 +184,43 @@ function MemberItem({
 
       {ctxMenu && (
         <ContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={closeCtxMenu}>
-          <ContextMenuItem
-            label="Kick"
-            onClick={() => openModAction("kick")}
-          />
-          <ContextMenuItem
-            label="Timeout"
-            onClick={() => openModAction("timeout")}
-          />
-          <ContextMenuItem
-            label="Ban"
-            onClick={() => openModAction("ban")}
-            danger
-          />
+          {canKick && (
+            <ContextMenuItem
+              label="Kick"
+              onClick={() => openModAction("kick")}
+            />
+          )}
+          {canTimeout && (
+            <ContextMenuItem
+              label="Timeout"
+              onClick={() => openModAction("timeout")}
+            />
+          )}
+          {canBan && (
+            <ContextMenuItem
+              label="Ban"
+              onClick={() => openModAction("ban")}
+              danger
+            />
+          )}
+          {canManageRoles && (
+            <ContextMenuItem
+              label="Manage Roles"
+              onClick={() => openRoleMenu(ctxMenu.x, ctxMenu.y)}
+            />
+          )}
         </ContextMenu>
+      )}
+
+      {roleMenu && serverId && (
+        <RoleAssignmentMenu
+          serverId={serverId}
+          userId={member.user_id}
+          memberRoles={member.roles || []}
+          x={roleMenu.x}
+          y={roleMenu.y}
+          onClose={() => setRoleMenu(null)}
+        />
       )}
 
       {serverId && modAction === "kick" && (
@@ -191,6 +261,9 @@ export function MemberSidebar() {
   const activeServerId = useServerStore((s) => s.activeServerId);
   const servers = useServerStore((s) => s.servers);
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const myPerms = useRoleStore(
+    (s) => s.myPermissions[activeServerId || ""] || 0,
+  );
 
   const activeServer = servers.find((s) => s.id === activeServerId);
   const isOwner = activeServer?.owner_id === currentUserId;
@@ -210,6 +283,7 @@ export function MemberSidebar() {
               key={m.user_id}
               member={m}
               isOwner={isOwner}
+              myPerms={myPerms}
               serverId={activeServerId}
             />
           ))}
@@ -225,6 +299,7 @@ export function MemberSidebar() {
               key={m.user_id}
               member={m}
               isOwner={isOwner}
+              myPerms={myPerms}
               serverId={activeServerId}
             />
           ))}

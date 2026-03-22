@@ -17,6 +17,9 @@ import type {
   GoLiveStopEvent,
   MemberModerationEvent,
   MemberTimeoutEvent,
+  RoleDto,
+  RoleDeleteEvent,
+  MemberRoleEvent,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -46,6 +49,11 @@ interface EventHandlers {
   MEMBER_TIMEOUT: EventHandler<MemberTimeoutEvent>;
   MEMBER_TIMEOUT_REMOVE: EventHandler<MemberModerationEvent>;
   MEMBER_UNBAN: EventHandler<MemberModerationEvent>;
+  ROLE_CREATE: EventHandler<RoleDto>;
+  ROLE_UPDATE: EventHandler<RoleDto>;
+  ROLE_DELETE: EventHandler<RoleDeleteEvent>;
+  MEMBER_ROLE_ADD: EventHandler<MemberRoleEvent>;
+  MEMBER_ROLE_REMOVE: EventHandler<MemberRoleEvent>;
 
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;

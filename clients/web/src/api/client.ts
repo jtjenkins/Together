@@ -52,6 +52,9 @@ import type {
   KickMemberRequest,
   BanMemberRequest,
   TimeoutMemberRequest,
+  RoleDto,
+  CreateRoleRequest,
+  UpdateRoleRequest,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -833,6 +836,50 @@ class ApiClient {
     return this.request<void>(
       `/servers/${serverId}/webhooks/${webhookId}/test`,
       { method: "POST" },
+    );
+  }
+
+  // ─── Roles ──────────────────────────────────────────────────────────────────
+
+  listRoles(serverId: string): Promise<RoleDto[]> {
+    return this.request<RoleDto[]>(`/servers/${serverId}/roles`);
+  }
+
+  createRole(serverId: string, data: CreateRoleRequest): Promise<RoleDto> {
+    return this.request<RoleDto>(`/servers/${serverId}/roles`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  updateRole(
+    serverId: string,
+    roleId: string,
+    data: UpdateRoleRequest,
+  ): Promise<RoleDto> {
+    return this.request<RoleDto>(`/servers/${serverId}/roles/${roleId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteRole(serverId: string, roleId: string): Promise<void> {
+    return this.request<void>(`/servers/${serverId}/roles/${roleId}`, {
+      method: "DELETE",
+    });
+  }
+
+  assignRole(serverId: string, userId: string, roleId: string): Promise<void> {
+    return this.request<void>(
+      `/servers/${serverId}/members/${userId}/roles/${roleId}`,
+      { method: "PUT" },
+    );
+  }
+
+  removeRole(serverId: string, userId: string, roleId: string): Promise<void> {
+    return this.request<void>(
+      `/servers/${serverId}/members/${userId}/roles/${roleId}`,
+      { method: "DELETE" },
     );
   }
 }

@@ -21,6 +21,11 @@ All moderation endpoints use the `can_moderate()` authorization check:
 
 Both the actor and the target must be current members of the server (verified via `require_member()`). Non-members receive `404 Not Found` to avoid leaking server existence.
 
+> **Tip:** Moderation permissions are granted through the role management system. Assign roles with the
+> appropriate permission bits (`KICK_MEMBERS`, `BAN_MEMBERS`, `MUTE_MEMBERS`, or `ADMINISTRATOR`) to
+> allow trusted members to moderate without being the server owner. See [roles.md](roles.md) for how
+> to create and assign roles.
+
 ---
 
 ## Endpoints

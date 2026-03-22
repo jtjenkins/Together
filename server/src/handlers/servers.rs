@@ -7,13 +7,16 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 use validator::Validate;
 
+use std::collections::HashMap;
+
 use super::shared::{fetch_server, require_http_url, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
     handlers::audit::log_action,
     models::{
-        AuditAction, CreateAuditLog, CreateServerDto, MemberDto, Server, ServerDto, UpdateServerDto,
+        AuditAction, CreateAuditLog, CreateServerDto, MemberDto, MemberRoleInfo, Server, ServerDto,
+        UpdateServerDto,
     },
     state::AppState,
 };
@@ -424,12 +427,20 @@ pub async fn browse_servers(
     Ok(Json(servers))
 }
 
+/// Member response enriched with role information.
+#[derive(Debug, serde::Serialize)]
+pub struct MemberWithRolesDto {
+    #[serde(flatten)]
+    pub member: MemberDto,
+    pub roles: Vec<MemberRoleInfo>,
+}
+
 /// GET /servers/:id/members — list all members of a server (members only).
 pub async fn list_members(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(server_id): Path<Uuid>,
-) -> AppResult<Json<Vec<MemberDto>>> {
+) -> AppResult<Json<Vec<MemberWithRolesDto>>> {
     fetch_server(&state.pool, server_id).await?;
     require_member(&state.pool, server_id, auth.user_id()).await?;
 
@@ -445,5 +456,48 @@ pub async fn list_members(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(members))
+    // Batch-fetch all member roles for this server.
+    #[derive(sqlx::FromRow)]
+    struct MemberRoleRow {
+        user_id: Uuid,
+        id: Uuid,
+        name: String,
+        color: Option<String>,
+        position: i32,
+    }
+
+    let role_rows = sqlx::query_as::<_, MemberRoleRow>(
+        "SELECT mr.user_id, r.id, r.name, r.color, r.position
+         FROM member_roles mr
+         JOIN roles r ON r.id = mr.role_id
+         WHERE mr.server_id = $1
+         ORDER BY r.position DESC",
+    )
+    .bind(server_id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    // Group roles by user_id.
+    let mut roles_by_user: HashMap<Uuid, Vec<MemberRoleInfo>> = HashMap::new();
+    for row in role_rows {
+        roles_by_user
+            .entry(row.user_id)
+            .or_default()
+            .push(MemberRoleInfo {
+                id: row.id,
+                name: row.name,
+                color: row.color,
+                position: row.position,
+            });
+    }
+
+    let result: Vec<MemberWithRolesDto> = members
+        .into_iter()
+        .map(|m| {
+            let roles = roles_by_user.remove(&m.user_id).unwrap_or_default();
+            MemberWithRolesDto { member: m, roles }
+        })
+        .collect();
+
+    Ok(Json(result))
 }

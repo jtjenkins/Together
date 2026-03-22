@@ -19,6 +19,7 @@ pub mod pins;
 pub mod polls;
 pub mod reactions;
 pub mod read_states;
+pub mod roles;
 pub mod search;
 pub mod servers;
 pub mod shared;

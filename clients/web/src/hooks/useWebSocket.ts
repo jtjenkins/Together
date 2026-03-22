@@ -8,6 +8,7 @@ import { useDmStore } from "../stores/dmStore";
 import { useReadStateStore } from "../stores/readStateStore";
 import { useTypingStore } from "../stores/typingStore";
 import { useCustomEmojiStore } from "../stores/customEmojiStore";
+import { useRoleStore } from "../stores/roleStore";
 
 import type {
   ReadyEvent,
@@ -22,6 +23,10 @@ import type {
   CustomEmoji,
   MemberModerationEvent,
   MemberTimeoutEvent,
+  RoleDto,
+  RoleDeleteEvent,
+  MemberRoleEvent,
+  MemberRoleInfo,
 } from "../types";
 
 export function useWebSocket() {
@@ -52,6 +57,12 @@ export function useWebSocket() {
   const removeMemberLocally = useServerStore((s) => s.removeMemberLocally);
   const setMemberTimeout = useServerStore((s) => s.setMemberTimeout);
 
+  const handleRoleCreate = useRoleStore((s) => s.handleRoleCreate);
+  const handleRoleUpdate = useRoleStore((s) => s.handleRoleUpdate);
+  const handleRoleDelete = useRoleStore((s) => s.handleRoleDelete);
+  const handleMemberRoleAdd = useRoleStore((s) => s.handleMemberRoleAdd);
+  const handleMemberRoleRemove = useRoleStore((s) => s.handleMemberRoleRemove);
+
   useEffect(() => {
     const unsubs = [
       gateway.on("READY", (data: ReadyEvent) => {
@@ -60,6 +71,9 @@ export function useWebSocket() {
         if (data.dm_channels) setDmChannels(data.dm_channels);
         if (data.unread_counts) setUnreadCounts(data.unread_counts);
         if (data.mention_counts) setMentionCounts(data.mention_counts);
+        if (data.server_roles) {
+          useRoleStore.getState().setRolesFromReady(data.server_roles);
+        }
       }),
 
       gateway.on("MESSAGE_CREATE", (msg: Message) => {
@@ -198,6 +212,64 @@ export function useWebSocket() {
         // The ban list panel re-fetches on open.
       }),
 
+      gateway.on("ROLE_CREATE", (role: RoleDto) => {
+        handleRoleCreate(role);
+      }),
+
+      gateway.on("ROLE_UPDATE", (role: RoleDto) => {
+        handleRoleUpdate(role);
+      }),
+
+      gateway.on("ROLE_DELETE", (event: RoleDeleteEvent) => {
+        handleRoleDelete(event);
+      }),
+
+      gateway.on("MEMBER_ROLE_ADD", (event: MemberRoleEvent) => {
+        handleMemberRoleAdd(event);
+        // Update member's roles in serverStore
+        const members = useServerStore.getState().members;
+        const member = members.find((m) => m.user_id === event.user_id);
+        if (member) {
+          const roleInfo: MemberRoleInfo = {
+            id: event.role_id,
+            name: event.role_name,
+            color: event.role_color,
+            position: 0,
+          };
+          const existingRoles = member.roles || [];
+          if (!existingRoles.some((r) => r.id === event.role_id)) {
+            useServerStore.setState({
+              members: members.map((m) =>
+                m.user_id === event.user_id
+                  ? { ...m, roles: [...existingRoles, roleInfo] }
+                  : m,
+              ),
+            });
+          }
+        }
+      }),
+
+      gateway.on("MEMBER_ROLE_REMOVE", (event: MemberRoleEvent) => {
+        handleMemberRoleRemove(event);
+        // Update member's roles in serverStore
+        const members = useServerStore.getState().members;
+        const member = members.find((m) => m.user_id === event.user_id);
+        if (member && member.roles) {
+          useServerStore.setState({
+            members: members.map((m) =>
+              m.user_id === event.user_id
+                ? {
+                    ...m,
+                    roles: (m.roles || []).filter(
+                      (r) => r.id !== event.role_id,
+                    ),
+                  }
+                : m,
+            ),
+          });
+        }
+      }),
+
       gateway.on("connected", () => {
         if (activeServerId) {
           fetchMembers(activeServerId);
@@ -231,5 +303,10 @@ export function useWebSocket() {
     addTypingUser,
     removeMemberLocally,
     setMemberTimeout,
+    handleRoleCreate,
+    handleRoleUpdate,
+    handleRoleDelete,
+    handleMemberRoleAdd,
+    handleMemberRoleRemove,
   ]);
 }
