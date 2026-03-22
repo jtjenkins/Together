@@ -5,6 +5,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { CustomEmojiManager } from "./CustomEmojiManager";
 import { BotManager } from "./BotManager";
 import { WebhookManager } from "./WebhookManager";
+import { InviteManager } from "./InviteManager";
 import { useCustomEmojiStore } from "../../stores/customEmojiStore";
 import { api } from "../../api/client";
 
@@ -16,7 +17,7 @@ import { RolesTab } from "./RolesTab";
 import { useRoleStore } from "../../stores/roleStore";
 import { hasPermission, PERMISSIONS } from "../../types";
 
-type SettingsTab = "general" | "automod" | "bans" | "roles";
+type SettingsTab = "general" | "automod" | "bans" | "roles" | "invites";
 
 interface ServerSettingsModalProps {
   open: boolean;
@@ -44,6 +45,8 @@ export function ServerSettingsModal({
     isOwner || hasPermission(myPerms, PERMISSIONS.MANAGE_ROLES);
   const canManageBans =
     isOwner || hasPermission(myPerms, PERMISSIONS.BAN_MEMBERS);
+  const canCreateInvites =
+    isOwner || hasPermission(myPerms, PERMISSIONS.CREATE_INVITES);
   const { loadEmojis } = useCustomEmojiStore();
   useEffect(() => {
     if (open) loadEmojis(server.id);
@@ -85,7 +88,7 @@ export function ServerSettingsModal({
 
   return (
     <Modal open={open} onClose={onClose} title="Server Settings">
-      {(isOwner || canManageRoles || canManageBans) && (
+      {(isOwner || canManageRoles || canManageBans || canCreateInvites) && (
         <div className={styles.tabRow}>
           <button
             className={tab === "general" ? styles.activeTab : styles.tab}
@@ -115,6 +118,14 @@ export function ServerSettingsModal({
               onClick={() => setTab("bans")}
             >
               Bans
+            </button>
+          )}
+          {canCreateInvites && (
+            <button
+              className={tab === "invites" ? styles.activeTab : styles.tab}
+              onClick={() => setTab("invites")}
+            >
+              Invites
             </button>
           )}
         </div>
@@ -189,6 +200,9 @@ export function ServerSettingsModal({
       {tab === "automod" && isOwner && <AutomodSettings serverId={server.id} />}
       {tab === "roles" && canManageRoles && <RolesTab serverId={server.id} />}
       {tab === "bans" && canManageBans && <BanListPanel serverId={server.id} />}
+      {tab === "invites" && canCreateInvites && (
+        <InviteManager serverId={server.id} />
+      )}
       {tab === "general" && (
         <>
           <hr

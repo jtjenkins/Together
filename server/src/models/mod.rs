@@ -707,6 +707,10 @@ pub enum AuditAction {
     RoleCreate,
     RoleUpdate,
     RoleDelete,
+
+    // Invite actions
+    InviteCreate,
+    InviteRevoke,
 }
 
 // ── Moderation Request DTOs ─────────────────────────────────────────────────
@@ -1060,4 +1064,37 @@ pub struct UpdateWebhookDto {
     pub url: Option<String>,
     pub event_types: Option<Vec<String>>,
     pub enabled: Option<bool>,
+}
+
+// ── Invite Models ──────────────────────────────────────────────────────────
+
+/// Database row for a server invite link.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct ServerInvite {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub code: String,
+    pub created_by: Option<Uuid>,
+    pub max_uses: Option<i32>,
+    pub uses: i32,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Preview information shown before accepting an invite.
+#[derive(Debug, Serialize)]
+pub struct InvitePreviewDto {
+    pub code: String,
+    pub server_name: String,
+    pub server_icon_url: Option<String>,
+    pub member_count: i64,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+/// Request body for POST /servers/:id/invites.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateInviteRequest {
+    pub max_uses: Option<i32>,
+    pub expires_in_hours: Option<i64>,
 }

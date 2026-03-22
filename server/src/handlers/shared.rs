@@ -133,6 +133,7 @@ pub const PERMISSION_MUTE_MEMBERS: i64 = 128; // bit 7
 pub const PERMISSION_KICK_MEMBERS: i64 = 256; // bit 8
 pub const PERMISSION_BAN_MEMBERS: i64 = 512; // bit 9
 pub const PERMISSION_MANAGE_ROLES: i64 = 2048; // bit 11
+pub const PERMISSION_CREATE_INVITES: i64 = 16384; // bit 14
 
 /// Verify the user has the MANAGE_MESSAGES permission in the given server.
 ///

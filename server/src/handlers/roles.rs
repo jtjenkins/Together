@@ -30,8 +30,8 @@ use crate::{
     },
 };
 
-/// Maximum valid permission value (14 bits: bits 0-13).
-const MAX_PERMISSIONS: i64 = 16383;
+/// Maximum valid permission value (15 bits: bits 0-14).
+const MAX_PERMISSIONS: i64 = 32767;
 
 // ============================================================================
 // Handlers
