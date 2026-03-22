@@ -122,20 +122,30 @@ beforeEach(() => {
   });
 
   // Stub RTCPeerConnection so createPeer doesn't throw in jsdom.
-  globalThis.RTCPeerConnection = vi.fn().mockImplementation(() => ({
-    addTrack: vi.fn(),
-    removeTrack: vi.fn(),
-    getSenders: vi.fn(() => []),
-    createOffer: vi.fn().mockResolvedValue({ type: "offer", sdp: "sdp" }),
-    setLocalDescription: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn(),
-    ontrack: null,
-    onicecandidate: null,
-    onconnectionstatechange: null,
-    onnegotiationneeded: null,
-    connectionState: "new",
-    signalingState: "stable",
-  })) as unknown as typeof RTCPeerConnection;
+  globalThis.RTCPeerConnection = vi.fn().mockImplementation(function () {
+    return {
+      addTrack: vi.fn(),
+      removeTrack: vi.fn(),
+      getSenders: vi.fn(() => []),
+      createOffer: vi.fn().mockResolvedValue({ type: "offer", sdp: "sdp" }),
+      setLocalDescription: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+      ontrack: null,
+      onicecandidate: null,
+      onconnectionstatechange: null,
+      onnegotiationneeded: null,
+      connectionState: "new",
+      signalingState: "stable",
+    };
+  }) as unknown as typeof RTCPeerConnection;
+
+  globalThis.MediaStream = vi.fn().mockImplementation(function () {
+    return {
+      getTracks: vi.fn(() => []),
+      addTrack: vi.fn(),
+      removeTrack: vi.fn(),
+    };
+  }) as unknown as typeof MediaStream;
 
   globalThis.AudioContext = vi.fn().mockImplementation(() => ({
     createAnalyser: vi.fn(() => ({
