@@ -10,8 +10,10 @@ import { useServerStore } from "../stores/serverStore";
 
 vi.mock("../api/client", () => {
   class MockApiRequestError extends Error {
-    constructor(message: string) {
+    public status: number;
+    constructor(status: number, message: string) {
       super(message);
+      this.status = status;
       this.name = "ApiRequestError";
     }
   }
@@ -73,7 +75,7 @@ describe("roleStore — fetchRoles", () => {
 
   it("sets error on failure", async () => {
     vi.mocked(api.listRoles).mockRejectedValue(
-      new ApiRequestError("Forbidden"),
+      new ApiRequestError(403, "Forbidden"),
     );
 
     await useRoleStore.getState().fetchRoles("s1");
@@ -115,7 +117,7 @@ describe("roleStore — createRole", () => {
 
   it("sets error and rethrows on failure", async () => {
     vi.mocked(api.createRole).mockRejectedValue(
-      new ApiRequestError("Bad request"),
+      new ApiRequestError(400, "Bad request"),
     );
 
     await expect(
@@ -210,7 +212,7 @@ describe("roleStore — deleteRole", () => {
 
   it("sets error on failure", async () => {
     vi.mocked(api.deleteRole).mockRejectedValue(
-      new ApiRequestError("Not found"),
+      new ApiRequestError(404, "Not found"),
     );
 
     await expect(
@@ -246,7 +248,7 @@ describe("roleStore — assignRole / removeRole", () => {
 
   it("removeRole sets error on failure", async () => {
     vi.mocked(api.removeRole).mockRejectedValue(
-      new ApiRequestError("Forbidden"),
+      new ApiRequestError(403, "Forbidden"),
     );
 
     await expect(

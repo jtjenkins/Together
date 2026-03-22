@@ -110,9 +110,7 @@ function makePCInstance() {
     }),
     removeTrack: vi.fn(),
     getSenders: vi.fn(() => senders),
-    createOffer: vi
-      .fn()
-      .mockResolvedValue({ type: "offer", sdp: "offer-sdp" }),
+    createOffer: vi.fn().mockResolvedValue({ type: "offer", sdp: "offer-sdp" }),
     createAnswer: vi
       .fn()
       .mockResolvedValue({ type: "answer", sdp: "answer-sdp" }),
@@ -171,16 +169,16 @@ beforeEach(() => {
     return makePCInstance();
   }) as unknown as typeof RTCPeerConnection;
 
-  globalThis.RTCSessionDescription = vi
-    .fn()
-    .mockImplementation(function (init: unknown) {
-      return init;
-    }) as unknown as typeof RTCSessionDescription;
-  globalThis.RTCIceCandidate = vi
-    .fn()
-    .mockImplementation(function (init: unknown) {
-      return init;
-    }) as unknown as typeof RTCIceCandidate;
+  globalThis.RTCSessionDescription = vi.fn().mockImplementation(function (
+    init: unknown,
+  ) {
+    return init;
+  }) as unknown as typeof RTCSessionDescription;
+  globalThis.RTCIceCandidate = vi.fn().mockImplementation(function (
+    init: unknown,
+  ) {
+    return init;
+  }) as unknown as typeof RTCIceCandidate;
 
   globalThis.MediaStream = vi.fn().mockImplementation(function (
     tracks?: MediaStreamTrack[],
@@ -551,7 +549,9 @@ describe("createPeer — ontrack handler", () => {
     });
 
     const pc = createdPCs[0];
-    const ontrackHandler = pc.ontrack as (event: Record<string, unknown>) => void;
+    const ontrackHandler = pc.ontrack as (
+      event: Record<string, unknown>,
+    ) => void;
     expect(ontrackHandler).toBeTypeOf("function");
 
     // Simulate an audio track arriving
@@ -604,7 +604,9 @@ describe("createPeer — ontrack handler", () => {
     });
 
     const pc = createdPCs[0];
-    const ontrackHandler = pc.ontrack as (event: Record<string, unknown>) => void;
+    const ontrackHandler = pc.ontrack as (
+      event: Record<string, unknown>,
+    ) => void;
 
     // Simulate a camera video track (contentHint = "" defaults to camera)
     const cameraTrack = makeTrack("video");
@@ -666,7 +668,9 @@ describe("createPeer — ontrack handler", () => {
     });
 
     const pc = createdPCs[0];
-    const ontrackHandler = pc.ontrack as (event: Record<string, unknown>) => void;
+    const ontrackHandler = pc.ontrack as (
+      event: Record<string, unknown>,
+    ) => void;
 
     // Video track with no streams (undefined first element)
     const videoTrack = makeTrack("video");
@@ -733,7 +737,9 @@ describe("startSpeakingDetector — speaking transitions", () => {
     });
 
     const pc = createdPCs[0];
-    const ontrackHandler = pc.ontrack as (event: Record<string, unknown>) => void;
+    const ontrackHandler = pc.ontrack as (
+      event: Record<string, unknown>,
+    ) => void;
     const audioTrack = makeTrack("audio");
     const remoteStream = makeStream([audioTrack]);
     ontrackHandler({ track: audioTrack, streams: [remoteStream] });
@@ -788,7 +794,9 @@ describe("closePeer — full cleanup", () => {
     const pc = createdPCs[0];
 
     // Simulate audio track arrival to create audio element
-    const ontrackHandler = pc.ontrack as (event: Record<string, unknown>) => void;
+    const ontrackHandler = pc.ontrack as (
+      event: Record<string, unknown>,
+    ) => void;
     const audioTrack = makeTrack("audio");
     const remoteStream = makeStream([audioTrack]);
     ontrackHandler({ track: audioTrack, streams: [remoteStream] });
@@ -1126,7 +1134,7 @@ describe("mic device change stops old tracks", () => {
           enabled: true,
           micDeviceId,
         }),
-      { initialProps: { micDeviceId: null } },
+      { initialProps: { micDeviceId: null as string | null } },
     );
 
     await waitFor(() => {
@@ -1275,7 +1283,9 @@ describe("speaker device change — setSinkId", () => {
     });
 
     const pc = createdPCs[0];
-    const ontrackHandler = pc.ontrack as (event: Record<string, unknown>) => void;
+    const ontrackHandler = pc.ontrack as (
+      event: Record<string, unknown>,
+    ) => void;
     const audioTrack = makeTrack("audio");
     const remoteStream = makeStream([audioTrack]);
     ontrackHandler({ track: audioTrack, streams: [remoteStream] });
@@ -1312,11 +1322,11 @@ describe("local speaking detection — PTT and mute filtering", () => {
 
     // In PTT mode, the audio-based detector skips local reporting
     // It should have been called with u1,false from the PTT effect (isPttActive=false)
-    const localCalls = onSpeakingChange.mock.calls.filter(
-      (c: [string, boolean]) => c[0] === "u1",
-    );
+    const localCalls = (
+      onSpeakingChange.mock.calls as [string, boolean][]
+    ).filter((c) => c[0] === "u1");
     // All local calls should be speaking=false because PTT is inactive
-    localCalls.forEach((c: [string, boolean]) => {
+    localCalls.forEach((c) => {
       expect(c[1]).toBe(false);
     });
 
@@ -1344,9 +1354,9 @@ describe("local speaking detection — PTT and mute filtering", () => {
       vi.advanceTimersByTime(200);
     });
 
-    const localSpeaking = onSpeakingChange.mock.calls.filter(
-      (c: [string, boolean]) => c[0] === "u1" && c[1] === true,
-    );
+    const localSpeaking = (
+      onSpeakingChange.mock.calls as [string, boolean][]
+    ).filter((c) => c[0] === "u1" && c[1] === true);
     expect(localSpeaking).toHaveLength(0);
 
     unmount();

@@ -274,7 +274,7 @@ describe("useWebRTC — mic device change", () => {
           enabled: true,
           micDeviceId,
         }),
-      { initialProps: { micDeviceId: null } },
+      { initialProps: { micDeviceId: null as string | null } },
     );
 
     await waitFor(() => {
@@ -316,7 +316,7 @@ describe("useWebRTC — speaker device change", () => {
           enabled: true,
           speakerDeviceId,
         }),
-      { initialProps: { speakerDeviceId: null } },
+      { initialProps: { speakerDeviceId: null as string | null } },
     );
 
     await waitFor(() => {

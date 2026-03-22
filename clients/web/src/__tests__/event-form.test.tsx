@@ -6,6 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EventForm } from "../components/messages/EventForm";
 import { api } from "../api/client";
+import type { Message } from "../types";
 
 vi.mock("../api/client", () => ({
   api: {
@@ -121,7 +122,7 @@ describe("EventForm", () => {
   it("shows Scheduling... while submitting", async () => {
     let resolveApi: (() => void) | undefined;
     vi.mocked(api.createEvent).mockImplementation(
-      () => new Promise<void>((r) => (resolveApi = r)),
+      () => new Promise<Message>((r) => (resolveApi = r as () => void)),
     );
 
     render(

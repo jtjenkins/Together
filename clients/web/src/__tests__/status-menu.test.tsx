@@ -11,14 +11,26 @@ import { useAuthStore } from "../stores/authStore";
 
 const mockUpdatePresence = vi.fn();
 
-const baseUser = {
+const baseUser: {
+  id: string;
+  username: string;
+  email: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  pronouns: string | null;
+  status: "online";
+  custom_status: string | null;
+  activity: string | null;
+  created_at: string;
+  is_admin: boolean;
+} = {
   id: "1",
   username: "testuser",
   email: "test@example.com",
   avatar_url: null,
   bio: null,
   pronouns: null,
-  status: "online" as const,
+  status: "online",
   custom_status: null,
   activity: null,
   created_at: new Date().toISOString(),

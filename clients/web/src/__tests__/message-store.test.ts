@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useMessageStore } from "../stores/messageStore";
 import { api } from "../api/client";
-import type { Message } from "../types";
+import type { Message, PollDto } from "../types";
 
 vi.mock("../api/client", () => ({
   api: {
@@ -515,25 +515,20 @@ describe("messageStore", () => {
 
   describe("updateMessagePoll", () => {
     it("should update the poll on a matching message", () => {
-      const poll = {
+      const poll: PollDto = {
         id: "poll-1",
         question: "Yes?",
         options: [],
-        creator_id: "user-1",
-        channel_id: "ch-1",
-        message_id: "msg-1",
-        allow_multiple: false,
-        closes_at: null,
-        closed: false,
-        created_at: "2024-01-01T00:00:00Z",
+        total_votes: 0,
+        user_vote: null,
       };
       const msg = mockMsg({ id: "msg-1", poll });
       useMessageStore.setState({ messages: [msg] });
 
-      const updatedPoll = { ...poll, closed: true };
+      const updatedPoll: PollDto = { ...poll, total_votes: 1 };
       useMessageStore.getState().updateMessagePoll("poll-1", updatedPoll);
 
-      expect(useMessageStore.getState().messages[0].poll?.closed).toBe(true);
+      expect(useMessageStore.getState().messages[0].poll?.total_votes).toBe(1);
     });
 
     it("should not modify messages without the matching poll ID", () => {
@@ -544,13 +539,8 @@ describe("messageStore", () => {
         id: "poll-nonexistent",
         question: "Q?",
         options: [],
-        creator_id: "u1",
-        channel_id: "ch-1",
-        message_id: "msg-2",
-        allow_multiple: false,
-        closes_at: null,
-        closed: false,
-        created_at: "2024-01-01T00:00:00Z",
+        total_votes: 0,
+        user_vote: null,
       });
 
       expect(useMessageStore.getState().messages[0].poll).toBeUndefined();

@@ -54,8 +54,8 @@ const OriginalWebSocket = globalThis.WebSocket;
 
 beforeEach(() => {
   MockWebSocket.instances = [];
-  (globalThis as unknown as { WebSocket: typeof MockWebSocket }).WebSocket =
-    MockWebSocket as unknown as typeof WebSocket;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).WebSocket = MockWebSocket;
   vi.useFakeTimers();
 });
 
