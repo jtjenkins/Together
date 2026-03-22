@@ -418,6 +418,7 @@ export interface ReadyEvent {
   dm_channels: DirectMessageChannel[];
   unread_counts: UnreadCount[];
   mention_counts: MentionCount[];
+  server_roles?: Record<string, RoleDto[]>;
 }
 
 export interface DmChannelCreateEvent extends DirectMessageChannel {}

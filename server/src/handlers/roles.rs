@@ -121,8 +121,13 @@ pub async fn create_role(
     .await?;
 
     // Broadcast + audit.
-    if let Ok(payload) = serde_json::to_value(&role) {
-        broadcast_to_server(&state, server_id, EVENT_ROLE_CREATE, payload).await;
+    match serde_json::to_value(&role) {
+        Ok(payload) => {
+            broadcast_to_server(&state, server_id, EVENT_ROLE_CREATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize role for broadcast");
+        }
     }
 
     log_action(
@@ -226,6 +231,16 @@ pub async fn update_role(
             ));
         }
 
+        // Cannot move a role to a position at or above your own.
+        if let Some(new_position) = req.position {
+            if new_position >= actor_highest {
+                return Err(AppError::Forbidden(
+                    "Cannot move a role to a position at or above your highest role position"
+                        .into(),
+                ));
+            }
+        }
+
         // Cannot grant permissions you don't have.
         if let Some(permissions) = req.permissions {
             let actor_perms = get_user_permissions(&state.pool, server_id, auth.user_id()).await?;
@@ -255,8 +270,13 @@ pub async fn update_role(
     .fetch_one(&state.pool)
     .await?;
 
-    if let Ok(payload) = serde_json::to_value(&updated) {
-        broadcast_to_server(&state, server_id, EVENT_ROLE_UPDATE, payload).await;
+    match serde_json::to_value(&updated) {
+        Ok(payload) => {
+            broadcast_to_server(&state, server_id, EVENT_ROLE_UPDATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize role for broadcast");
+        }
     }
 
     log_action(

@@ -71,6 +71,9 @@ export function useWebSocket() {
         if (data.dm_channels) setDmChannels(data.dm_channels);
         if (data.unread_counts) setUnreadCounts(data.unread_counts);
         if (data.mention_counts) setMentionCounts(data.mention_counts);
+        if (data.server_roles) {
+          useRoleStore.getState().setRolesFromReady(data.server_roles);
+        }
       }),
 
       gateway.on("MESSAGE_CREATE", (msg: Message) => {
