@@ -10,7 +10,7 @@ import { gateway } from "../api/websocket";
 vi.mock("../api/client", () => {
   class MockApiRequestError extends Error {
     status: number;
-    constructor(message: string, status = 400) {
+    constructor(status: number, message: string) {
       super(message);
       this.name = "ApiRequestError";
       this.status = status;
@@ -75,7 +75,7 @@ describe("authStore — register", () => {
 
   it("sets error on ApiRequestError", async () => {
     vi.mocked(api.register).mockRejectedValue(
-      new ApiRequestError("Username taken"),
+      new ApiRequestError(400, "Username taken"),
     );
 
     await expect(
@@ -110,7 +110,7 @@ describe("authStore — login", () => {
     };
     vi.mocked(api.login).mockResolvedValue(res as never);
 
-    await useAuthStore.getState().login({ email: "t@t.com", password: "pass" });
+    await useAuthStore.getState().login({ username: "test", password: "pass" });
 
     expect(useAuthStore.getState().user).toEqual(res.user);
     expect(useAuthStore.getState().isAuthenticated).toBe(true);
@@ -120,11 +120,11 @@ describe("authStore — login", () => {
 
   it("sets error on login failure", async () => {
     vi.mocked(api.login).mockRejectedValue(
-      new ApiRequestError("Invalid credentials"),
+      new ApiRequestError(400, "Invalid credentials"),
     );
 
     await expect(
-      useAuthStore.getState().login({ email: "x@x.com", password: "p" }),
+      useAuthStore.getState().login({ username: "x", password: "p" }),
     ).rejects.toThrow();
 
     expect(useAuthStore.getState().error).toBe("Invalid credentials");
@@ -134,7 +134,7 @@ describe("authStore — login", () => {
     vi.mocked(api.login).mockRejectedValue(new Error("network"));
 
     await expect(
-      useAuthStore.getState().login({ email: "x@x.com", password: "p" }),
+      useAuthStore.getState().login({ username: "x", password: "p" }),
     ).rejects.toThrow();
 
     expect(useAuthStore.getState().error).toBe("Login failed");
@@ -173,7 +173,7 @@ describe("authStore — updateProfile", () => {
 
   it("sets error on failure", async () => {
     vi.mocked(api.updateCurrentUser).mockRejectedValue(
-      new ApiRequestError("Validation error"),
+      new ApiRequestError(400, "Validation error"),
     );
 
     await expect(
@@ -271,8 +271,7 @@ describe("authStore — restoreSession", () => {
   it("clears tokens on 401 error", async () => {
     localStorage.setItem("together_access_token", "at-1");
     localStorage.setItem("together_refresh_token", "rt-1");
-    const err = new ApiRequestError("Unauthorized");
-    (err as ApiRequestError & { status: number }).status = 401;
+    const err = new ApiRequestError(401, "Unauthorized");
     vi.mocked(api.getCurrentUser).mockRejectedValue(err);
 
     await useAuthStore.getState().restoreSession();
@@ -303,8 +302,7 @@ describe("authStore — restoreSession", () => {
   it("clears tokens on 403 error", async () => {
     localStorage.setItem("together_access_token", "at-1");
     localStorage.setItem("together_refresh_token", "rt-1");
-    const err = new ApiRequestError("Forbidden");
-    (err as ApiRequestError & { status: number }).status = 403;
+    const err = new ApiRequestError(403, "Forbidden");
     vi.mocked(api.getCurrentUser).mockRejectedValue(err);
 
     await useAuthStore.getState().restoreSession();

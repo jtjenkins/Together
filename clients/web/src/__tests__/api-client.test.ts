@@ -611,7 +611,7 @@ describe("ApiClient", () => {
       const participant = { user_id: "u1", is_muted: true };
       mockFetch.mockResolvedValueOnce(okJson(participant));
 
-      const result = await api.updateVoiceState("ch-1", { is_muted: true });
+      const result = await api.updateVoiceState("ch-1", { self_mute: true });
       expect(result).toEqual(participant);
       expect(mockFetch.mock.calls[0][1].method).toBe("PATCH");
     });
@@ -635,7 +635,7 @@ describe("ApiClient", () => {
       const session = { id: "gl-1", channel_id: "ch-1" };
       mockFetch.mockResolvedValueOnce(okJson(session, 201));
 
-      const result = await api.startGoLive("ch-1", { title: "My stream" });
+      const result = await api.startGoLive("ch-1", { quality: "720p" });
       expect(result).toEqual(session);
       expect(mockFetch.mock.calls[0][0]).toContain("/channels/ch-1/go-live");
       expect(mockFetch.mock.calls[0][1].method).toBe("POST");
@@ -1368,7 +1368,7 @@ describe("ApiClient", () => {
       mockFetch.mockResolvedValueOnce(ok204());
 
       await api.timeoutMember("s1", "u1", {
-        duration_seconds: 3600,
+        duration_minutes: 60,
         reason: "spam",
       });
       expect(mockFetch.mock.calls[0][0]).toContain(
@@ -1456,8 +1456,8 @@ describe("ApiClient", () => {
 
       const result = await api.createWebhook("s1", {
         name: "My Hook",
-        channel_id: "ch-1",
         url: "https://hooks.example.com",
+        event_types: ["message.created"],
       });
       expect(result).toEqual(response);
     });
