@@ -415,3 +415,169 @@ async fn moderation_actions_produce_audit_logs() {
     assert_eq!(logs[0]["action"], "member_kick");
     assert_eq!(logs[0]["target_type"], "user");
 }
+
+// ============================================================================
+// Permission boundary tests
+// ============================================================================
+
+#[tokio::test]
+async fn regular_member_cannot_ban() {
+    let (app, _, member_token, server_id, _) = setup_server_with_member().await;
+
+    let third_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let third_token = third_body["access_token"].as_str().unwrap();
+    let third_id = third_body["user"]["id"].as_str().unwrap();
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        third_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{third_id}/ban"),
+        &member_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn regular_member_cannot_timeout() {
+    let (app, _, member_token, server_id, _) = setup_server_with_member().await;
+
+    let third_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let third_token = third_body["access_token"].as_str().unwrap();
+    let third_id = third_body["user"]["id"].as_str().unwrap();
+
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        third_token,
+        json!({}),
+    )
+    .await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{third_id}/timeout"),
+        &member_token,
+        json!({ "duration_minutes": 10 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ============================================================================
+// Duration validation
+// ============================================================================
+
+#[tokio::test]
+async fn timeout_duration_zero_returns_400() {
+    let (app, owner_token, _, server_id, member_id) = setup_server_with_member().await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{member_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 0 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn timeout_duration_negative_returns_400() {
+    let (app, owner_token, _, server_id, member_id) = setup_server_with_member().await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{member_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": -5 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn timeout_duration_exceeds_max_returns_400() {
+    let (app, owner_token, _, server_id, member_id) = setup_server_with_member().await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{member_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 50000 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+// ============================================================================
+// Kick vs ban behavioral difference
+// ============================================================================
+
+#[tokio::test]
+async fn kicked_member_can_rejoin() {
+    let (app, owner_token, member_token, server_id, member_id) = setup_server_with_member().await;
+
+    // Kick
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/kick"),
+        &owner_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Kicked member can rejoin (unlike banned)
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/join"),
+        &member_token,
+        json!({}),
+    )
+    .await;
+    assert!(status == StatusCode::OK || status == StatusCode::CREATED);
+}
+
+// ============================================================================
+// Ban idempotency
+// ============================================================================
+
+#[tokio::test]
+async fn ban_already_banned_is_idempotent() {
+    let (app, owner_token, _, server_id, member_id) = setup_server_with_member().await;
+
+    // Ban once
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/ban"),
+        &owner_token,
+        json!({ "reason": "First ban" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Ban again — should not error
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{member_id}/ban"),
+        &owner_token,
+        json!({ "reason": "Second ban" }),
+    )
+    .await;
+    // Should succeed (upsert) or return a reasonable status
+    assert!(
+        status == StatusCode::NO_CONTENT || status == StatusCode::OK,
+        "double ban should not error, got {status}"
+    );
+}
