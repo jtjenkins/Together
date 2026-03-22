@@ -18,7 +18,7 @@ use super::events::{
 };
 use crate::{
     auth::{validate_token, TokenType},
-    models::{DirectMessageChannelDto, Server, UnreadCount, User, UserDto, VoiceStateDto},
+    models::{DirectMessageChannelDto, Role, Server, UnreadCount, User, UserDto, VoiceStateDto},
     state::AppState,
 };
 
@@ -718,6 +718,38 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         }
     };
 
+    // Roles for each server the user belongs to, grouped by server_id.
+    let server_ids: Vec<Uuid> = servers.iter().map(|s| s.id).collect();
+    let server_roles_map: serde_json::Value = if server_ids.is_empty() {
+        json!({})
+    } else {
+        let role_rows = match sqlx::query_as::<_, Role>(
+            "SELECT id, server_id, name, permissions, color, position, created_at
+             FROM roles WHERE server_id = ANY($1)
+             ORDER BY server_id, position DESC",
+        )
+        .bind(&server_ids)
+        .fetch_all(&state.pool)
+        .await
+        {
+            Ok(rows) => rows,
+            Err(e) => {
+                tracing::warn!(
+                    user_id = %user_id,
+                    error   = ?e,
+                    "Failed to fetch roles for READY payload; client will receive empty server_roles"
+                );
+                vec![]
+            }
+        };
+
+        let mut map: std::collections::HashMap<Uuid, Vec<&Role>> = std::collections::HashMap::new();
+        for role in &role_rows {
+            map.entry(role.server_id).or_default().push(role);
+        }
+        json!(map)
+    };
+
     let payload = GatewayMessage::dispatch(
         EVENT_READY,
         json!({
@@ -726,6 +758,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
             "dm_channels": dm_channels,
             "unread_counts": unread_counts,
             "mention_counts": mention_counts,
+            "server_roles": server_roles_map,
         }),
     );
 

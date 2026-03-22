@@ -1,0 +1,368 @@
+mod common;
+
+use axum::http::StatusCode;
+use serde_json::json;
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+async fn setup_server_with_member() -> (axum::Router, String, String, String, String) {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let member_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let member_token = member_body["access_token"].as_str().unwrap().to_owned();
+    let member_user_id = member_body["user"]["id"].as_str().unwrap().to_owned();
+
+    let server = common::create_server(app.clone(), &owner_token, "Role Test").await;
+    let server_id = server["id"].as_str().unwrap().to_owned();
+
+    common::make_server_public(app.clone(), &owner_token, &server_id).await;
+
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        &member_token,
+        json!({}),
+    )
+    .await;
+    assert!(
+        status == StatusCode::OK || status == StatusCode::CREATED,
+        "join failed with {status}"
+    );
+
+    (app, owner_token, member_token, server_id, member_user_id)
+}
+
+async fn create_role(
+    app: axum::Router,
+    token: &str,
+    server_id: &str,
+    name: &str,
+    permissions: i64,
+) -> serde_json::Value {
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles"),
+        token,
+        json!({ "name": name, "permissions": permissions }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create_role failed: {body}");
+    body
+}
+
+// ============================================================================
+// POST /servers/:id/roles — create role
+// ============================================================================
+
+#[tokio::test]
+async fn create_role_success() {
+    let (app, owner_token, _, server_id, _) = setup_server_with_member().await;
+
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Moderator", "permissions": 896, "color": "#e74c3c" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(body["name"], "Moderator");
+    assert_eq!(body["permissions"], 896);
+    assert_eq!(body["color"], "#e74c3c");
+    assert!(body["id"].is_string());
+    assert!(body["position"].is_number());
+}
+
+#[tokio::test]
+async fn create_role_requires_auth() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let (status, _) = common::post_json(
+        app,
+        "/servers/00000000-0000-0000-0000-000000000000/roles",
+        json!({ "name": "Test" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn create_role_requires_permission() {
+    let (app, _, member_token, server_id, _) = setup_server_with_member().await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles"),
+        &member_token,
+        json!({ "name": "Sneaky Role" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ============================================================================
+// GET /servers/:id/roles — list roles
+// ============================================================================
+
+#[tokio::test]
+async fn list_roles_any_member_can_view() {
+    let (app, owner_token, member_token, server_id, _) = setup_server_with_member().await;
+
+    // Owner creates a role
+    create_role(app.clone(), &owner_token, &server_id, "Admin", 8192).await;
+
+    // Regular member can list roles
+    let (status, body) =
+        common::get_authed(app, &format!("/servers/{server_id}/roles"), &member_token).await;
+    assert_eq!(status, StatusCode::OK);
+    let roles = body.as_array().unwrap();
+    assert!(!roles.is_empty());
+    assert!(roles.iter().any(|r| r["name"] == "Admin"));
+}
+
+// ============================================================================
+// PATCH /servers/:id/roles/:role_id — update role
+// ============================================================================
+
+#[tokio::test]
+async fn update_role_success() {
+    let (app, owner_token, _, server_id, _) = setup_server_with_member().await;
+
+    let role = create_role(app.clone(), &owner_token, &server_id, "Old Name", 0).await;
+    let role_id = role["id"].as_str().unwrap();
+
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles/{role_id}"),
+        &owner_token,
+        json!({ "name": "New Name", "permissions": 4, "color": "#3498db" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["name"], "New Name");
+    assert_eq!(body["permissions"], 4);
+    assert_eq!(body["color"], "#3498db");
+}
+
+// ============================================================================
+// DELETE /servers/:id/roles/:role_id — delete role
+// ============================================================================
+
+#[tokio::test]
+async fn delete_role_success() {
+    let (app, owner_token, _, server_id, _) = setup_server_with_member().await;
+
+    let role = create_role(app.clone(), &owner_token, &server_id, "Doomed", 0).await;
+    let role_id = role["id"].as_str().unwrap();
+
+    let (status, _) = common::delete_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Verify role is gone
+    let (_, body) =
+        common::get_authed(app, &format!("/servers/{server_id}/roles"), &owner_token).await;
+    let roles = body.as_array().unwrap();
+    assert!(!roles.iter().any(|r| r["id"].as_str() == Some(role_id)));
+}
+
+// ============================================================================
+// PUT /servers/:id/members/:user_id/roles/:role_id — assign role
+// ============================================================================
+
+#[tokio::test]
+async fn assign_role_success() {
+    let (app, owner_token, _, server_id, member_id) = setup_server_with_member().await;
+
+    let role = create_role(app.clone(), &owner_token, &server_id, "Mod", 896).await;
+    let role_id = role["id"].as_str().unwrap();
+
+    let (status, _) = common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Verify member has the role in member list
+    let (_, body) =
+        common::get_authed(app, &format!("/servers/{server_id}/members"), &owner_token).await;
+    let members = body.as_array().unwrap();
+    let member = members
+        .iter()
+        .find(|m| m["user_id"].as_str() == Some(&member_id))
+        .unwrap();
+    let roles = member["roles"].as_array().unwrap();
+    assert!(roles.iter().any(|r| r["id"].as_str() == Some(role_id)));
+}
+
+#[tokio::test]
+async fn assign_role_idempotent() {
+    let (app, owner_token, _, server_id, member_id) = setup_server_with_member().await;
+
+    let role = create_role(app.clone(), &owner_token, &server_id, "Mod", 0).await;
+    let role_id = role["id"].as_str().unwrap();
+
+    // Assign twice — should not error
+    let (status, _) = common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, _) = common::put_authed(
+        app,
+        &format!("/servers/{server_id}/members/{member_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+}
+
+// ============================================================================
+// DELETE /servers/:id/members/:user_id/roles/:role_id — remove role
+// ============================================================================
+
+#[tokio::test]
+async fn remove_role_success() {
+    let (app, owner_token, _, server_id, member_id) = setup_server_with_member().await;
+
+    let role = create_role(app.clone(), &owner_token, &server_id, "Temp", 0).await;
+    let role_id = role["id"].as_str().unwrap();
+
+    // Assign then remove
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    let (status, _) = common::delete_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Verify role removed from member
+    let (_, body) =
+        common::get_authed(app, &format!("/servers/{server_id}/members"), &owner_token).await;
+    let members = body.as_array().unwrap();
+    let member = members
+        .iter()
+        .find(|m| m["user_id"].as_str() == Some(&member_id))
+        .unwrap();
+    let roles = member["roles"].as_array().unwrap();
+    assert!(!roles.iter().any(|r| r["id"].as_str() == Some(role_id)));
+}
+
+// ============================================================================
+// Hierarchy enforcement
+// ============================================================================
+
+#[tokio::test]
+async fn cannot_grant_permissions_you_dont_have() {
+    let (app, owner_token, member_token, server_id, member_id) = setup_server_with_member().await;
+
+    // Create a low-level role with only MANAGE_ROLES (2048), assign to member
+    let manager_role = create_role(
+        app.clone(),
+        &owner_token,
+        &server_id,
+        "Role Manager",
+        2048, // MANAGE_ROLES only
+    )
+    .await;
+    let manager_role_id = manager_role["id"].as_str().unwrap();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{manager_role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Member with MANAGE_ROLES tries to create a role with BAN_MEMBERS (512)
+    // They don't have BAN_MEMBERS themselves, so this should fail
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles"),
+        &member_token,
+        json!({ "name": "Overpowered", "permissions": 512 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ============================================================================
+// Audit log verification
+// ============================================================================
+
+#[tokio::test]
+async fn role_operations_produce_audit_logs() {
+    let (app, owner_token, _, server_id, _) = setup_server_with_member().await;
+
+    // Create a role
+    create_role(app.clone(), &owner_token, &server_id, "Audited", 0).await;
+
+    let (status, logs) = common::get_authed(
+        app,
+        &format!("/servers/{server_id}/audit-logs?action=role_create"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let logs = logs.as_array().unwrap();
+    assert!(!logs.is_empty(), "should have a role_create audit log");
+    assert_eq!(logs[0]["action"], "role_create");
+}
+
+// ============================================================================
+// List members includes roles
+// ============================================================================
+
+#[tokio::test]
+async fn list_members_includes_roles() {
+    let (app, owner_token, _, server_id, member_id) = setup_server_with_member().await;
+
+    let role = create_role(app.clone(), &owner_token, &server_id, "VIP", 0).await;
+    let role_id = role["id"].as_str().unwrap();
+
+    // Assign role to member
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    let (status, body) =
+        common::get_authed(app, &format!("/servers/{server_id}/members"), &owner_token).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let members = body.as_array().unwrap();
+    let member = members
+        .iter()
+        .find(|m| m["user_id"].as_str() == Some(&member_id))
+        .unwrap();
+
+    assert!(member["roles"].is_array(), "member should have roles array");
+    let roles = member["roles"].as_array().unwrap();
+    assert!(roles.iter().any(|r| r["name"] == "VIP"));
+}

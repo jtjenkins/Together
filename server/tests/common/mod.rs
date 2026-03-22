@@ -117,6 +117,19 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/servers/:id/members/:user_id/timeout",
             post(handlers::moderation::timeout_member).delete(handlers::moderation::remove_timeout),
         )
+        // Role management routes
+        .route(
+            "/servers/:id/roles",
+            get(handlers::roles::list_roles).post(handlers::roles::create_role),
+        )
+        .route(
+            "/servers/:id/roles/:role_id",
+            patch(handlers::roles::update_role).delete(handlers::roles::delete_role),
+        )
+        .route(
+            "/servers/:id/members/:user_id/roles/:role_id",
+            put(handlers::roles::assign_role).delete(handlers::roles::remove_role),
+        )
         // Channel routes
         .route(
             "/servers/:id/channels",

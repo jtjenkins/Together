@@ -939,6 +939,49 @@ pub struct AutomodTimeout {
     pub created_at: DateTime<Utc>,
 }
 
+// ── Role Models ────────────────────────────────────────────────────────────
+
+/// A role within a server, carrying permission bitflags and display metadata.
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct Role {
+    pub id: Uuid,
+    pub server_id: Uuid,
+    pub name: String,
+    pub permissions: i64,
+    pub color: Option<String>,
+    pub position: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Lightweight role info attached to member responses (no server_id/permissions).
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct MemberRoleInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub color: Option<String>,
+    pub position: i32,
+}
+
+/// Request body for POST /servers/:id/roles.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateRoleRequest {
+    pub name: String,
+    pub permissions: Option<i64>,
+    pub color: Option<String>,
+    pub position: Option<i32>,
+}
+
+/// Request body for PATCH /servers/:id/roles/:role_id.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateRoleRequest {
+    pub name: Option<String>,
+    pub permissions: Option<i64>,
+    pub color: Option<String>,
+    pub position: Option<i32>,
+}
+
 // ── Webhook Models ──────────────────────────────────────────────────────────
 
 /// Internal database row for a webhook.

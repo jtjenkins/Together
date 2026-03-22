@@ -12,8 +12,11 @@ import type { ServerDto } from "../../types";
 import styles from "./ServerModals.module.css";
 import { AutomodSettings } from "./AutomodSettings";
 import { BanListPanel } from "../moderation/BanListPanel";
+import { RolesTab } from "./RolesTab";
+import { useRoleStore } from "../../stores/roleStore";
+import { hasPermission, PERMISSIONS } from "../../types";
 
-type SettingsTab = "general" | "automod" | "bans";
+type SettingsTab = "general" | "automod" | "bans" | "roles";
 
 interface ServerSettingsModalProps {
   open: boolean;
@@ -36,6 +39,11 @@ export function ServerSettingsModal({
   const updateServer = useServerStore((s) => s.updateServer);
   const currentUser = useAuthStore((s) => s.user);
   const isOwner = currentUser?.id === server.owner_id;
+  const myPerms = useRoleStore((s) => s.myPermissions[server.id] || 0);
+  const canManageRoles =
+    isOwner || hasPermission(myPerms, PERMISSIONS.MANAGE_ROLES);
+  const canManageBans =
+    isOwner || hasPermission(myPerms, PERMISSIONS.BAN_MEMBERS);
   const { loadEmojis } = useCustomEmojiStore();
   useEffect(() => {
     if (open) loadEmojis(server.id);
@@ -77,7 +85,7 @@ export function ServerSettingsModal({
 
   return (
     <Modal open={open} onClose={onClose} title="Server Settings">
-      {isOwner && (
+      {(isOwner || canManageRoles || canManageBans) && (
         <div className={styles.tabRow}>
           <button
             className={tab === "general" ? styles.activeTab : styles.tab}
@@ -85,18 +93,30 @@ export function ServerSettingsModal({
           >
             General
           </button>
-          <button
-            className={tab === "automod" ? styles.activeTab : styles.tab}
-            onClick={() => setTab("automod")}
-          >
-            Automod
-          </button>
-          <button
-            className={tab === "bans" ? styles.activeTab : styles.tab}
-            onClick={() => setTab("bans")}
-          >
-            Bans
-          </button>
+          {isOwner && (
+            <button
+              className={tab === "automod" ? styles.activeTab : styles.tab}
+              onClick={() => setTab("automod")}
+            >
+              Automod
+            </button>
+          )}
+          {canManageRoles && (
+            <button
+              className={tab === "roles" ? styles.activeTab : styles.tab}
+              onClick={() => setTab("roles")}
+            >
+              Roles
+            </button>
+          )}
+          {canManageBans && (
+            <button
+              className={tab === "bans" ? styles.activeTab : styles.tab}
+              onClick={() => setTab("bans")}
+            >
+              Bans
+            </button>
+          )}
         </div>
       )}
       {tab === "general" && (
@@ -167,7 +187,8 @@ export function ServerSettingsModal({
         </>
       )}
       {tab === "automod" && isOwner && <AutomodSettings serverId={server.id} />}
-      {tab === "bans" && isOwner && <BanListPanel serverId={server.id} />}
+      {tab === "roles" && canManageRoles && <RolesTab serverId={server.id} />}
+      {tab === "bans" && canManageBans && <BanListPanel serverId={server.id} />}
       {tab === "general" && (
         <>
           <hr
