@@ -127,15 +127,17 @@ pub async fn list_users(
 ) -> AppResult<Json<AdminUsersResponse>> {
     require_admin(&state.pool, auth.user_id()).await?;
 
-    let page = query.page.unwrap_or(1).max(1);
+    let page = query.page.unwrap_or(1).clamp(1, 1_000_000);
     let per_page = query.per_page.unwrap_or(50).clamp(1, 100);
-    let offset = (page - 1) * per_page;
+    let offset = (page - 1).saturating_mul(per_page);
 
-    let search_pattern = query
-        .search
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .map(|s| format!("%{s}%"));
+    let search_pattern = query.search.as_deref().filter(|s| !s.is_empty()).map(|s| {
+        let escaped = s
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        format!("%{escaped}%")
+    });
 
     // Whitelist sort columns — never interpolate user input into SQL.
     let order_clause = match query.sort_by.as_deref() {
@@ -344,15 +346,17 @@ pub async fn list_servers(
 ) -> AppResult<Json<AdminServersResponse>> {
     require_admin(&state.pool, auth.user_id()).await?;
 
-    let page = query.page.unwrap_or(1).max(1);
+    let page = query.page.unwrap_or(1).clamp(1, 1_000_000);
     let per_page = query.per_page.unwrap_or(50).clamp(1, 100);
-    let offset = (page - 1) * per_page;
+    let offset = (page - 1).saturating_mul(per_page);
 
-    let search_pattern = query
-        .search
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .map(|s| format!("%{s}%"));
+    let search_pattern = query.search.as_deref().filter(|s| !s.is_empty()).map(|s| {
+        let escaped = s
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        format!("%{escaped}%")
+    });
 
     let total: i64 = if let Some(ref pattern) = search_pattern {
         sqlx::query_scalar("SELECT COUNT(*) FROM servers WHERE name ILIKE $1")
