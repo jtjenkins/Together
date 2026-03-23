@@ -133,5 +133,8 @@ pub async fn get_user_profile(
         .fetch_optional(&state.pool)
         .await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+    if user.disabled {
+        return Err(AppError::NotFound("User not found".into()));
+    }
     Ok(Json(user.into()))
 }

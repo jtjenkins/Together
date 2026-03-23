@@ -46,6 +46,35 @@ async fn get_user_profile_unknown_id_returns_404() {
 }
 
 #[tokio::test]
+async fn get_disabled_user_profile_returns_404() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool.clone());
+
+    // Register the target user, then disable them directly via SQL.
+    let target_name = common::unique_username();
+    let target_body = common::register_user(app.clone(), &target_name, "pass1234").await;
+    let target_id = target_body["user"]["id"].as_str().unwrap().to_owned();
+
+    sqlx::query("UPDATE users SET disabled = TRUE WHERE id = $1")
+        .bind(uuid::Uuid::parse_str(&target_id).unwrap())
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let viewer_token = common::register_and_get_token(
+        app.clone(),
+        &common::unique_username(),
+        "pass1234",
+    )
+    .await;
+
+    let (status, _) =
+        common::get_authed(app.clone(), &format!("/users/{target_id}"), &viewer_token).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn get_user_profile_unauthenticated_returns_401() {
     let pool = common::test_pool().await;
     let app = common::create_test_app(pool);
