@@ -89,9 +89,15 @@ async fn admin_get_settings() {
 async fn admin_update_registration_mode() {
     let (app, admin_token, pool) = setup_admin().await;
 
-    set_registration_mode(&pool, "closed").await;
-
-    let (_, body) = common::get_authed(app, "/admin/settings", &admin_token).await;
+    // Use API to update and check the response directly (avoids race with parallel tests)
+    let (status, body) = common::patch_json_authed(
+        app,
+        "/admin/settings",
+        &admin_token,
+        json!({ "registration_mode": "closed" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
     assert_eq!(body["registration_mode"], "closed");
 
     reset_registration_mode(&pool).await;
