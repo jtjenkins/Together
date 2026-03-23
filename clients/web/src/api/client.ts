@@ -58,6 +58,12 @@ import type {
   RoleDto,
   CreateRoleRequest,
   UpdateRoleRequest,
+  AdminStatsResponse,
+  AdminUsersResponse,
+  AdminServersResponse,
+  UpdateAdminUserRequest,
+  AdminUsersQuery,
+  AdminServersQuery,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -919,6 +925,55 @@ class ApiClient {
       `/servers/${serverId}/members/${userId}/roles/${roleId}`,
       { method: "DELETE" },
     );
+  }
+
+  // ─── Admin ──────────────────────────────────────────────────────────────────
+
+  getAdminStats(): Promise<AdminStatsResponse> {
+    return this.request<AdminStatsResponse>("/admin/stats");
+  }
+
+  getAdminUsers(query?: AdminUsersQuery): Promise<AdminUsersResponse> {
+    const params = new URLSearchParams();
+    if (query?.page) params.set("page", String(query.page));
+    if (query?.per_page) params.set("per_page", String(query.per_page));
+    if (query?.search) params.set("search", query.search);
+    if (query?.sort_by) params.set("sort_by", query.sort_by);
+    const qs = params.toString();
+    return this.request<AdminUsersResponse>(
+      `/admin/users${qs ? `?${qs}` : ""}`,
+    );
+  }
+
+  updateAdminUser(userId: string, data: UpdateAdminUserRequest): Promise<void> {
+    return this.request<void>(`/admin/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteAdminUser(userId: string): Promise<void> {
+    return this.request<void>(`/admin/users/${userId}`, {
+      method: "DELETE",
+    });
+  }
+
+  getAdminServers(query?: AdminServersQuery): Promise<AdminServersResponse> {
+    const params = new URLSearchParams();
+    if (query?.page) params.set("page", String(query.page));
+    if (query?.per_page) params.set("per_page", String(query.per_page));
+    if (query?.search) params.set("search", query.search);
+    if (query?.sort_by) params.set("sort_by", query.sort_by);
+    const qs = params.toString();
+    return this.request<AdminServersResponse>(
+      `/admin/servers${qs ? `?${qs}` : ""}`,
+    );
+  }
+
+  deleteAdminServer(serverId: string): Promise<void> {
+    return this.request<void>(`/admin/servers/${serverId}`, {
+      method: "DELETE",
+    });
   }
 }
 

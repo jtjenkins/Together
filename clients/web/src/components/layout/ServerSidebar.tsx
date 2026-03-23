@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Compass, Plus } from "lucide-react";
+import { Compass, Plus, Settings } from "lucide-react";
 import { useServerStore } from "../../stores/serverStore";
 import { useChannelStore } from "../../stores/channelStore";
 import { useAuthStore } from "../../stores/authStore";
@@ -14,11 +14,13 @@ import styles from "./ServerSidebar.module.css";
 interface ServerSidebarProps {
   showBrowse: boolean;
   onShowBrowse: (show: boolean) => void;
+  onAdminClick?: () => void;
 }
 
 export function ServerSidebar({
   showBrowse,
   onShowBrowse,
+  onAdminClick,
 }: ServerSidebarProps) {
   const servers = useServerStore((s) => s.servers);
   const activeServerId = useServerStore((s) => s.activeServerId);
@@ -105,6 +107,17 @@ export function ServerSidebar({
           <Plus size={20} />
         </button>
       </div>
+
+      {user?.is_admin && onAdminClick && (
+        <button
+          className={`${styles.serverIcon} ${styles.adminIcon}`}
+          onClick={onAdminClick}
+          title="Instance Admin"
+          aria-label="Instance admin dashboard"
+        >
+          <Settings size={20} />
+        </button>
+      )}
 
       <UserPanel />
 

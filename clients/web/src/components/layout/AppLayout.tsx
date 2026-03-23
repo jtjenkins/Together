@@ -16,7 +16,11 @@ import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { ErrorBoundary } from "../ErrorBoundary";
 import styles from "./AppLayout.module.css";
 
-export function AppLayout() {
+interface AppLayoutProps {
+  onAdminClick?: () => void;
+}
+
+export function AppLayout({ onAdminClick }: AppLayoutProps) {
   const activeServerId = useServerStore((s) => s.activeServerId);
   const activeChannelId = useChannelStore((s) => s.activeChannelId);
   const channels = useChannelStore((s) => s.channels);
@@ -67,7 +71,7 @@ export function AppLayout() {
       <div
         className={`${styles.serverPanel} ${isMobile && mobilePanel !== "servers" ? styles.mobileHidden : ""}`}
       >
-        <ServerSidebar showBrowse={showBrowse} onShowBrowse={setShowBrowse} />
+        <ServerSidebar showBrowse={showBrowse} onShowBrowse={setShowBrowse} onAdminClick={onAdminClick} />
       </div>
 
       <div

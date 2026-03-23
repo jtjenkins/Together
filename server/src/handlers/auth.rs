@@ -141,6 +141,12 @@ pub async fn login(
         return Err(AppError::Auth("Invalid username or password".into()));
     }
 
+    if user.disabled {
+        return Err(AppError::Forbidden(
+            "Your account has been disabled by an administrator".into(),
+        ));
+    }
+
     info!("Login successful: {} ({})", user.username, user.id);
 
     let access_token = create_access_token(user.id, user.username.clone(), &state.jwt_secret)?;
@@ -231,6 +237,12 @@ pub async fn refresh_token(
         .fetch_optional(&state.pool)
         .await?
         .ok_or_else(|| AppError::Auth("User not found".into()))?;
+
+    if user.disabled {
+        return Err(AppError::Forbidden(
+            "Your account has been disabled by an administrator".into(),
+        ));
+    }
 
     info!("Token refresh for user: {} ({})", user.username, user.id);
 

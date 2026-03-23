@@ -25,6 +25,8 @@ pub struct User {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub is_admin: bool,
+    pub disabled: bool,
+    pub disabled_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1097,4 +1099,87 @@ pub struct InvitePreviewDto {
 pub struct CreateInviteRequest {
     pub max_uses: Option<i32>,
     pub expires_in_hours: Option<i64>,
+}
+
+// ============================================================================
+// Admin Dashboard Models
+// ============================================================================
+
+/// Instance-wide statistics returned by GET /admin/stats.
+#[derive(Debug, Serialize)]
+pub struct AdminStatsResponse {
+    pub total_users: i64,
+    pub total_servers: i64,
+    pub total_messages: i64,
+    pub total_channels: i64,
+    pub active_ws_connections: usize,
+    pub uptime_secs: Option<u64>,
+    pub db_latency_ms: u64,
+    pub storage_bytes: u64,
+}
+
+/// Admin-enriched user row for GET /admin/users.
+#[derive(Debug, FromRow, Serialize)]
+pub struct AdminUserDto {
+    pub id: Uuid,
+    pub username: String,
+    pub email: Option<String>,
+    pub avatar_url: Option<String>,
+    pub status: String,
+    pub is_admin: bool,
+    pub disabled: bool,
+    pub disabled_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub server_count: i64,
+    pub message_count: i64,
+}
+
+/// Paginated admin user list response.
+#[derive(Debug, Serialize)]
+pub struct AdminUsersResponse {
+    pub users: Vec<AdminUserDto>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+/// Admin-enriched server row for GET /admin/servers.
+#[derive(Debug, FromRow, Serialize)]
+pub struct AdminServerDto {
+    pub id: Uuid,
+    pub name: String,
+    pub owner_id: Uuid,
+    pub owner_username: String,
+    pub icon_url: Option<String>,
+    pub is_public: bool,
+    pub member_count: i64,
+    pub channel_count: i64,
+    pub message_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Paginated admin server list response.
+#[derive(Debug, Serialize)]
+pub struct AdminServersResponse {
+    pub servers: Vec<AdminServerDto>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+/// Request body for PATCH /admin/users/:user_id.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateAdminUserRequest {
+    pub is_admin: Option<bool>,
+    pub disabled: Option<bool>,
+}
+
+/// Query parameters for admin paginated list endpoints.
+#[derive(Debug, Deserialize)]
+pub struct AdminListQuery {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+    pub search: Option<String>,
+    pub sort_by: Option<String>,
 }

@@ -57,6 +57,7 @@ Rocket.Chat instead.
 | Web app (any browser)                            | ✅     |
 | Mobile app (Tauri v2 — Android & iOS)            | ✅     |
 | Discord-style markdown formatting                | ✅     |
+| Instance admin dashboard (user & server mgmt)    | ✅     |
 | Rate limiting & security hardening               | ✅     |
 
 ---
@@ -204,6 +205,7 @@ For the full contribution guide (code style, PR process, project structure), see
 | [docs/auto-moderation.md](docs/auto-moderation.md)                 | Auto-moderation rules configuration               |
 | [docs/invites.md](docs/invites.md)                                 | Invite links with codes, expiry, and max uses     |
 | [docs/roles.md](docs/roles.md)                                     | Role management and permission bitflags           |
+| [docs/instance-admin.md](docs/instance-admin.md)                   | Instance admin dashboard (users, servers, stats)  |
 | [docs/audit-logging.md](docs/audit-logging.md)                     | Audit log events reference                        |
 | [docs/server-export.md](docs/server-export.md)                     | Server data export (ZIP download)                 |
 | [docs/link-previews-and-giphy.md](docs/link-previews-and-giphy.md) | Link previews and GIF search                      |
