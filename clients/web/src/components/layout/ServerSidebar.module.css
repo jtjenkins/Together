@@ -87,6 +87,20 @@
   color: #fff;
 }
 
+.adminIcon {
+  background: transparent;
+  border: 2px dashed var(--border-color-strong);
+  color: var(--accent-yellow);
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.adminIcon:hover {
+  background: var(--accent-yellow);
+  border-color: var(--accent-yellow);
+  color: #fff;
+}
+
 .separator {
   width: 32px;
   height: 2px;

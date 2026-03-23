@@ -27,7 +27,7 @@ pub fn init_uptime() {
 }
 
 /// Returns server uptime in seconds, or `None` if `init_uptime` was never called.
-fn uptime_secs() -> Option<u64> {
+pub fn uptime_secs() -> Option<u64> {
     START_TIME.get().map(|t| t.elapsed().as_secs())
 }
 

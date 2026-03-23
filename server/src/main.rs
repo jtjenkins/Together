@@ -240,6 +240,18 @@ async fn main() {
         )
         // Auth routes (stricter per-IP rate limit, nested via sub-router)
         .merge(auth_router)
+        // Admin routes (instance-admin only)
+        .route("/admin/stats", get(handlers::admin::get_stats))
+        .route("/admin/users", get(handlers::admin::list_users))
+        .route(
+            "/admin/users/:user_id",
+            patch(handlers::admin::update_user).delete(handlers::admin::delete_user),
+        )
+        .route("/admin/servers", get(handlers::admin::list_servers))
+        .route(
+            "/admin/servers/:server_id",
+            delete(handlers::admin::delete_server),
+        )
         // User routes (protected)
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))

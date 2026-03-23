@@ -14,6 +14,8 @@ export interface UserDto {
   activity: string | null;
   created_at: string;
   is_admin: boolean;
+  disabled?: boolean;
+  disabled_at?: string | null;
 }
 
 export interface UpdateUserDto {
@@ -546,6 +548,80 @@ export interface BotCreatedResponse {
   bot: BotDto;
   /** Plaintext token — shown once at creation/regeneration. */
   token: string;
+}
+
+// ─── Admin Types ─────────────────────────────────────────────────────────────
+
+export interface AdminStatsResponse {
+  total_users: number;
+  total_servers: number;
+  total_messages: number;
+  total_channels: number;
+  active_connections: number;
+  uptime_seconds: number;
+  db_latency_ms: number;
+  storage_bytes: number;
+  recent_registrations: number;
+}
+
+export interface AdminUserDto {
+  id: string;
+  username: string;
+  email: string | null;
+  avatar_url: string | null;
+  status: UserStatus;
+  is_admin: boolean;
+  disabled: boolean;
+  disabled_at: string | null;
+  created_at: string;
+  server_count: number;
+  message_count: number;
+}
+
+export interface AdminServerDto {
+  id: string;
+  name: string;
+  icon_url: string | null;
+  owner_id: string;
+  owner_username: string;
+  is_public: boolean;
+  member_count: number;
+  channel_count: number;
+  message_count: number;
+  created_at: string;
+}
+
+export interface AdminUsersResponse {
+  users: AdminUserDto[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface AdminServersResponse {
+  servers: AdminServerDto[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface UpdateAdminUserRequest {
+  is_admin?: boolean;
+  disabled?: boolean;
+}
+
+export interface AdminUsersQuery {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  sort_by?: string;
+}
+
+export interface AdminServersQuery {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  sort_by?: string;
 }
 
 export interface UpdateBotRequest {

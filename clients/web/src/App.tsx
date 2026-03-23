@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuthStore } from "./stores/authStore";
 import { AuthForm } from "./components/auth/AuthForm";
 import { AppLayout } from "./components/layout/AppLayout";
+import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { ServerSetup } from "./components/desktop/ServerSetup";
 import { api } from "./api/client";
 import { gateway } from "./api/websocket";
@@ -11,8 +12,10 @@ import "./styles/globals.css";
 export function App() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const user = useAuthStore((s) => s.user);
   const restoreSession = useAuthStore((s) => s.restoreSession);
 
+  const [isAdminView, setIsAdminView] = useState(false);
   const [hasServerUrl, setHasServerUrl] = useState(
     () => !isTauri || !!localStorage.getItem(SERVER_URL_KEY),
   );
@@ -61,5 +64,9 @@ export function App() {
     return <AuthForm />;
   }
 
-  return <AppLayout />;
+  if (isAdminView && user?.is_admin) {
+    return <AdminDashboard onBack={() => setIsAdminView(false)} />;
+  }
+
+  return <AppLayout onAdminClick={() => setIsAdminView(true)} />;
 }
