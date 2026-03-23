@@ -45,6 +45,7 @@ export interface RegisterRequest {
   username: string;
   email?: string;
   password: string;
+  invite_code?: string;
 }
 
 export interface LoginRequest {
@@ -66,6 +67,7 @@ export interface ServerDto {
   owner_id: string;
   icon_url: string | null;
   is_public: boolean;
+  require_invite?: boolean;
   member_count: number;
   created_at: string;
   updated_at: string;
@@ -75,6 +77,7 @@ export interface CreateServerRequest {
   name: string;
   icon_url?: string;
   is_public?: boolean;
+  require_invite?: boolean;
   template_id?: string;
 }
 
@@ -99,6 +102,7 @@ export interface UpdateServerRequest {
   name?: string;
   icon_url?: string;
   is_public?: boolean;
+  require_invite?: boolean;
 }
 
 // ─── Member Types ────────────────────────────────────────────
@@ -607,6 +611,19 @@ export interface AdminServersResponse {
 export interface UpdateAdminUserRequest {
   is_admin?: boolean;
   disabled?: boolean;
+}
+
+export type RegistrationMode = "open" | "invite_only" | "closed";
+
+export interface InstanceSettings {
+  id: number;
+  registration_mode: RegistrationMode;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export interface UpdateInstanceSettingsRequest {
+  registration_mode?: RegistrationMode;
 }
 
 export interface AdminUsersQuery {

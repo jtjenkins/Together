@@ -123,6 +123,25 @@ pub struct Session {
 }
 
 // ============================================================================
+// Instance Settings Models
+// ============================================================================
+
+/// Singleton row holding instance-wide configuration.
+#[derive(Debug, FromRow, Serialize)]
+pub struct InstanceSettings {
+    pub id: i32,
+    pub registration_mode: String,
+    pub updated_at: DateTime<Utc>,
+    pub updated_by: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateSettingsRequest {
+    pub registration_mode: Option<String>,
+}
+
+// ============================================================================
 // Server Models
 // ============================================================================
 
@@ -133,6 +152,7 @@ pub struct Server {
     pub owner_id: Uuid,
     pub icon_url: Option<String>,
     pub is_public: bool,
+    pub require_invite: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -142,6 +162,7 @@ pub struct CreateServerDto {
     pub name: String,
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
+    pub require_invite: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,6 +170,7 @@ pub struct UpdateServerDto {
     pub name: Option<String>,
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
+    pub require_invite: Option<bool>,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]
@@ -167,6 +189,7 @@ pub struct ServerDto {
     pub owner_id: Uuid,
     pub icon_url: Option<String>,
     pub is_public: bool,
+    pub require_invite: bool,
     pub member_count: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

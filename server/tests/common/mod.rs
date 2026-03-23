@@ -89,7 +89,16 @@ pub fn create_test_app(pool: PgPool) -> Router {
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/refresh", post(handlers::auth::refresh_token))
+        // Public instance info
+        .route(
+            "/instance/registration-mode",
+            get(handlers::auth::get_registration_mode),
+        )
         // Admin routes
+        .route(
+            "/admin/settings",
+            get(handlers::admin::get_settings).patch(handlers::admin::update_settings),
+        )
         .route("/admin/stats", get(handlers::admin::get_stats))
         .route("/admin/users", get(handlers::admin::list_users))
         .route(

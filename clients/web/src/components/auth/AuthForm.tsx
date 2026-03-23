@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useAuthStore } from "../../stores/authStore";
 import { api } from "../../api/client";
-import type { ResetPasswordRequest } from "../../types";
+import type { ResetPasswordRequest, RegistrationMode } from "../../types";
 import styles from "./AuthForm.module.css";
 
 type View = "login" | "register" | "reset";
@@ -11,14 +11,27 @@ export function AuthForm() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [registrationMode, setRegistrationMode] =
+    useState<RegistrationMode>("open");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { login, register, error, clearError } = useAuthStore();
+
+  // Fetch registration mode on mount (public endpoint, no auth needed).
+  useEffect(() => {
+    api
+      .getRegistrationMode()
+      .then((res) => setRegistrationMode(res.registration_mode))
+      .catch(() => {
+        // If the endpoint is unavailable, default to open.
+      });
+  }, []);
 
   // Cancel the 2-second post-reset transition timer if the component unmounts.
   useEffect(() => {
@@ -36,6 +49,7 @@ export function AuthForm() {
     setUsername("");
     setEmail("");
     setPassword("");
+    setInviteCode("");
     setResetToken("");
     setNewPassword("");
     if (timerRef.current !== null) {
@@ -52,7 +66,12 @@ export function AuthForm() {
       if (view === "login") {
         await login({ username, password });
       } else {
-        await register({ username, email: email || undefined, password });
+        await register({
+          username,
+          email: email || undefined,
+          password,
+          invite_code: inviteCode || undefined,
+        });
       }
     } catch {
       // Error is stored in auth store
@@ -216,6 +235,23 @@ export function AuthForm() {
                 </div>
               )}
 
+              {view === "register" && registrationMode === "invite_only" && (
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="invite-code">
+                    Invite Code
+                  </label>
+                  <input
+                    id="invite-code"
+                    className={styles.input}
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    placeholder="Enter your invite code"
+                    required
+                  />
+                </div>
+              )}
+
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="password">
                   Password
@@ -260,20 +296,24 @@ export function AuthForm() {
               </p>
             )}
 
-            <p className={styles.toggle}>
-              {view === "login"
-                ? "Don't have an account?"
-                : "Already have an account?"}{" "}
-              <button
-                type="button"
-                className={styles.toggleBtn}
-                onClick={() =>
-                  switchView(view === "login" ? "register" : "login")
-                }
-              >
-                {view === "login" ? "Register" : "Sign In"}
-              </button>
-            </p>
+            {registrationMode === "closed" && view === "login" ? (
+              <p className={styles.toggle}>Registration is currently closed.</p>
+            ) : (
+              <p className={styles.toggle}>
+                {view === "login"
+                  ? "Don't have an account?"
+                  : "Already have an account?"}{" "}
+                <button
+                  type="button"
+                  className={styles.toggleBtn}
+                  onClick={() =>
+                    switchView(view === "login" ? "register" : "login")
+                  }
+                >
+                  {view === "login" ? "Register" : "Sign In"}
+                </button>
+              </p>
+            )}
           </>
         )}
       </div>

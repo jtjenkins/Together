@@ -71,7 +71,11 @@ export function AppLayout({ onAdminClick }: AppLayoutProps) {
       <div
         className={`${styles.serverPanel} ${isMobile && mobilePanel !== "servers" ? styles.mobileHidden : ""}`}
       >
-        <ServerSidebar showBrowse={showBrowse} onShowBrowse={setShowBrowse} onAdminClick={onAdminClick} />
+        <ServerSidebar
+          showBrowse={showBrowse}
+          onShowBrowse={setShowBrowse}
+          onAdminClick={onAdminClick}
+        />
       </div>
 
       <div

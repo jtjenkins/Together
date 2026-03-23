@@ -1,0 +1,121 @@
+.container {
+  padding: 24px;
+}
+
+.section {
+  max-width: 560px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.sectionDesc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.radioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.radioOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.radioOption:hover {
+  border-color: var(--accent-primary);
+}
+
+.radioOptionSelected {
+  border-color: var(--accent-primary);
+  background: rgba(88, 101, 242, 0.06);
+}
+
+.radioInput {
+  margin-top: 2px;
+  accent-color: var(--accent-primary);
+}
+
+.radioContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.radioLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.radioDesc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.saveBtn {
+  padding: 8px 20px;
+  background: var(--accent-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: background 0.15s;
+}
+
+.saveBtn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.saveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading,
+.error {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.error {
+  color: var(--accent-red);
+}
+
+.success {
+  background: rgba(59, 165, 93, 0.1);
+  border: 1px solid rgba(59, 165, 93, 0.3);
+  color: var(--status-online, #3ba55d);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.inlineError {
+  background: rgba(237, 66, 69, 0.1);
+  border: 1px solid rgba(237, 66, 69, 0.3);
+  color: var(--accent-red);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: 12px;
+}

@@ -153,6 +153,13 @@ export function BrowseServersModal({ open, onClose }: BrowseServersModalProps) {
                 </div>
                 {isJoined ? (
                   <span className={styles.joinedBadge}>Joined</span>
+                ) : server.require_invite ? (
+                  <span
+                    className={styles.joinedBadge}
+                    title="This server requires an invite to join"
+                  >
+                    Invite Required
+                  </span>
                 ) : (
                   <button
                     className={styles.joinBtn}

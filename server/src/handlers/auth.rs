@@ -6,6 +6,8 @@ use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
 
+use serde_json::json;
+
 use crate::{
     auth::{
         create_access_token, create_refresh_token, hash_password, hash_refresh_token,
@@ -32,6 +34,8 @@ pub struct RegisterRequest {
     /// max = 128 prevents bcrypt's 72-byte truncation from becoming a DoS vector
     #[validate(length(min = 8, max = 128))]
     pub password: String,
+    /// Required when instance registration mode is "invite_only".
+    pub invite_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -67,6 +71,59 @@ pub async fn register(
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
     info!("Registering new user: {}", req.username);
+
+    // ── Registration policy check ──────────────────────────────────────────
+    let registration_mode: String =
+        sqlx::query_scalar("SELECT registration_mode FROM instance_settings WHERE id = 1")
+            .fetch_one(&state.pool)
+            .await?;
+
+    match registration_mode.as_str() {
+        "closed" => {
+            return Err(AppError::Forbidden(
+                "Registration is currently closed".into(),
+            ));
+        }
+        "invite_only" => {
+            let code = req.invite_code.as_deref().unwrap_or("").trim();
+            if code.is_empty() {
+                return Err(AppError::Validation(
+                    "An invite code is required to register".into(),
+                ));
+            }
+
+            // Validate invite: exists, not expired, not maxed out.
+            let valid: bool = sqlx::query_scalar(
+                "SELECT EXISTS(
+                     SELECT 1 FROM server_invites
+                     WHERE code = $1
+                       AND (expires_at IS NULL OR expires_at > NOW())
+                       AND (max_uses IS NULL OR uses < max_uses)
+                 )",
+            )
+            .bind(code)
+            .fetch_one(&state.pool)
+            .await?;
+
+            if !valid {
+                return Err(AppError::Validation(
+                    "Invalid or expired invite code".into(),
+                ));
+            }
+
+            // Increment uses atomically (race-safe).
+            sqlx::query(
+                "UPDATE server_invites SET uses = uses + 1
+                 WHERE code = $1
+                   AND (expires_at IS NULL OR expires_at > NOW())
+                   AND (max_uses IS NULL OR uses < max_uses)",
+            )
+            .bind(code)
+            .execute(&state.pool)
+            .await?;
+        }
+        _ => { /* "open" — proceed normally */ }
+    }
 
     let password_hash = hash_password(&req.password)?;
 
@@ -119,6 +176,21 @@ pub async fn register(
             user: user.into(),
         }),
     ))
+}
+
+/// GET /instance/registration-mode — Public endpoint (no auth required).
+///
+/// Returns the current registration mode so the login page can show/hide
+/// the register button and invite code field.
+pub async fn get_registration_mode(
+    State(state): State<AppState>,
+) -> AppResult<Json<serde_json::Value>> {
+    let registration_mode: String =
+        sqlx::query_scalar("SELECT registration_mode FROM instance_settings WHERE id = 1")
+            .fetch_one(&state.pool)
+            .await?;
+
+    Ok(Json(json!({ "registration_mode": registration_mode })))
 }
 
 pub async fn login(
