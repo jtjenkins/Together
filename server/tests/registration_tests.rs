@@ -33,19 +33,17 @@ async fn setup_admin() -> (axum::Router, String, sqlx::PgPool) {
     (app, admin_token, pool)
 }
 
-async fn set_registration_mode(app: axum::Router, token: &str, mode: &str) {
-    let (status, _) = common::patch_json_authed(
-        app,
-        "/admin/settings",
-        token,
-        json!({ "registration_mode": mode }),
-    )
-    .await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "failed to set registration mode to {mode}"
-    );
+async fn set_registration_mode(pool: &sqlx::PgPool, mode: &str) {
+    // Direct DB update to avoid race conditions with parallel tests.
+    sqlx::query("UPDATE instance_settings SET registration_mode = $1 WHERE id = 1")
+        .bind(mode)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn reset_registration_mode(pool: &sqlx::PgPool) {
+    set_registration_mode(pool, "open").await;
 }
 
 // ============================================================================
@@ -80,7 +78,7 @@ async fn admin_settings_requires_admin() {
 
 #[tokio::test]
 async fn admin_get_settings() {
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
     let (status, body) = common::get_authed(app, "/admin/settings", &admin_token).await;
     assert_eq!(status, StatusCode::OK);
@@ -89,17 +87,19 @@ async fn admin_get_settings() {
 
 #[tokio::test]
 async fn admin_update_registration_mode() {
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
-    set_registration_mode(app.clone(), &admin_token, "closed").await;
+    set_registration_mode(&pool, "closed").await;
 
     let (_, body) = common::get_authed(app, "/admin/settings", &admin_token).await;
     assert_eq!(body["registration_mode"], "closed");
+
+    reset_registration_mode(&pool).await;
 }
 
 #[tokio::test]
 async fn admin_update_invalid_mode_rejected() {
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
     let (status, _) = common::patch_json_authed(
         app,
@@ -117,9 +117,9 @@ async fn admin_update_invalid_mode_rejected() {
 
 #[tokio::test]
 async fn registration_open_allows_signup() {
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
-    set_registration_mode(app.clone(), &admin_token, "open").await;
+    set_registration_mode(&pool, "open").await;
 
     let (status, _) = common::post_json(
         app,
@@ -135,9 +135,9 @@ async fn registration_open_allows_signup() {
 
 #[tokio::test]
 async fn registration_closed_blocks_signup() {
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
-    set_registration_mode(app.clone(), &admin_token, "closed").await;
+    set_registration_mode(&pool, "closed").await;
 
     let (status, body) = common::post_json(
         app,
@@ -150,13 +150,16 @@ async fn registration_closed_blocks_signup() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert!(body["error"].as_str().unwrap().contains("closed"));
+
+    // Reset so parallel tests aren't affected
+    reset_registration_mode(&pool).await;
 }
 
 #[tokio::test]
 async fn registration_invite_only_without_code_fails() {
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
-    set_registration_mode(app.clone(), &admin_token, "invite_only").await;
+    set_registration_mode(&pool, "invite_only").await;
 
     let (status, _) = common::post_json(
         app,
@@ -168,13 +171,15 @@ async fn registration_invite_only_without_code_fails() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    reset_registration_mode(&pool).await;
 }
 
 #[tokio::test]
 async fn registration_invite_only_with_invalid_code_fails() {
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
-    set_registration_mode(app.clone(), &admin_token, "invite_only").await;
+    set_registration_mode(&pool, "invite_only").await;
 
     let (status, _) = common::post_json(
         app,
@@ -191,6 +196,8 @@ async fn registration_invite_only_with_invalid_code_fails() {
         status == StatusCode::BAD_REQUEST || status == StatusCode::NOT_FOUND,
         "expected 400 or 404, got {status}"
     );
+
+    reset_registration_mode(&pool).await;
 }
 
 // ============================================================================
@@ -199,10 +206,10 @@ async fn registration_invite_only_with_invalid_code_fails() {
 
 #[tokio::test]
 async fn server_require_invite_blocks_direct_join() {
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
     // Reset registration to open for this test
-    set_registration_mode(app.clone(), &admin_token, "open").await;
+    set_registration_mode(&pool, "open").await;
 
     // Create a public server with require_invite
     let (status, server) = common::post_json_authed(
@@ -240,7 +247,7 @@ async fn server_without_require_invite_allows_join() {
         .await
         .unwrap();
 
-    let (app, admin_token, _) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
     // Create a public server WITHOUT require_invite
     let server = common::create_server(app.clone(), &admin_token, "Open Server").await;
