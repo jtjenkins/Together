@@ -228,6 +228,29 @@ pub async fn update_user(
         }
     }
 
+    // Prevent removing the last active admin.
+    if req.is_admin == Some(false) || req.disabled == Some(true) {
+        let target_is_admin: bool = sqlx::query_scalar("SELECT is_admin FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&state.pool)
+            .await?
+            .unwrap_or(false);
+
+        if target_is_admin {
+            let admin_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM users WHERE is_admin = true AND disabled = false",
+            )
+            .fetch_one(&state.pool)
+            .await?;
+
+            if admin_count <= 1 {
+                return Err(AppError::Validation(
+                    "Cannot remove the last active admin".into(),
+                ));
+            }
+        }
+    }
+
     // Verify target user exists.
     let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
         .bind(user_id)
@@ -300,6 +323,18 @@ pub async fn delete_user(
 
     if !exists {
         return Err(AppError::NotFound("User not found".into()));
+    }
+
+    // Cannot delete a user who owns servers — transfer ownership first.
+    let owned_servers: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM servers WHERE owner_id = $1")
+        .bind(user_id)
+        .fetch_one(&state.pool)
+        .await?;
+
+    if owned_servers > 0 {
+        return Err(AppError::Validation(
+            "Cannot delete a user who owns servers. Transfer ownership first.".into(),
+        ));
     }
 
     let mut tx = state.pool.begin().await?;

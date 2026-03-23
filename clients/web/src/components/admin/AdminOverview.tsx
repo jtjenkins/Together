@@ -45,24 +45,20 @@ export function AdminOverview() {
   if (!stats) return null;
 
   const cards = [
-    {
-      label: "Users",
-      value: stats.total_users.toLocaleString(),
-      subtitle: `${stats.recent_registrations} recent`,
-    },
+    { label: "Users", value: stats.total_users.toLocaleString() },
     { label: "Servers", value: stats.total_servers.toLocaleString() },
     { label: "Messages", value: stats.total_messages.toLocaleString() },
     { label: "Channels", value: stats.total_channels.toLocaleString() },
     {
       label: "Active Connections",
-      value: stats.active_connections.toLocaleString(),
+      value: (stats.active_ws_connections ?? 0).toLocaleString(),
     },
-    { label: "Uptime", value: formatUptime(stats.uptime_seconds) },
+    { label: "Uptime", value: formatUptime(stats.uptime_secs ?? 0) },
     {
       label: "DB Latency",
-      value: `${stats.db_latency_ms.toFixed(1)} ms`,
+      value: `${(stats.db_latency_ms ?? 0).toFixed(1)} ms`,
     },
-    { label: "Storage", value: formatBytes(stats.storage_bytes) },
+    { label: "Storage", value: formatBytes(stats.storage_bytes ?? 0) },
   ];
 
   return (
@@ -72,9 +68,6 @@ export function AdminOverview() {
           <div key={card.label} className={styles.card}>
             <div className={styles.cardLabel}>{card.label}</div>
             <div className={styles.cardValue}>{card.value}</div>
-            {card.subtitle && (
-              <div className={styles.cardSubtitle}>{card.subtitle}</div>
-            )}
           </div>
         ))}
       </div>

@@ -107,6 +107,11 @@ Expected response:
 
 Then open **http://localhost** in a browser — you should see the Together login screen.
 
+> **Instance admin:** The first account registered on a fresh instance is automatically
+> granted instance admin privileges (`is_admin = true`). This user can access the admin
+> dashboard to manage all users and servers across the instance. Additional admins can be
+> promoted from the dashboard. See [instance-admin.md](instance-admin.md) for details.
+
 If `database` shows `{"status": "unavailable", ...}`, PostgreSQL is still starting. Wait a few seconds and retry.
 
 ---
@@ -138,6 +143,7 @@ Together uses Google's public STUN servers by default — no configuration neede
 
 **TURN** (Traversal Using Relays around NAT) relays media when a direct connection fails.
 This happens when:
+
 - A user is on **iOS cellular** (WKWebView cannot generate host ICE candidates)
 - A user is behind a **symmetric NAT** or strict corporate firewall
 - Both peers are behind **carrier-grade NAT** (common on mobile networks)
@@ -165,12 +171,14 @@ openssl rand -hex 32
 ```
 
 Then in `turn.conf`:
+
 ```
 realm=your-domain.com
 static-auth-secret=YOUR_GENERATED_SECRET
 ```
 
 For production, uncomment and configure the TLS certificate paths:
+
 ```
 cert=/etc/ssl/cert.pem
 pkey=/etc/ssl/key.pem
@@ -185,11 +193,11 @@ TURN_SECRET=YOUR_GENERATED_SECRET   # must match turn.conf
 
 **Step 4 — Open firewall ports:**
 
-| Port | Protocol | Purpose |
-|------|----------|---------|
-| 3478 | TCP + UDP | STUN/TURN |
-| 5349 | TCP + UDP | TURN over TLS/DTLS (required for iOS) |
-| 49152–65535 | UDP | Media relay range |
+| Port        | Protocol  | Purpose                               |
+| ----------- | --------- | ------------------------------------- |
+| 3478        | TCP + UDP | STUN/TURN                             |
+| 5349        | TCP + UDP | TURN over TLS/DTLS (required for iOS) |
+| 49152–65535 | UDP       | Media relay range                     |
 
 **Step 5 — Restart:**
 
@@ -214,12 +222,12 @@ turnutils_uclient -t -u test -w test your-domain.com
 
 ### Do I need TURN?
 
-| Scenario | TURN needed? |
-|----------|-------------|
-| Desktop users on home Wi-Fi | Usually no — STUN is enough |
-| Mobile users on cellular (especially iOS) | **Yes** |
-| Users behind corporate firewalls | **Yes** |
-| LAN-only deployment (no internet) | No |
+| Scenario                                  | TURN needed?                |
+| ----------------------------------------- | --------------------------- |
+| Desktop users on home Wi-Fi               | Usually no — STUN is enough |
+| Mobile users on cellular (especially iOS) | **Yes**                     |
+| Users behind corporate firewalls          | **Yes**                     |
+| LAN-only deployment (no internet)         | No                          |
 
 > For more details on iOS-specific voice behavior, see [ios-voice.md](ios-voice.md).
 
@@ -335,18 +343,18 @@ server {
 
 ## Environment variable reference
 
-| Variable            | Required | Default                    | Description                                     |
-| ------------------- | -------- | -------------------------- | ----------------------------------------------- |
-| `POSTGRES_USER`     | Yes      | —                          | PostgreSQL username                             |
-| `POSTGRES_PASSWORD` | Yes      | —                          | PostgreSQL password                             |
-| `POSTGRES_DB`       | Yes      | —                          | PostgreSQL database name                        |
-| `DATABASE_URL`      | Auto     | _(set by compose)_         | Full connection URL; Compose sets this          |
-| `JWT_SECRET`        | Yes      | —                          | JWT signing secret (32+ chars)                  |
-| `APP_ENV`           | No       | `development`              | Set to `production` for JSON logs + strict CORS |
+| Variable            | Required | Default                    | Description                                                   |
+| ------------------- | -------- | -------------------------- | ------------------------------------------------------------- |
+| `POSTGRES_USER`     | Yes      | —                          | PostgreSQL username                                           |
+| `POSTGRES_PASSWORD` | Yes      | —                          | PostgreSQL password                                           |
+| `POSTGRES_DB`       | Yes      | —                          | PostgreSQL database name                                      |
+| `DATABASE_URL`      | Auto     | _(set by compose)_         | Full connection URL; Compose sets this                        |
+| `JWT_SECRET`        | Yes      | —                          | JWT signing secret (32+ chars)                                |
+| `APP_ENV`           | No       | `development`              | Set to `production` for JSON logs + strict CORS               |
 | `ALLOWED_ORIGINS`   | No       | _(empty)_                  | CORS origins — leave empty to block all cross-origin requests |
-| `BIND_PORT`         | No       | `80`                       | Host port for the Nginx web container           |
-| `GIPHY_API_KEY`     | No       | _(GIF picker disabled)_    | Giphy API key for the GIF search feature        |
-| `RUST_LOG`          | No       | `together_server=info,...` | Log level filter                                |
-| `TURN_URL`          | No       | _(TURN disabled)_          | TURN server URL (e.g. `turn:host:3478`)         |
-| `TURN_SECRET`       | No       | _(TURN disabled)_          | HMAC-SHA1 shared secret for TURN credentials    |
-| `TOGETHER_VERSION`  | No       | `latest`                   | Docker image tag to pull (e.g. `v0.0.2`)        |
+| `BIND_PORT`         | No       | `80`                       | Host port for the Nginx web container                         |
+| `GIPHY_API_KEY`     | No       | _(GIF picker disabled)_    | Giphy API key for the GIF search feature                      |
+| `RUST_LOG`          | No       | `together_server=info,...` | Log level filter                                              |
+| `TURN_URL`          | No       | _(TURN disabled)_          | TURN server URL (e.g. `turn:host:3478`)                       |
+| `TURN_SECRET`       | No       | _(TURN disabled)_          | HMAC-SHA1 shared secret for TURN credentials                  |
+| `TOGETHER_VERSION`  | No       | `latest`                   | Docker image tag to pull (e.g. `v0.0.2`)                      |

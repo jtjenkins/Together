@@ -1915,6 +1915,223 @@ components:
           description: Hours until expiry (1-720). Omit for no expiry.
           example: 24
 
+    # -- Instance Admin --------------------------------------------------------
+
+    AdminStatsResponse:
+      type: object
+      description: Instance-wide aggregate statistics.
+      required:
+        - total_users
+        - total_servers
+        - total_messages
+        - total_channels
+        - active_ws_connections
+        - uptime_secs
+        - db_latency_ms
+        - storage_bytes
+      properties:
+        total_users:
+          type: integer
+          format: int64
+          description: Total registered users.
+          example: 127
+        total_servers:
+          type: integer
+          format: int64
+          description: Total servers (guilds).
+          example: 5
+        total_messages:
+          type: integer
+          format: int64
+          description: Total messages across all channels.
+          example: 48210
+        total_channels:
+          type: integer
+          format: int64
+          description: Total channels across all servers.
+          example: 32
+        active_ws_connections:
+          type: integer
+          description: Current open WebSocket connections.
+          example: 14
+        uptime_secs:
+          type: integer
+          format: int64
+          nullable: true
+          description: Seconds since server started (null if unavailable).
+          example: 86400
+        db_latency_ms:
+          type: integer
+          format: int64
+          description: Round-trip time for a SELECT 1 probe (ms).
+          example: 1
+        storage_bytes:
+          type: integer
+          format: int64
+          description: Total bytes used by the upload directory.
+          example: 104857600
+
+    AdminUserDto:
+      type: object
+      description: Admin-enriched user row with server and message counts.
+      required:
+        - id
+        - username
+        - status
+        - is_admin
+        - disabled
+        - created_at
+        - server_count
+        - message_count
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+          example: "alice"
+        email:
+          type: string
+          nullable: true
+          example: "alice@example.com"
+        avatar_url:
+          type: string
+          nullable: true
+        status:
+          type: string
+          example: "online"
+        is_admin:
+          type: boolean
+          example: true
+        disabled:
+          type: boolean
+          example: false
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        server_count:
+          type: integer
+          format: int64
+          example: 3
+        message_count:
+          type: integer
+          format: int64
+          example: 1842
+
+    AdminUsersResponse:
+      type: object
+      description: Paginated list of users with admin-enriched fields.
+      required:
+        - users
+        - total
+        - page
+        - per_page
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserDto"
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int64
+        per_page:
+          type: integer
+          format: int64
+
+    AdminServerDto:
+      type: object
+      description: Admin-enriched server row with member, channel, and message counts.
+      required:
+        - id
+        - name
+        - owner_id
+        - owner_username
+        - is_public
+        - member_count
+        - channel_count
+        - message_count
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Gaming Squad"
+        owner_id:
+          type: string
+          format: uuid
+        owner_username:
+          type: string
+          example: "alice"
+        icon_url:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
+          example: false
+        member_count:
+          type: integer
+          format: int64
+          example: 42
+        channel_count:
+          type: integer
+          format: int64
+          example: 8
+        message_count:
+          type: integer
+          format: int64
+          example: 15230
+        created_at:
+          type: string
+          format: date-time
+
+    AdminServersResponse:
+      type: object
+      description: Paginated list of servers with admin-enriched fields.
+      required:
+        - servers
+        - total
+        - page
+        - per_page
+      properties:
+        servers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminServerDto"
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int64
+        per_page:
+          type: integer
+          format: int64
+
+    UpdateAdminUserRequest:
+      type: object
+      description: |
+        Request body for updating a user's admin status and/or disabled state.
+        Both fields are optional; omitted fields are left unchanged.
+        Uses deny_unknown_fields — extra fields cause a 400 error.
+      properties:
+        is_admin:
+          type: boolean
+          description: Grant or revoke instance admin privilege.
+          example: true
+        disabled:
+          type: boolean
+          description: Disable or re-enable the user account.
+          example: false
+
     # -- Shared error ---------------------------------------------------------
 
     ErrorResponse:
@@ -6642,6 +6859,235 @@ paths:
           $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
+  # Instance Admin
+  # ==========================================================================
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      summary: Instance overview statistics
+      description: |
+        Returns aggregate counts (users, servers, messages, channels), active
+        WebSocket connections, server uptime, database latency, and upload
+        storage size. Requires instance admin.
+      tags: [Instance Admin]
+      responses:
+        "200":
+          description: Instance statistics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStatsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      summary: Paginated user list (admin)
+      description: |
+        Returns a paginated list of all users with enriched fields (server
+        count, message count, disabled status). Supports search and sorting.
+        Requires instance admin.
+      tags: [Instance Admin]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number (minimum 1).
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+          description: Results per page (1–100).
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Case-insensitive substring match on username or email.
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [username, created_at, message_count]
+            default: created_at
+          description: Sort column.
+      responses:
+        "200":
+          description: Paginated user list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUsersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/users/{user_id}:
+    patch:
+      operationId: updateAdminUser
+      summary: Promote/demote or disable/enable a user
+      description: |
+        Updates a user's admin status and/or disabled state. Both fields are
+        optional; omitted fields are left unchanged.
+
+        **Self-operation guards:** you cannot demote yourself (`is_admin: false`)
+        or disable yourself (`disabled: true`). Both return `400`.
+
+        When disabling a user, all sessions are deleted (forcing logout) and
+        subsequent login attempts are rejected. When re-enabling, `disabled_at`
+        is cleared and the user can log in again.
+
+        Requires instance admin.
+      tags: [Instance Admin]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Target user ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAdminUserRequest"
+            example:
+              is_admin: true
+              disabled: false
+      responses:
+        "200":
+          description: User updated (no body).
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: deleteAdminUser
+      summary: Permanently delete a user
+      description: |
+        Deletes a user account. Messages are anonymized (author_id set to NULL)
+        to preserve conversation context. Sessions are deleted, and the user
+        row is removed (foreign key cascades handle memberships).
+
+        **Self-guard:** you cannot delete yourself (returns `400`).
+
+        Requires instance admin.
+      tags: [Instance Admin]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Target user ID.
+      responses:
+        "204":
+          description: User deleted (no body).
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/servers:
+    get:
+      operationId: listAdminServers
+      summary: Paginated server list (admin)
+      description: |
+        Returns a paginated list of all servers with enriched fields (owner
+        username, member count, channel count, message count). Supports search.
+        Sorted by created_at descending. Requires instance admin.
+      tags: [Instance Admin]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number (minimum 1).
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+          description: Results per page (1–100).
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Case-insensitive substring match on server name.
+      responses:
+        "200":
+          description: Paginated server list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminServersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/servers/{server_id}:
+    delete:
+      operationId: deleteAdminServer
+      summary: Force-delete a server (admin override)
+      description: |
+        Deletes a server regardless of ownership. Foreign key cascades handle
+        channels, messages, memberships, invites, and all dependent data.
+        Requires instance admin.
+      tags: [Instance Admin]
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Target server ID.
+      responses:
+        "204":
+          description: Server deleted (no body).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
   # WebSocket gateway
   # ==========================================================================
 
@@ -6742,5 +7188,7 @@ tags:
     description: Full-text message search within servers.
   - name: Utilities
     description: Link previews, GIF search, and other helper endpoints.
+  - name: Instance Admin
+    description: Instance-level user and server management (requires is_admin).
   - name: WebSocket
     description: Real-time event gateway.

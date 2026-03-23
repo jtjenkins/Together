@@ -557,11 +557,10 @@ export interface AdminStatsResponse {
   total_servers: number;
   total_messages: number;
   total_channels: number;
-  active_connections: number;
-  uptime_seconds: number;
+  active_ws_connections: number;
+  uptime_secs: number | null;
   db_latency_ms: number;
   storage_bytes: number;
-  recent_registrations: number;
 }
 
 export interface AdminUserDto {
