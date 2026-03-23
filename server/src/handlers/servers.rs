@@ -130,7 +130,7 @@ pub async fn create_server(
 
     // Apply template channels if requested.
     if let Some(tmpl_id) = req.template_id {
-        use crate::models::{ServerTemplate, TemplateData};
+        use crate::models::{ServerTemplate, ServerTemplateDto};
 
         let tmpl = sqlx::query_as::<_, ServerTemplate>(
             "SELECT id, name, description, category, template_data, is_builtin, created_at
@@ -141,12 +141,9 @@ pub async fn create_server(
         .await?
         .ok_or_else(|| AppError::Validation(format!("Template {tmpl_id} not found")))?;
 
-        let data: TemplateData = serde_json::from_value(tmpl.template_data).map_err(|e| {
-            tracing::error!("Failed to deserialize template_data for template {tmpl_id}: {e}");
-            AppError::Internal
-        })?;
+        let dto = ServerTemplateDto::try_from(tmpl)?;
 
-        for ch in &data.channels {
+        for ch in &dto.channels {
             sqlx::query(
                 "INSERT INTO channels (server_id, name, type, position, category)
                  VALUES ($1, $2, $3, $4, $5)",
