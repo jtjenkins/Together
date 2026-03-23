@@ -110,6 +110,11 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/admin/servers/:server_id",
             delete(handlers::admin::delete_server),
         )
+        // Server template routes
+        .route(
+            "/server-templates",
+            get(handlers::templates::list_templates),
+        )
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
         .route("/users/:user_id", get(handlers::users::get_user_profile))

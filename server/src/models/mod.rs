@@ -111,6 +111,68 @@ impl From<User> for PublicProfileDto {
 }
 
 // ============================================================================
+// Server Template Models
+// ============================================================================
+
+/// Database row for a server template.
+#[derive(Debug, Clone, FromRow)]
+pub struct ServerTemplate {
+    pub id: Uuid,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub template_data: serde_json::Value, // JSONB
+    pub is_builtin: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A single channel definition inside a template's JSONB data.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TemplateChannelDto {
+    pub name: String,
+    pub r#type: String,
+    pub category: Option<String>,
+    pub position: i32,
+}
+
+/// JSONB payload stored in server_templates.template_data.
+#[derive(Debug, Deserialize)]
+pub struct TemplateData {
+    pub channels: Vec<TemplateChannelDto>,
+}
+
+/// Public API shape for a server template.
+#[derive(Debug, Serialize)]
+pub struct ServerTemplateDto {
+    pub id: Uuid,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub channels: Vec<TemplateChannelDto>,
+    pub is_builtin: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+impl TryFrom<ServerTemplate> for ServerTemplateDto {
+    type Error = crate::error::AppError;
+
+    fn try_from(t: ServerTemplate) -> Result<Self, Self::Error> {
+        let data: TemplateData = serde_json::from_value(t.template_data).map_err(|_e| {
+            crate::error::AppError::Internal
+        })?;
+        Ok(ServerTemplateDto {
+            id: t.id,
+            name: t.name,
+            description: t.description,
+            category: t.category,
+            channels: data.channels,
+            is_builtin: t.is_builtin,
+            created_at: t.created_at,
+        })
+    }
+}
+
+// ============================================================================
 // Session Models
 // ============================================================================
 
