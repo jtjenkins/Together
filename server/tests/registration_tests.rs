@@ -78,7 +78,7 @@ async fn admin_settings_requires_admin() {
 
 #[tokio::test]
 async fn admin_get_settings() {
-    let (app, admin_token, pool) = setup_admin().await;
+    let (app, admin_token, _pool) = setup_admin().await;
 
     let (status, body) = common::get_authed(app, "/admin/settings", &admin_token).await;
     assert_eq!(status, StatusCode::OK);
@@ -99,7 +99,7 @@ async fn admin_update_registration_mode() {
 
 #[tokio::test]
 async fn admin_update_invalid_mode_rejected() {
-    let (app, admin_token, pool) = setup_admin().await;
+    let (app, admin_token, _pool) = setup_admin().await;
 
     let (status, _) = common::patch_json_authed(
         app,
@@ -117,7 +117,7 @@ async fn admin_update_invalid_mode_rejected() {
 
 #[tokio::test]
 async fn registration_open_allows_signup() {
-    let (app, admin_token, pool) = setup_admin().await;
+    let (app, _admin_token, pool) = setup_admin().await;
 
     set_registration_mode(&pool, "open").await;
 
@@ -135,7 +135,7 @@ async fn registration_open_allows_signup() {
 
 #[tokio::test]
 async fn registration_closed_blocks_signup() {
-    let (app, admin_token, pool) = setup_admin().await;
+    let (app, _admin_token, pool) = setup_admin().await;
 
     set_registration_mode(&pool, "closed").await;
 
@@ -157,7 +157,7 @@ async fn registration_closed_blocks_signup() {
 
 #[tokio::test]
 async fn registration_invite_only_without_code_fails() {
-    let (app, admin_token, pool) = setup_admin().await;
+    let (app, _admin_token, pool) = setup_admin().await;
 
     set_registration_mode(&pool, "invite_only").await;
 
@@ -177,7 +177,7 @@ async fn registration_invite_only_without_code_fails() {
 
 #[tokio::test]
 async fn registration_invite_only_with_invalid_code_fails() {
-    let (app, admin_token, pool) = setup_admin().await;
+    let (app, _admin_token, pool) = setup_admin().await;
 
     set_registration_mode(&pool, "invite_only").await;
 
@@ -247,7 +247,7 @@ async fn server_without_require_invite_allows_join() {
         .await
         .unwrap();
 
-    let (app, admin_token, pool) = setup_admin().await;
+    let (app, admin_token, _pool) = setup_admin().await;
 
     // Create a public server WITHOUT require_invite
     let server = common::create_server(app.clone(), &admin_token, "Open Server").await;
