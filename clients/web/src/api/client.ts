@@ -69,6 +69,8 @@ import type {
   RegistrationMode,
   AuditLog,
   AuditLogQuery,
+  ChannelPermissionOverride,
+  SetOverrideRequest,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -302,6 +304,36 @@ class ApiClient {
     return this.request(`/servers/${serverId}/channels/${channelId}`, {
       method: "DELETE",
     });
+  }
+
+  // ─── Channel Permission Overrides ─────────────────────────
+
+  listChannelOverrides(
+    channelId: string,
+  ): Promise<ChannelPermissionOverride[]> {
+    return this.request<ChannelPermissionOverride[]>(
+      `/channels/${channelId}/overrides`,
+    );
+  }
+
+  setChannelOverride(
+    channelId: string,
+    data: SetOverrideRequest,
+  ): Promise<ChannelPermissionOverride> {
+    return this.request<ChannelPermissionOverride>(
+      `/channels/${channelId}/overrides`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  deleteChannelOverride(channelId: string, overrideId: string): Promise<void> {
+    return this.request<void>(
+      `/channels/${channelId}/overrides/${overrideId}`,
+      { method: "DELETE" },
+    );
   }
 
   // ─── Messages ──────────────────────────────────────────────

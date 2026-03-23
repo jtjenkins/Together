@@ -4,6 +4,7 @@ pub mod audit;
 pub mod auth;
 pub mod automod;
 pub mod bots;
+pub mod channel_overrides;
 pub mod channels;
 pub mod custom_emojis;
 pub mod dm;

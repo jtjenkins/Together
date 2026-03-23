@@ -18,7 +18,10 @@ use super::events::{
 };
 use crate::{
     auth::{validate_token, TokenType},
-    models::{DirectMessageChannelDto, Role, Server, UnreadCount, User, UserDto, VoiceStateDto},
+    models::{
+        ChannelPermissionOverride, DirectMessageChannelDto, Role, Server, UnreadCount, User,
+        UserDto, VoiceStateDto,
+    },
     state::AppState,
 };
 
@@ -750,6 +753,40 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
         json!(map)
     };
 
+    // Channel permission overrides for all servers the user belongs to.
+    let channel_overrides_map: serde_json::Value = if server_ids.is_empty() {
+        json!({})
+    } else {
+        let override_rows = match sqlx::query_as::<_, ChannelPermissionOverride>(
+            "SELECT cpo.id, cpo.channel_id, cpo.role_id, cpo.user_id, cpo.allow, cpo.deny
+             FROM channel_permission_overrides cpo
+             JOIN channels c ON c.id = cpo.channel_id
+             WHERE c.server_id = ANY($1)
+             ORDER BY cpo.channel_id",
+        )
+        .bind(&server_ids)
+        .fetch_all(&state.pool)
+        .await
+        {
+            Ok(rows) => rows,
+            Err(e) => {
+                tracing::warn!(
+                    user_id = %user_id,
+                    error   = ?e,
+                    "Failed to fetch channel overrides for READY payload; client will receive empty channel_overrides"
+                );
+                vec![]
+            }
+        };
+
+        let mut map: std::collections::HashMap<Uuid, Vec<&ChannelPermissionOverride>> =
+            std::collections::HashMap::new();
+        for ov in &override_rows {
+            map.entry(ov.channel_id).or_default().push(ov);
+        }
+        json!(map)
+    };
+
     let payload = GatewayMessage::dispatch(
         EVENT_READY,
         json!({
@@ -759,6 +796,7 @@ async fn build_ready(state: &AppState, user_id: Uuid) -> Option<String> {
             "unread_counts": unread_counts,
             "mention_counts": mention_counts,
             "server_roles": server_roles_map,
+            "channel_overrides": channel_overrides_map,
         }),
     );
 

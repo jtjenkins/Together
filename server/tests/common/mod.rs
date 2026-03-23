@@ -186,6 +186,16 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/servers/:id/channels/:channel_id",
             delete(handlers::channels::delete_channel),
         )
+        // Channel permission override routes
+        .route(
+            "/channels/:channel_id/overrides",
+            get(handlers::channel_overrides::list_overrides)
+                .put(handlers::channel_overrides::set_override),
+        )
+        .route(
+            "/channels/:channel_id/overrides/:override_id",
+            delete(handlers::channel_overrides::delete_override),
+        )
         // Message routes
         .route(
             "/channels/:channel_id/messages",
@@ -446,6 +456,22 @@ pub async fn patch_json_authed(
 ) -> (StatusCode, Value) {
     let req = Request::builder()
         .method(Method::PATCH)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    send(app, req).await
+}
+
+pub async fn put_json_authed(
+    app: Router,
+    uri: &str,
+    token: &str,
+    body: Value,
+) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::PUT)
         .uri(uri)
         .header(header::AUTHORIZATION, format!("Bearer {token}"))
         .header(header::CONTENT_TYPE, "application/json")

@@ -27,6 +27,7 @@ import type {
   RoleDeleteEvent,
   MemberRoleEvent,
   MemberRoleInfo,
+  ChannelPermissionOverride,
 } from "../types";
 
 export function useWebSocket() {
@@ -62,6 +63,12 @@ export function useWebSocket() {
   const handleRoleDelete = useRoleStore((s) => s.handleRoleDelete);
   const handleMemberRoleAdd = useRoleStore((s) => s.handleMemberRoleAdd);
   const handleMemberRoleRemove = useRoleStore((s) => s.handleMemberRoleRemove);
+  const handleChannelOverrideUpdate = useRoleStore(
+    (s) => s.handleChannelOverrideUpdate,
+  );
+  const handleChannelOverrideDelete = useRoleStore(
+    (s) => s.handleChannelOverrideDelete,
+  );
 
   useEffect(() => {
     const unsubs = [
@@ -73,6 +80,11 @@ export function useWebSocket() {
         if (data.mention_counts) setMentionCounts(data.mention_counts);
         if (data.server_roles) {
           useRoleStore.getState().setRolesFromReady(data.server_roles);
+        }
+        if (data.channel_overrides) {
+          useRoleStore
+            .getState()
+            .setChannelOverridesFromReady(data.channel_overrides);
         }
       }),
 
@@ -270,6 +282,20 @@ export function useWebSocket() {
         }
       }),
 
+      gateway.on(
+        "CHANNEL_OVERRIDE_UPDATE",
+        (override: ChannelPermissionOverride) => {
+          handleChannelOverrideUpdate(override);
+        },
+      ),
+
+      gateway.on(
+        "CHANNEL_OVERRIDE_DELETE",
+        (event: { channel_id: string; override_id: string }) => {
+          handleChannelOverrideDelete(event);
+        },
+      ),
+
       gateway.on("connected", () => {
         if (activeServerId) {
           fetchMembers(activeServerId);
@@ -308,5 +334,7 @@ export function useWebSocket() {
     handleRoleDelete,
     handleMemberRoleAdd,
     handleMemberRoleRemove,
+    handleChannelOverrideUpdate,
+    handleChannelOverrideDelete,
   ]);
 }

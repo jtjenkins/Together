@@ -736,6 +736,10 @@ pub enum AuditAction {
     // Invite actions
     InviteCreate,
     InviteRevoke,
+
+    // Channel override actions
+    ChannelOverrideUpdate,
+    ChannelOverrideDelete,
 }
 
 // ── Moderation Request DTOs ─────────────────────────────────────────────────
@@ -1009,6 +1013,29 @@ pub struct UpdateRoleRequest {
     pub permissions: Option<i64>,
     pub color: Option<String>,
     pub position: Option<i32>,
+}
+
+// ── Channel Permission Override Models ───────────────────────────────────────
+
+/// Per-channel permission override for a role or user.
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct ChannelPermissionOverride {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub role_id: Option<Uuid>,
+    pub user_id: Option<Uuid>,
+    pub allow: i64,
+    pub deny: i64,
+}
+
+/// Request body for PUT /channels/:channel_id/overrides.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SetChannelOverrideRequest {
+    pub role_id: Option<Uuid>,
+    pub user_id: Option<Uuid>,
+    pub allow: i64,
+    pub deny: i64,
 }
 
 // ── Webhook Models ──────────────────────────────────────────────────────────

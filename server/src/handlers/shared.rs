@@ -127,12 +127,19 @@ pub async fn require_member(
 }
 
 // Permission bitflag constants (mirrors migrations/20240216000003_roles_and_permissions.sql)
+pub const PERMISSION_VIEW_CHANNEL: i64 = 1; // bit 0
+pub const PERMISSION_SEND_MESSAGES: i64 = 2; // bit 1
 const PERMISSION_MANAGE_MESSAGES: i64 = 4; // bit 2
-pub const PERMISSION_ADMINISTRATOR: i64 = 8192; // bit 13
+pub const PERMISSION_ATTACH_FILES: i64 = 8; // bit 3
+pub const PERMISSION_ADD_REACTIONS: i64 = 16; // bit 4
+pub const PERMISSION_CONNECT_VOICE: i64 = 32; // bit 5
+pub const PERMISSION_SPEAK: i64 = 64; // bit 6
 pub const PERMISSION_MUTE_MEMBERS: i64 = 128; // bit 7
 pub const PERMISSION_KICK_MEMBERS: i64 = 256; // bit 8
 pub const PERMISSION_BAN_MEMBERS: i64 = 512; // bit 9
+pub const PERMISSION_MANAGE_CHANNELS: i64 = 1024; // bit 10
 pub const PERMISSION_MANAGE_ROLES: i64 = 2048; // bit 11
+pub const PERMISSION_ADMINISTRATOR: i64 = 8192; // bit 13
 pub const PERMISSION_CREATE_INVITES: i64 = 16384; // bit 14
 
 /// Verify the user has the MANAGE_MESSAGES permission in the given server.
@@ -381,4 +388,122 @@ pub async fn get_user_permissions(
     .await?;
 
     Ok(perms.unwrap_or(0))
+}
+
+/// Compute the effective permissions for a user in a specific channel,
+/// taking into account server-level role permissions and per-channel overrides.
+///
+/// Discord-style resolution order:
+/// 1. Server owner / ADMINISTRATOR bypass all overrides
+/// 2. Start with base server-level permissions (BIT_OR of all roles)
+/// 3. Apply role-based channel overrides (merge: OR of matching allows/denies)
+/// 4. Apply user-specific channel override (highest priority)
+///
+/// When no overrides exist for a channel, returns the same value as
+/// `get_user_permissions` — existing behaviour is preserved.
+pub async fn compute_channel_permissions(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> AppResult<i64> {
+    // 1. Server owner gets all bits.
+    let is_owner: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM servers WHERE id = $1 AND owner_id = $2)")
+            .bind(server_id)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
+
+    if is_owner {
+        return Ok(i64::MAX);
+    }
+
+    // 2. Base permissions from server-level roles.
+    // Default permissions for all members (equivalent to Discord's @everyone):
+    // VIEW_CHANNEL | SEND_MESSAGES | ADD_REACTIONS | ATTACH_FILES | CONNECT_VOICE | SPEAK
+    const DEFAULT_MEMBER_PERMS: i64 = 1 | 2 | 16 | 8 | 32 | 64; // 123
+    let role_perms = get_user_permissions(pool, server_id, user_id).await?;
+    let base_perms = role_perms | DEFAULT_MEMBER_PERMS;
+
+    // ADMINISTRATOR bypasses all channel overrides.
+    if base_perms & PERMISSION_ADMINISTRATOR != 0 {
+        return Ok(i64::MAX);
+    }
+
+    // 3. Fetch all overrides for this channel.
+    #[derive(sqlx::FromRow)]
+    struct OverrideRow {
+        role_id: Option<Uuid>,
+        user_id: Option<Uuid>,
+        allow: i64,
+        deny: i64,
+    }
+
+    let overrides = sqlx::query_as::<_, OverrideRow>(
+        "SELECT role_id, user_id, allow, deny
+         FROM channel_permission_overrides WHERE channel_id = $1",
+    )
+    .bind(channel_id)
+    .fetch_all(pool)
+    .await?;
+
+    // Short-circuit: no overrides means base perms apply unchanged.
+    if overrides.is_empty() {
+        return Ok(base_perms);
+    }
+
+    // 4. Fetch user's role IDs in this server.
+    let user_role_ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT role_id FROM member_roles WHERE server_id = $1 AND user_id = $2",
+    )
+    .bind(server_id)
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    // 5. Merge role overrides: OR of all matching role allows and denies.
+    let mut role_allow: i64 = 0;
+    let mut role_deny: i64 = 0;
+    let mut user_override: Option<&OverrideRow> = None;
+
+    for ov in &overrides {
+        if ov.user_id == Some(user_id) {
+            user_override = Some(ov);
+        } else if let Some(rid) = ov.role_id {
+            if user_role_ids.contains(&rid) {
+                role_allow |= ov.allow;
+                role_deny |= ov.deny;
+            }
+        }
+    }
+
+    // 6. Apply role overrides: deny clears bits, allow sets bits.
+    let mut perms = (base_perms & !role_deny) | role_allow;
+
+    // 7. Apply user-specific override (highest priority).
+    if let Some(uo) = user_override {
+        perms = (perms & !uo.deny) | uo.allow;
+    }
+
+    Ok(perms)
+}
+
+/// Verify the user has a specific permission bit in a channel (including overrides).
+///
+/// Returns 403 Forbidden with the provided message when the permission is missing.
+pub async fn require_channel_permission(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    channel_id: Uuid,
+    user_id: Uuid,
+    permission_bit: i64,
+    error_message: &str,
+) -> AppResult<()> {
+    let perms = compute_channel_permissions(pool, server_id, channel_id, user_id).await?;
+    if perms & permission_bit != 0 {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(error_message.into()))
+    }
 }

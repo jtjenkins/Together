@@ -6,7 +6,9 @@ import type {
   UpdateRoleRequest,
   RoleDeleteEvent,
   MemberRoleEvent,
+  ChannelPermissionOverride,
 } from "../types";
+import { PERMISSIONS } from "../types";
 import { api, ApiRequestError } from "../api/client";
 import { useAuthStore } from "./authStore";
 import { useServerStore } from "./serverStore";
@@ -14,6 +16,7 @@ import { useServerStore } from "./serverStore";
 interface RoleState {
   roles: Record<string, RoleDto[]>;
   myPermissions: Record<string, number>;
+  channelOverrides: Record<string, ChannelPermissionOverride[]>;
   isLoading: boolean;
   error: string | null;
 
@@ -42,6 +45,16 @@ interface RoleState {
     memberRoles?: Record<string, MemberRoleInfo[]>,
   ) => void;
 
+  setChannelOverridesFromReady: (
+    overrides: Record<string, ChannelPermissionOverride[]>,
+  ) => void;
+  handleChannelOverrideUpdate: (override: ChannelPermissionOverride) => void;
+  handleChannelOverrideDelete: (event: {
+    channel_id: string;
+    override_id: string;
+  }) => void;
+  computeChannelPermissions: (serverId: string, channelId: string) => number;
+
   handleRoleCreate: (role: RoleDto) => void;
   handleRoleUpdate: (role: RoleDto) => void;
   handleRoleDelete: (event: RoleDeleteEvent) => void;
@@ -64,6 +77,7 @@ function computePermissions(roles: RoleDto[], myRoleIds: string[]): number {
 export const useRoleStore = create<RoleState>((set, get) => ({
   roles: {},
   myPermissions: {},
+  channelOverrides: {},
   isLoading: false,
   error: null,
 
@@ -201,6 +215,84 @@ export const useRoleStore = create<RoleState>((set, get) => ({
         myPermissions: { ...state.myPermissions, ...newPerms },
       }));
     }
+  },
+
+  setChannelOverridesFromReady: (overrides) => {
+    set((state) => ({
+      channelOverrides: { ...state.channelOverrides, ...overrides },
+    }));
+  },
+
+  handleChannelOverrideUpdate: (override) => {
+    set((state) => {
+      const existing = state.channelOverrides[override.channel_id] || [];
+      const idx = existing.findIndex((o) => o.id === override.id);
+      const updated =
+        idx >= 0
+          ? existing.map((o) => (o.id === override.id ? override : o))
+          : [...existing, override];
+      return {
+        channelOverrides: {
+          ...state.channelOverrides,
+          [override.channel_id]: updated,
+        },
+      };
+    });
+  },
+
+  handleChannelOverrideDelete: (event) => {
+    set((state) => {
+      const existing = state.channelOverrides[event.channel_id] || [];
+      return {
+        channelOverrides: {
+          ...state.channelOverrides,
+          [event.channel_id]: existing.filter(
+            (o) => o.id !== event.override_id,
+          ),
+        },
+      };
+    });
+  },
+
+  computeChannelPermissions: (serverId, channelId) => {
+    const currentUserId = useAuthStore.getState().user?.id;
+    if (!currentUserId) return 0;
+
+    // Check if owner — owners bypass everything
+    const servers = useServerStore.getState().servers;
+    const server = servers.find((s) => s.id === serverId);
+    if (server?.owner_id === currentUserId) return 0x7fffffff; // all bits set
+
+    // Compute base permissions from roles
+    const members = useServerStore.getState().members;
+    const member = members.find((m) => m.user_id === currentUserId);
+    const myRoleIds = (member?.roles || []).map((r) => r.id);
+    const serverRoles = get().roles[serverId] || [];
+    let perms = computePermissions(serverRoles, myRoleIds);
+
+    // ADMINISTRATOR bypasses all overrides
+    if ((perms & PERMISSIONS.ADMINISTRATOR) !== 0) return perms;
+
+    // Apply role overrides for this channel
+    const overrides = get().channelOverrides[channelId] || [];
+    let roleAllow = 0;
+    let roleDeny = 0;
+    for (const ov of overrides) {
+      if (ov.role_id && myRoleIds.includes(ov.role_id)) {
+        roleAllow |= ov.allow;
+        roleDeny |= ov.deny;
+      }
+    }
+    perms = (perms & ~roleDeny) | roleAllow;
+
+    // Apply user-specific overrides (highest priority)
+    for (const ov of overrides) {
+      if (ov.user_id === currentUserId) {
+        perms = (perms & ~ov.deny) | ov.allow;
+      }
+    }
+
+    return perms;
   },
 
   handleRoleCreate: (role) => {
