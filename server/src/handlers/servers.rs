@@ -142,9 +142,7 @@ pub async fn create_server(
         .ok_or_else(|| AppError::Validation(format!("Template {tmpl_id} not found")))?;
 
         let data: TemplateData = serde_json::from_value(tmpl.template_data).map_err(|e| {
-            tracing::error!(
-                "Failed to deserialize template_data for template {tmpl_id}: {e}"
-            );
+            tracing::error!("Failed to deserialize template_data for template {tmpl_id}: {e}");
             AppError::Internal
         })?;
 
