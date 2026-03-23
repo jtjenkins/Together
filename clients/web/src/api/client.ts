@@ -617,6 +617,10 @@ class ApiClient {
     });
   }
 
+  getPoll(pollId: string): Promise<PollDto> {
+    return this.request<PollDto>(`/polls/${encodeURIComponent(pollId)}`);
+  }
+
   castVote(pollId: string, optionId: string): Promise<PollDto> {
     return this.request<PollDto>(`/polls/${pollId}/vote`, {
       method: "POST",
@@ -735,6 +739,10 @@ class ApiClient {
 
   listBots(): Promise<{ bots: BotDto[] }> {
     return this.request<{ bots: BotDto[] }>("/bots");
+  }
+
+  getBot(id: string): Promise<BotDto> {
+    return this.request<BotDto>(`/bots/${encodeURIComponent(id)}`);
   }
 
   createBot(data: CreateBotRequest): Promise<BotCreatedResponse> {
