@@ -240,8 +240,17 @@ async fn main() {
         )
         // Auth routes (stricter per-IP rate limit, nested via sub-router)
         .merge(auth_router)
+        // Public instance info (no auth required)
+        .route(
+            "/instance/registration-mode",
+            get(handlers::auth::get_registration_mode),
+        )
         // Admin routes (instance-admin only)
         .route("/admin/stats", get(handlers::admin::get_stats))
+        .route(
+            "/admin/settings",
+            get(handlers::admin::get_settings).patch(handlers::admin::update_settings),
+        )
         .route("/admin/users", get(handlers::admin::list_users))
         .route(
             "/admin/users/:user_id",

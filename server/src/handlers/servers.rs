@@ -33,6 +33,7 @@ pub struct CreateServerRequest {
     #[validate(url)]
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
+    pub require_invite: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize, Validate)]
@@ -43,6 +44,7 @@ pub struct UpdateServerRequest {
     #[validate(url)]
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
+    pub require_invite: Option<bool>,
 }
 
 // ============================================================================
@@ -63,6 +65,7 @@ async fn server_dto(pool: &sqlx::PgPool, server: Server) -> AppResult<ServerDto>
         owner_id: server.owner_id,
         icon_url: server.icon_url,
         is_public: server.is_public,
+        require_invite: server.require_invite,
         member_count,
         created_at: server.created_at,
         updated_at: server.updated_at,
@@ -99,19 +102,21 @@ pub async fn create_server(
         name: req.name,
         icon_url: req.icon_url,
         is_public: req.is_public,
+        require_invite: req.require_invite,
     };
 
     let mut tx = state.pool.begin().await?;
 
     let server = sqlx::query_as::<_, Server>(
-        "INSERT INTO servers (name, owner_id, icon_url, is_public)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, name, owner_id, icon_url, is_public, created_at, updated_at",
+        "INSERT INTO servers (name, owner_id, icon_url, is_public, require_invite)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, name, owner_id, icon_url, is_public, require_invite, created_at, updated_at",
     )
     .bind(&dto.name)
     .bind(auth.user_id())
     .bind(&dto.icon_url)
     .bind(dto.is_public.unwrap_or(false))
+    .bind(dto.require_invite.unwrap_or(false))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -148,7 +153,7 @@ pub async fn list_servers(
     auth: AuthUser,
 ) -> AppResult<Json<Vec<ServerDto>>> {
     let servers = sqlx::query_as::<_, Server>(
-        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.is_public, s.created_at, s.updated_at
+        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.is_public, s.require_invite, s.created_at, s.updated_at
          FROM servers s
          JOIN server_members sm ON sm.server_id = s.id
          WHERE sm.user_id = $1
@@ -186,6 +191,7 @@ pub async fn list_servers(
                 owner_id: s.owner_id,
                 icon_url: s.icon_url,
                 is_public: s.is_public,
+                require_invite: s.require_invite,
                 member_count,
                 created_at: s.created_at,
                 updated_at: s.updated_at,
@@ -243,20 +249,23 @@ pub async fn update_server(
         name: req.name,
         icon_url: req.icon_url,
         is_public: req.is_public,
+        require_invite: req.require_invite,
     };
 
     let updated = sqlx::query_as::<_, Server>(
         "UPDATE servers
-         SET name       = COALESCE($1, name),
-             icon_url   = COALESCE($2, icon_url),
-             is_public  = COALESCE($3, is_public),
-             updated_at = NOW()
-         WHERE id = $4
-         RETURNING id, name, owner_id, icon_url, is_public, created_at, updated_at",
+         SET name           = COALESCE($1, name),
+             icon_url       = COALESCE($2, icon_url),
+             is_public      = COALESCE($3, is_public),
+             require_invite = COALESCE($4, require_invite),
+             updated_at     = NOW()
+         WHERE id = $5
+         RETURNING id, name, owner_id, icon_url, is_public, require_invite, created_at, updated_at",
     )
     .bind(&dto.name)
     .bind(&dto.icon_url)
     .bind(dto.is_public)
+    .bind(dto.require_invite)
     .bind(server_id)
     .fetch_one(&state.pool)
     .await?;
@@ -336,6 +345,13 @@ pub async fn join_server(
         return Err(AppError::NotFound("Server not found".into()));
     }
 
+    // Public servers that require an invite cannot be joined directly.
+    if server.require_invite {
+        return Err(AppError::Forbidden(
+            "This server requires an invite to join".into(),
+        ));
+    }
+
     // Check if the user is banned from this server.
     let is_banned: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM server_bans WHERE server_id = $1 AND user_id = $2)",
@@ -412,7 +428,7 @@ pub async fn browse_servers(
     _auth: AuthUser,
 ) -> AppResult<Json<Vec<ServerDto>>> {
     let servers = sqlx::query_as::<_, ServerDto>(
-        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.is_public, s.created_at, s.updated_at,
+        "SELECT s.id, s.name, s.owner_id, s.icon_url, s.is_public, s.require_invite, s.created_at, s.updated_at,
                 COUNT(sm.user_id)::BIGINT AS member_count
          FROM   servers s
          LEFT JOIN server_members sm ON sm.server_id = s.id

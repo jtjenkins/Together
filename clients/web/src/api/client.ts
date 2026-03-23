@@ -64,6 +64,9 @@ import type {
   UpdateAdminUserRequest,
   AdminUsersQuery,
   AdminServersQuery,
+  InstanceSettings,
+  UpdateInstanceSettingsRequest,
+  RegistrationMode,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -974,6 +977,27 @@ class ApiClient {
     return this.request<void>(`/admin/servers/${serverId}`, {
       method: "DELETE",
     });
+  }
+
+  getAdminSettings(): Promise<InstanceSettings> {
+    return this.request<InstanceSettings>("/admin/settings");
+  }
+
+  updateAdminSettings(
+    data: UpdateInstanceSettingsRequest,
+  ): Promise<InstanceSettings> {
+    return this.request<InstanceSettings>("/admin/settings", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Public endpoint — no auth required. */
+  getRegistrationMode(): Promise<{ registration_mode: RegistrationMode }> {
+    return this.request<{ registration_mode: RegistrationMode }>(
+      "/instance/registration-mode",
+      { skipRefresh: true },
+    );
   }
 }
 

@@ -17,6 +17,9 @@ vi.mock("../api/client", () => ({
     setToken: vi.fn(),
     getToken: vi.fn(),
     setSessionExpiredCallback: vi.fn(),
+    getRegistrationMode: vi
+      .fn()
+      .mockResolvedValue({ registration_mode: "open" }),
   },
   ApiRequestError: class extends Error {
     constructor(
@@ -119,6 +122,7 @@ describe("AuthForm", () => {
       username: "newuser",
       email: undefined,
       password: "password123",
+      invite_code: undefined,
     });
   });
 

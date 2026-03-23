@@ -17,7 +17,7 @@ use crate::{
     handlers::health::uptime_secs,
     models::{
         AdminListQuery, AdminServerDto, AdminServersResponse, AdminStatsResponse, AdminUserDto,
-        AdminUsersResponse, UpdateAdminUserRequest,
+        AdminUsersResponse, InstanceSettings, UpdateAdminUserRequest, UpdateSettingsRequest,
     },
     state::AppState,
 };
@@ -475,4 +475,55 @@ pub async fn delete_server(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ============================================================================
+// Instance Settings
+// ============================================================================
+
+/// GET /admin/settings — Get instance-wide settings (admin only).
+pub async fn get_settings(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> AppResult<Json<InstanceSettings>> {
+    require_admin(&state.pool, auth.user_id()).await?;
+
+    let settings =
+        sqlx::query_as::<_, InstanceSettings>("SELECT * FROM instance_settings WHERE id = 1")
+            .fetch_one(&state.pool)
+            .await?;
+
+    Ok(Json(settings))
+}
+
+/// PATCH /admin/settings — Update instance settings (admin only).
+pub async fn update_settings(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<UpdateSettingsRequest>,
+) -> AppResult<Json<InstanceSettings>> {
+    require_admin(&state.pool, auth.user_id()).await?;
+
+    if let Some(ref mode) = req.registration_mode {
+        if !matches!(mode.as_str(), "open" | "invite_only" | "closed") {
+            return Err(AppError::Validation(
+                "registration_mode must be one of: open, invite_only, closed".into(),
+            ));
+        }
+    }
+
+    let settings = sqlx::query_as::<_, InstanceSettings>(
+        "UPDATE instance_settings
+         SET registration_mode = COALESCE($1, registration_mode),
+             updated_at = NOW(),
+             updated_by = $2
+         WHERE id = 1
+         RETURNING *",
+    )
+    .bind(&req.registration_mode)
+    .bind(auth.user_id())
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok(Json(settings))
 }

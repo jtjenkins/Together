@@ -34,6 +34,9 @@ export function ServerSettingsModal({
   const [name, setName] = useState(server.name);
   const [iconUrl, setIconUrl] = useState(server.icon_url || "");
   const [isPublic, setIsPublic] = useState(server.is_public);
+  const [requireInvite, setRequireInvite] = useState(
+    server.require_invite ?? false,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState("");
@@ -63,6 +66,7 @@ export function ServerSettingsModal({
         name: name.trim(),
         icon_url: iconUrl.trim() || undefined,
         is_public: isPublic,
+        require_invite: isPublic ? requireInvite : false,
       });
       onClose();
     } catch (err) {
@@ -167,11 +171,26 @@ export function ServerSettingsModal({
                 <input
                   type="checkbox"
                   checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
+                  onChange={(e) => {
+                    setIsPublic(e.target.checked);
+                    if (!e.target.checked) setRequireInvite(false);
+                  }}
                 />
                 List this server in Browse Servers
               </label>
             </div>
+            {isPublic && (
+              <div className={styles.field}>
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={requireInvite}
+                    onChange={(e) => setRequireInvite(e.target.checked)}
+                  />
+                  Require invite to join (even if public)
+                </label>
+              </div>
+            )}
             <div className={styles.info}>
               <span>Members: {server.member_count}</span>
               <span>
