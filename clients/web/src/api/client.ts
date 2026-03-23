@@ -67,6 +67,8 @@ import type {
   InstanceSettings,
   UpdateInstanceSettingsRequest,
   RegistrationMode,
+  AuditLog,
+  AuditLogQuery,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -883,6 +885,21 @@ class ApiClient {
     return this.request<void>(
       `/servers/${serverId}/webhooks/${webhookId}/test`,
       { method: "POST" },
+    );
+  }
+
+  // ─── Audit Logs ──────────────────────────────────────────────────────────────
+
+  getAuditLogs(serverId: string, query?: AuditLogQuery): Promise<AuditLog[]> {
+    const params = new URLSearchParams();
+    if (query?.action) params.set("action", query.action);
+    if (query?.actor_id) params.set("actor_id", query.actor_id);
+    if (query?.target_type) params.set("target_type", query.target_type);
+    if (query?.before) params.set("before", query.before);
+    if (query?.limit) params.set("limit", String(query.limit));
+    const qs = params.toString();
+    return this.request<AuditLog[]>(
+      `/servers/${serverId}/audit-logs${qs ? `?${qs}` : ""}`,
     );
   }
 

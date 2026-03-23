@@ -16,8 +16,15 @@ import { BanListPanel } from "../moderation/BanListPanel";
 import { RolesTab } from "./RolesTab";
 import { useRoleStore } from "../../stores/roleStore";
 import { hasPermission, PERMISSIONS } from "../../types";
+import { AuditLogsPanel } from "./AuditLogsPanel";
 
-type SettingsTab = "general" | "automod" | "bans" | "roles" | "invites";
+type SettingsTab =
+  | "general"
+  | "automod"
+  | "bans"
+  | "roles"
+  | "invites"
+  | "audit";
 
 interface ServerSettingsModalProps {
   open: boolean;
@@ -132,6 +139,14 @@ export function ServerSettingsModal({
               Invites
             </button>
           )}
+          {isOwner && (
+            <button
+              className={tab === "audit" ? styles.activeTab : styles.tab}
+              onClick={() => setTab("audit")}
+            >
+              Audit Log
+            </button>
+          )}
         </div>
       )}
       {tab === "general" && (
@@ -222,6 +237,7 @@ export function ServerSettingsModal({
       {tab === "invites" && canCreateInvites && (
         <InviteManager serverId={server.id} />
       )}
+      {tab === "audit" && isOwner && <AuditLogsPanel serverId={server.id} />}
       {tab === "general" && (
         <>
           <hr

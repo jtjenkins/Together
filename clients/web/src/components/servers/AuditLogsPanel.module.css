@@ -1,0 +1,224 @@
+.panel {
+  margin-top: 20px;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.heading {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #72767d);
+  margin: 0;
+}
+
+.refreshBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: var(--bg-tertiary, #202225);
+  color: var(--text-muted, #72767d);
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  color: var(--text-normal, #dcddde);
+  background: var(--bg-modifier-hover, #36393f);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Filter ─────────────────────────────────────────────────── */
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filterSelect {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--input-border, #202225);
+  background: var(--input-bg, #40444b);
+  color: var(--text-normal, #dcddde);
+  font-size: 0.875rem;
+  min-width: 200px;
+}
+
+/* ── Error / status ─────────────────────────────────────────── */
+
+.error {
+  color: var(--status-danger, #ed4245);
+  font-size: 0.8125rem;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: rgba(237, 66, 69, 0.1);
+}
+
+.empty {
+  color: var(--text-muted, #72767d);
+  font-size: 0.875rem;
+}
+
+/* ── Log list ───────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.logRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-secondary, #2f3136);
+  flex-wrap: wrap;
+}
+
+.logMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.logTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Action badges ──────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.badgeCreate {
+  background: rgba(87, 242, 135, 0.15);
+  color: #57f287;
+}
+
+.badgeUpdate {
+  background: rgba(88, 101, 242, 0.15);
+  color: #5865f2;
+}
+
+.badgeDelete {
+  background: rgba(237, 66, 69, 0.15);
+  color: #ed4245;
+}
+
+.badgeWarn {
+  background: rgba(254, 231, 92, 0.15);
+  color: #fee75c;
+}
+
+/* ── Log metadata ───────────────────────────────────────────── */
+
+.logActionText {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-normal, #dcddde);
+}
+
+.logMeta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #72767d);
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.logDetails {
+  font-size: 0.75rem;
+  color: var(--text-muted, #72767d);
+  margin-top: 4px;
+}
+
+.logDetails span {
+  margin-right: 10px;
+}
+
+.logTimestamp {
+  font-size: 0.75rem;
+  color: var(--text-muted, #72767d);
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+/* ── Load More ──────────────────────────────────────────────── */
+
+.loadMore {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.loadMoreBtn {
+  padding: 6px 16px;
+  border-radius: 4px;
+  background: var(--bg-tertiary, #202225);
+  color: var(--text-muted, #72767d);
+  border: none;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+.loadMoreBtn:hover:not(:disabled) {
+  color: var(--text-normal, #dcddde);
+  background: var(--bg-modifier-hover, #36393f);
+}
+
+.loadMoreBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .filterSelect {
+    width: 100%;
+    min-width: unset;
+  }
+
+  .logRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .logTimestamp {
+    align-self: flex-end;
+  }
+}

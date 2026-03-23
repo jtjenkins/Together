@@ -795,6 +795,28 @@ export interface MemberTimeoutEvent extends MemberModerationEvent {
   duration_minutes: number;
 }
 
+// ─── Audit Log Types ────────────────────────────────────────────────────────
+
+export interface AuditLog {
+  id: string;
+  server_id: string | null;
+  actor_id: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  details: Record<string, unknown>;
+  ip_address: string | null;
+  created_at: string;
+}
+
+export interface AuditLogQuery {
+  action?: string;
+  actor_id?: string;
+  target_type?: string;
+  before?: string;
+  limit?: number;
+}
+
 // ─── Invite Types ───────────────────────────────────────────────────────────
 
 export interface ServerInviteDto {
