@@ -79,6 +79,57 @@ async fn non_member_cannot_pin(pool: sqlx::PgPool) {
 }
 
 #[sqlx::test]
+async fn list_pinned_messages_not_shown_after_unpin(pool: sqlx::PgPool) {
+    let app = common::create_test_app(pool);
+    let (owner_token, _sid, cid, mid) = setup(app.clone()).await;
+
+    // Pin the message
+    let (pin_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{cid}/messages/{mid}/pin"),
+        &owner_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(pin_status, StatusCode::NO_CONTENT);
+
+    // Unpin the message
+    let (unpin_status, _) = common::delete_authed(
+        app.clone(),
+        &format!("/channels/{cid}/messages/{mid}/pin"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(unpin_status, StatusCode::NO_CONTENT);
+
+    // List should be empty again
+    let (status, body) = common::get_authed(
+        app,
+        &format!("/channels/{cid}/pinned-messages"),
+        &owner_token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.as_array().unwrap().is_empty());
+}
+
+#[sqlx::test]
+async fn unauthenticated_cannot_pin(pool: sqlx::PgPool) {
+    let app = common::create_test_app(pool);
+    let (_owner_token, _sid, cid, mid) = setup(app.clone()).await;
+
+    let (status, _body) = common::post_json(
+        app,
+        &format!("/channels/{cid}/messages/{mid}/pin"),
+        serde_json::json!({}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[sqlx::test]
 async fn pin_message_wrong_channel_returns_404(pool: sqlx::PgPool) {
     let app = common::create_test_app(pool);
     let (owner_token, sid, _cid, mid) = setup(app.clone()).await;
