@@ -1820,6 +1820,85 @@ components:
           description: Always true when the process can respond.
           example: true
 
+    # -- Channel Overrides ----------------------------------------------------
+
+    ChannelPermissionOverride:
+      type: object
+      description: A per-channel permission override for a role or user.
+      required:
+        - id
+        - channel_id
+        - allow
+        - deny
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique override identifier.
+        channel_id:
+          type: string
+          format: uuid
+          description: Channel this override applies to.
+        role_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Target role (null if this is a user override).
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Target user (null if this is a role override).
+        allow:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 32767
+          description: Permission bits to explicitly grant in this channel.
+          example: 0
+        deny:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 32767
+          description: Permission bits to explicitly revoke in this channel.
+          example: 2
+
+    SetChannelOverrideRequest:
+      type: object
+      description: |
+        Request body for creating or replacing a channel override. Exactly one of
+        `role_id` or `user_id` must be provided. The `allow` and `deny` bitfields
+        must not have overlapping bits.
+      required:
+        - allow
+        - deny
+      properties:
+        role_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Target role (mutually exclusive with `user_id`).
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Target user (mutually exclusive with `role_id`).
+        allow:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 32767
+          description: Permission bits to grant.
+          example: 0
+        deny:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 32767
+          description: Permission bits to revoke.
+          example: 2
+
     # -- Invites --------------------------------------------------------------
 
     ServerInvite:
@@ -6859,6 +6938,124 @@ paths:
           $ref: "#/components/responses/InternalError"
 
   # ==========================================================================
+  # Channel Permission Overrides
+  # ==========================================================================
+
+  /channels/{channel_id}/overrides:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel ID.
+
+    get:
+      operationId: listChannelOverrides
+      summary: List all permission overrides for a channel
+      description: |
+        Returns all per-channel permission overrides (role and user). The caller
+        must be a member of the channel's server; no special permissions are
+        required beyond membership.
+      tags: [Channel Overrides]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Array of channel permission overrides.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChannelPermissionOverride"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    put:
+      operationId: setChannelOverride
+      summary: Create or replace a channel permission override
+      description: |
+        Upserts a permission override for a role or user in the given channel.
+        If an override already exists for the same `(channel_id, role_id, user_id)`
+        combination, it is replaced.
+
+        Requires the `MANAGE_CHANNELS` permission (bit 10, value 1024).
+
+        Exactly one of `role_id` or `user_id` must be provided. The `allow` and
+        `deny` bitfields must not have overlapping bits, and both must be in the
+        range 0-32767.
+      tags: [Channel Overrides]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetChannelOverrideRequest"
+      responses:
+        "200":
+          description: The created or updated override.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelPermissionOverride"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /channels/{channel_id}/overrides/{override_id}:
+    parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Channel ID.
+      - name: override_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Override ID to delete.
+
+    delete:
+      operationId: deleteChannelOverride
+      summary: Delete a channel permission override
+      description: |
+        Removes a specific permission override from the channel. Requires the
+        `MANAGE_CHANNELS` permission (bit 10, value 1024).
+      tags: [Channel Overrides]
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Override deleted (no body).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ==========================================================================
   # Instance Admin
   # ==========================================================================
 
@@ -7176,6 +7373,8 @@ tags:
     description: Outbound webhook delivery with HMAC-SHA256 signing.
   - name: Custom Emojis
     description: Server custom emoji management.
+  - name: Channel Overrides
+    description: Per-channel permission overrides for roles and users.
   - name: Invites
     description: Shareable invite links with optional expiry and max uses.
   - name: Moderation

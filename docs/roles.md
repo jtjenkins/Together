@@ -312,6 +312,20 @@ Broadcast when a role is removed from a member.
 
 ---
 
+## Channel Permission Overrides
+
+Role permissions define what a user can do across the entire server. Per-channel permission overrides allow fine-tuning on a channel-by-channel basis without changing the role itself.
+
+- Overrides can target a **role** or a specific **user**.
+- Each override carries an `allow` bitfield (grants permissions) and a `deny` bitfield (revokes permissions).
+- Role overrides are applied first (merged across all matching roles), then a user-specific override is applied on top with the highest priority.
+- **Server owner** and **ADMINISTRATOR** users bypass all channel overrides — they always have full permissions.
+- When no overrides exist for a channel, the user's effective permissions are their server-level role permissions combined with the default member permissions.
+
+For full documentation on override resolution, endpoints, and examples, see [channel-permissions.md](channel-permissions.md).
+
+---
+
 ## READY Payload
 
 The `READY` event sent on WebSocket connection includes a `server_roles` field. This is an object keyed by server ID, where each value is an array of `Role` objects for that server (ordered by `position DESC`).

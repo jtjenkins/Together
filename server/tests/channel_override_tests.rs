@@ -113,26 +113,13 @@ async fn set_override_success() {
     let role_id = role["id"].as_str().unwrap();
 
     // Set override: deny SEND_MESSAGES (bit 1 = 2) for this role
-    let (_, _) = common::put_authed(
-        app.clone(),
+    let (status, _) = common::put_json_authed(
+        app,
         &format!("/channels/{channel_id}/overrides"),
         &owner_token,
+        json!({ "role_id": role_id, "allow": 0, "deny": 2 }),
     )
     .await;
-
-    // Actually need to use put_json_authed
-    let req = axum::http::Request::builder()
-        .method(axum::http::Method::PUT)
-        .uri(format!("/channels/{channel_id}/overrides"))
-        .header("authorization", format!("Bearer {owner_token}"))
-        .header("content-type", "application/json")
-        .body(axum::body::Body::from(
-            json!({ "role_id": role_id, "allow": 0, "deny": 2 }).to_string(),
-        ))
-        .unwrap();
-
-    let response = tower::ServiceExt::oneshot(app.clone(), req).await.unwrap();
-    let status = response.status();
     assert!(
         status == StatusCode::OK || status == StatusCode::CREATED,
         "set override failed with {status}"

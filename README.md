@@ -48,6 +48,7 @@ Rocket.Chat instead.
 | Webhooks (HMAC-SHA256 signed payloads)           | ✅     |
 | Invite links (shareable codes, expiry, max uses) | ✅     |
 | Role-based permissions and management            | ✅     |
+| Per-channel permission overrides                 | ✅     |
 | Member moderation (kick, ban, timeout)           | ✅     |
 | Auto-moderation rules                            | ✅     |
 | Audit logging                                    | ✅     |

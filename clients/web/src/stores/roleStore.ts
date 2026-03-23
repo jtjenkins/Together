@@ -263,15 +263,25 @@ export const useRoleStore = create<RoleState>((set, get) => ({
     const server = servers.find((s) => s.id === serverId);
     if (server?.owner_id === currentUserId) return 0x7fffffff; // all bits set
 
-    // Compute base permissions from roles
+    // Compute base permissions from roles + default member permissions
+    // Default member perms match the server's DEFAULT_MEMBER_PERMS constant
+    const DEFAULT_MEMBER_PERMS =
+      PERMISSIONS.VIEW_CHANNEL |
+      PERMISSIONS.SEND_MESSAGES |
+      PERMISSIONS.ADD_REACTIONS |
+      PERMISSIONS.ATTACH_FILES |
+      PERMISSIONS.CONNECT_VOICE |
+      PERMISSIONS.SPEAK; // 123
+
     const members = useServerStore.getState().members;
     const member = members.find((m) => m.user_id === currentUserId);
     const myRoleIds = (member?.roles || []).map((r) => r.id);
     const serverRoles = get().roles[serverId] || [];
-    let perms = computePermissions(serverRoles, myRoleIds);
+    let perms =
+      computePermissions(serverRoles, myRoleIds) | DEFAULT_MEMBER_PERMS;
 
     // ADMINISTRATOR bypasses all overrides
-    if ((perms & PERMISSIONS.ADMINISTRATOR) !== 0) return perms;
+    if ((perms & PERMISSIONS.ADMINISTRATOR) !== 0) return 0x7fffffff;
 
     // Apply role overrides for this channel
     const overrides = get().channelOverrides[channelId] || [];
