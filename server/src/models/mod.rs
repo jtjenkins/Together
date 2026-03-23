@@ -157,7 +157,11 @@ impl TryFrom<ServerTemplate> for ServerTemplateDto {
     type Error = crate::error::AppError;
 
     fn try_from(t: ServerTemplate) -> Result<Self, Self::Error> {
-        let data: TemplateData = serde_json::from_value(t.template_data).map_err(|_e| {
+        let data: TemplateData = serde_json::from_value(t.template_data).map_err(|e| {
+            tracing::error!(
+                "Failed to deserialize template_data for template {}: {e}",
+                t.id
+            );
             crate::error::AppError::Internal
         })?;
         Ok(ServerTemplateDto {
