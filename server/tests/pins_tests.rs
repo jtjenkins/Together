@@ -79,6 +79,38 @@ async fn non_member_cannot_pin(pool: sqlx::PgPool) {
 }
 
 #[sqlx::test]
+async fn member_without_manage_messages_cannot_pin(pool: sqlx::PgPool) {
+    let app = common::create_test_app(pool);
+    let (owner_token, sid, cid, mid) = setup(app.clone()).await;
+
+    // Make the server public so another user can join.
+    common::make_server_public(app.clone(), &owner_token, &sid).await;
+
+    // Join as a plain member (no special roles).
+    let member_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let (join_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{sid}/join"),
+        &member_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(join_status, StatusCode::CREATED);
+
+    // Member is in the server but lacks MANAGE_MESSAGES → 403.
+    let (status, _body) = common::post_json_authed(
+        app,
+        &format!("/channels/{cid}/messages/{mid}/pin"),
+        &member_token,
+        serde_json::json!({}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[sqlx::test]
 async fn list_pinned_messages_not_shown_after_unpin(pool: sqlx::PgPool) {
     let app = common::create_test_app(pool);
     let (owner_token, _sid, cid, mid) = setup(app.clone()).await;
@@ -135,8 +167,7 @@ async fn pin_message_wrong_channel_returns_404(pool: sqlx::PgPool) {
     let (owner_token, sid, _cid, mid) = setup(app.clone()).await;
 
     // Create a second channel in the same server
-    let channel_b =
-        common::create_channel(app.clone(), &owner_token, &sid, "other-channel").await;
+    let channel_b = common::create_channel(app.clone(), &owner_token, &sid, "other-channel").await;
     let cid_b = channel_b["id"].as_str().unwrap().to_owned();
 
     // Try to pin the message (which belongs to the first channel) under channel_b
