@@ -231,6 +231,15 @@ pub fn create_test_app(pool: PgPool) -> Router {
             "/files/:message_id/*filepath",
             get(handlers::attachments::serve_file),
         )
+        // Pin routes
+        .route(
+            "/channels/:channel_id/messages/:message_id/pin",
+            post(handlers::pins::pin_message).delete(handlers::pins::unpin_message),
+        )
+        .route(
+            "/channels/:channel_id/pinned-messages",
+            get(handlers::pins::list_pinned_messages),
+        )
         // Reaction routes
         .route(
             "/channels/:channel_id/messages/:message_id/reactions",
