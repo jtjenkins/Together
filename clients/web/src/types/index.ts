@@ -188,6 +188,24 @@ export function hasPermission(perms: number, bit: number): boolean {
   return (perms & bit) !== 0 || (perms & PERMISSIONS.ADMINISTRATOR) !== 0;
 }
 
+// ─── Channel Permission Override Types ────────────────────────
+
+export interface ChannelPermissionOverride {
+  id: string;
+  channel_id: string;
+  role_id: string | null;
+  user_id: string | null;
+  allow: number;
+  deny: number;
+}
+
+export interface SetOverrideRequest {
+  role_id?: string;
+  user_id?: string;
+  allow: number;
+  deny: number;
+}
+
 // ─── Channel Types ───────────────────────────────────────────
 
 export type ChannelType = "text" | "voice";
@@ -426,6 +444,7 @@ export interface ReadyEvent {
   unread_counts: UnreadCount[];
   mention_counts: MentionCount[];
   server_roles?: Record<string, RoleDto[]>;
+  channel_overrides?: Record<string, ChannelPermissionOverride[]>;
 }
 
 export interface DmChannelCreateEvent extends DirectMessageChannel {}

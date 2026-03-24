@@ -5,12 +5,16 @@ import { useMessageStore } from "../../stores/messageStore";
 import { useServerStore } from "../../stores/serverStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useReadStateStore } from "../../stores/readStateStore";
+import { useRoleStore } from "../../stores/roleStore";
 import { CreateChannelModal } from "../channels/CreateChannelModal";
 import { EditChannelModal } from "../channels/EditChannelModal";
+import { ChannelPermissions } from "../channels/ChannelPermissions";
 import { ServerSettingsModal } from "../servers/ServerSettingsModal";
 import { SearchModal } from "../search/SearchModal";
+import { Modal } from "../common/Modal";
 import { ContextMenu, ContextMenuItem } from "../common/ContextMenu";
 import { api } from "../../api/client";
+import { PERMISSIONS, hasPermission } from "../../types";
 import type { Channel } from "../../types";
 import styles from "./ChannelSidebar.module.css";
 
@@ -34,10 +38,15 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
   const mentionCounts = useReadStateStore((s) => s.mentionCounts);
   const clearMentions = useReadStateStore((s) => s.clearMentions);
 
+  const myPermissions = useRoleStore((s) => s.myPermissions[serverId] ?? 0);
+
   const [showCreate, setShowCreate] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
+  const [permissionsChannel, setPermissionsChannel] = useState<Channel | null>(
+    null,
+  );
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -46,6 +55,8 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
 
   const server = servers.find((s) => s.id === serverId);
   const isOwner = server?.owner_id === user?.id;
+  const canManageChannels =
+    isOwner || hasPermission(myPermissions, PERMISSIONS.MANAGE_CHANNELS);
 
   useEffect(() => {
     fetchChannels(serverId);
@@ -63,7 +74,7 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
 
   const handleContextMenu = (e: React.MouseEvent, channel: Channel) => {
     e.preventDefault();
-    if (isOwner) {
+    if (canManageChannels) {
       setContextMenu({ x: e.clientX, y: e.clientY, channel });
     }
   };
@@ -216,6 +227,13 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
             }}
           />
           <ContextMenuItem
+            label="Edit Permissions"
+            onClick={() => {
+              setPermissionsChannel(contextMenu.channel);
+              setContextMenu(null);
+            }}
+          />
+          <ContextMenuItem
             label="Delete Channel"
             danger
             onClick={() => {
@@ -228,6 +246,20 @@ export function ChannelSidebar({ serverId, onBack }: ChannelSidebarProps) {
 
       {showSearch && (
         <SearchModal serverId={serverId} onClose={() => setShowSearch(false)} />
+      )}
+
+      {permissionsChannel && (
+        <Modal
+          open={true}
+          onClose={() => setPermissionsChannel(null)}
+          title={`Permissions: #${permissionsChannel.name}`}
+        >
+          <ChannelPermissions
+            channelId={permissionsChannel.id}
+            serverId={serverId}
+            onClose={() => setPermissionsChannel(null)}
+          />
+        </Modal>
       )}
     </div>
   );

@@ -295,33 +295,35 @@ candidate string. The `stream_type` field is forwarded as-is from the sender (e.
 The following events are dispatched via the same `DISPATCH` envelope. Payload shapes vary by
 event — refer to the handler source code for full field details.
 
-| Event                   | Description                                                |
-| ----------------------- | ---------------------------------------------------------- |
-| `DM_CHANNEL_CREATE`     | A new DM channel was opened with the connected user        |
-| `DM_MESSAGE_CREATE`     | A new message was sent in one of the user's DM channels    |
-| `REACTION_ADD`          | A reaction was added to a message in a visible channel     |
-| `REACTION_REMOVE`       | A reaction was removed from a message in a visible channel |
-| `THREAD_MESSAGE_CREATE` | A new message was posted in a thread the user can see      |
-| `POLL_VOTE`             | A vote was cast on a poll in a visible channel             |
-| `TYPING_START`          | A user started typing in a channel (server broadcast)      |
-| `TYPING_STOP`           | _(defined but not yet dispatched by the server)_           |
-| `MESSAGE_PIN`           | A message was pinned in a channel                          |
-| `MESSAGE_UNPIN`         | A message was unpinned from a channel                      |
-| `MEMBER_KICK`           | A member was kicked from the server                        |
-| `MEMBER_BAN`            | A member was banned from the server                        |
-| `MEMBER_TIMEOUT`        | A member was timed out (cannot send messages until expiry) |
-| `MEMBER_TIMEOUT_REMOVE` | A member's timeout was removed early                       |
-| `CUSTOM_EMOJI_CREATE`   | A custom emoji was added to a server                       |
-| `CUSTOM_EMOJI_DELETE`   | A custom emoji was removed from a server                   |
-| `GO_LIVE_START`         | A user started a live stream in a voice channel            |
-| `GO_LIVE_STOP`          | A user stopped their live stream in a voice channel        |
-| `ROLE_CREATE`           | A new role was created in the server                       |
-| `ROLE_UPDATE`           | A role's name, permissions, color, or position was changed |
-| `ROLE_DELETE`           | A role was deleted from the server                         |
-| `MEMBER_ROLE_ADD`       | A role was assigned to a server member                     |
-| `MEMBER_ROLE_REMOVE`    | A role was removed from a server member                    |
-| `INVITE_CREATE`         | A new invite link was created for a server                 |
-| `INVITE_DELETE`         | An invite link was revoked from a server                   |
+| Event                     | Description                                                |
+| ------------------------- | ---------------------------------------------------------- |
+| `DM_CHANNEL_CREATE`       | A new DM channel was opened with the connected user        |
+| `DM_MESSAGE_CREATE`       | A new message was sent in one of the user's DM channels    |
+| `REACTION_ADD`            | A reaction was added to a message in a visible channel     |
+| `REACTION_REMOVE`         | A reaction was removed from a message in a visible channel |
+| `THREAD_MESSAGE_CREATE`   | A new message was posted in a thread the user can see      |
+| `POLL_VOTE`               | A vote was cast on a poll in a visible channel             |
+| `TYPING_START`            | A user started typing in a channel (server broadcast)      |
+| `TYPING_STOP`             | _(defined but not yet dispatched by the server)_           |
+| `MESSAGE_PIN`             | A message was pinned in a channel                          |
+| `MESSAGE_UNPIN`           | A message was unpinned from a channel                      |
+| `MEMBER_KICK`             | A member was kicked from the server                        |
+| `MEMBER_BAN`              | A member was banned from the server                        |
+| `MEMBER_TIMEOUT`          | A member was timed out (cannot send messages until expiry) |
+| `MEMBER_TIMEOUT_REMOVE`   | A member's timeout was removed early                       |
+| `CUSTOM_EMOJI_CREATE`     | A custom emoji was added to a server                       |
+| `CUSTOM_EMOJI_DELETE`     | A custom emoji was removed from a server                   |
+| `GO_LIVE_START`           | A user started a live stream in a voice channel            |
+| `GO_LIVE_STOP`            | A user stopped their live stream in a voice channel        |
+| `ROLE_CREATE`             | A new role was created in the server                       |
+| `ROLE_UPDATE`             | A role's name, permissions, color, or position was changed |
+| `ROLE_DELETE`             | A role was deleted from the server                         |
+| `MEMBER_ROLE_ADD`         | A role was assigned to a server member                     |
+| `MEMBER_ROLE_REMOVE`      | A role was removed from a server member                    |
+| `INVITE_CREATE`           | A new invite link was created for a server                 |
+| `INVITE_DELETE`           | An invite link was revoked from a server                   |
+| `CHANNEL_OVERRIDE_UPDATE` | A channel permission override was created or updated       |
+| `CHANNEL_OVERRIDE_DELETE` | A channel permission override was removed                  |
 
 The server-broadcast `TYPING_START` event payload includes `user_id`, `username`, `channel_id`,
 and `timestamp`. Clients should auto-expire the typing indicator after ~10 seconds if no further

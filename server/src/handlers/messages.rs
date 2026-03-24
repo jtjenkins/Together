@@ -11,7 +11,8 @@ use validator::Validate;
 use super::automod::{check_automod, check_timeout};
 use super::shared::{
     fetch_channel_by_id, fetch_message, fetch_message_including_deleted, fetch_server,
-    require_member, validation_error,
+    require_channel_permission, require_member, validation_error, PERMISSION_SEND_MESSAGES,
+    PERMISSION_VIEW_CHANNEL,
 };
 use super::webhooks::dispatch_event;
 use crate::{
@@ -196,6 +197,17 @@ pub async fn create_message(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
+    // Channel-level permission check (respects per-channel overrides).
+    require_channel_permission(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        PERMISSION_SEND_MESSAGES,
+        "You don't have permission to send messages in this channel",
+    )
+    .await?;
+
     // Check for active timeout (manual or automated) before any automod processing.
     check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
 
@@ -340,6 +352,17 @@ pub async fn list_messages(
 ) -> AppResult<Json<Vec<MessageDto>>> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    // Channel-level permission check (respects per-channel overrides).
+    require_channel_permission(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        PERMISSION_VIEW_CHANNEL,
+        "You don't have permission to view this channel",
+    )
+    .await?;
 
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
 

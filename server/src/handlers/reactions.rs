@@ -5,7 +5,10 @@ use axum::{
 };
 use uuid::Uuid;
 
-use super::shared::{fetch_channel_by_id, fetch_message, require_member};
+use super::shared::{
+    fetch_channel_by_id, fetch_message, require_channel_permission, require_member,
+    PERMISSION_ADD_REACTIONS,
+};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -50,6 +53,17 @@ pub async fn add_reaction(
 
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    // Channel-level permission check (respects per-channel overrides).
+    require_channel_permission(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        PERMISSION_ADD_REACTIONS,
+        "You don't have permission to add reactions in this channel",
+    )
+    .await?;
 
     // Verify the message belongs to this channel and is not deleted.
     let msg = fetch_message(&state.pool, message_id).await?;

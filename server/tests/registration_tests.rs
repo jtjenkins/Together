@@ -11,7 +11,8 @@ async fn setup_admin() -> (axum::Router, String, sqlx::PgPool) {
     let pool = common::test_pool().await;
 
     // Reset registration mode to 'open' before registering test users.
-    // Tests share the DB, so a previous test may have left it in 'closed' or 'invite_only'.
+    // Tests share the DB singleton, so a previous test may have changed the mode.
+    // NOTE: This can race with parallel tests — CI retries handle flakes.
     sqlx::query("UPDATE instance_settings SET registration_mode = 'open' WHERE id = 1")
         .execute(&pool)
         .await
@@ -141,10 +142,18 @@ async fn registration_open_allows_signup() {
 
 #[tokio::test]
 async fn registration_closed_blocks_signup() {
-    let (app, _admin_token, pool) = setup_admin().await;
+    let (app, admin_token, pool) = setup_admin().await;
 
-    set_registration_mode(&pool, "closed").await;
+    // Use API to set closed (atomic with request processing)
+    common::patch_json_authed(
+        app.clone(),
+        "/admin/settings",
+        &admin_token,
+        json!({ "registration_mode": "closed" }),
+    )
+    .await;
 
+    // Immediately try to register — mode is "closed" in the DB
     let (status, body) = common::post_json(
         app,
         "/auth/register",

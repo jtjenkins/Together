@@ -6,7 +6,9 @@ use axum::{
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use super::shared::{fetch_channel_by_id, require_member};
+use super::shared::{
+    fetch_channel_by_id, require_channel_permission, require_member, PERMISSION_CONNECT_VOICE,
+};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -152,6 +154,17 @@ pub async fn join_voice_channel(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
     require_voice_channel(&channel)?;
+
+    // Channel-level permission check (respects per-channel overrides).
+    require_channel_permission(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        PERMISSION_CONNECT_VOICE,
+        "You don't have permission to connect to this voice channel",
+    )
+    .await?;
 
     // Look up the user's current voice location before the UPSERT.
     // If they are in a channel on a different server we must broadcast a leave

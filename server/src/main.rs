@@ -361,6 +361,16 @@ async fn main() {
             "/servers/:id/channels/:channel_id",
             delete(handlers::channels::delete_channel),
         )
+        // Channel permission override routes (protected, permission-gated)
+        .route(
+            "/channels/:channel_id/overrides",
+            get(handlers::channel_overrides::list_overrides)
+                .put(handlers::channel_overrides::set_override),
+        )
+        .route(
+            "/channels/:channel_id/overrides/:override_id",
+            delete(handlers::channel_overrides::delete_override),
+        )
         // Message routes (protected, nested under channel)
         .route(
             "/channels/:channel_id/messages",

@@ -20,6 +20,7 @@ import type {
   RoleDto,
   RoleDeleteEvent,
   MemberRoleEvent,
+  ChannelPermissionOverride,
 } from "../types";
 import { isTauri, SERVER_URL_KEY } from "../utils/tauri";
 
@@ -54,6 +55,11 @@ interface EventHandlers {
   ROLE_DELETE: EventHandler<RoleDeleteEvent>;
   MEMBER_ROLE_ADD: EventHandler<MemberRoleEvent>;
   MEMBER_ROLE_REMOVE: EventHandler<MemberRoleEvent>;
+  CHANNEL_OVERRIDE_UPDATE: EventHandler<ChannelPermissionOverride>;
+  CHANNEL_OVERRIDE_DELETE: EventHandler<{
+    channel_id: string;
+    override_id: string;
+  }>;
 
   connected: EventHandler<void>;
   disconnected: EventHandler<void>;
