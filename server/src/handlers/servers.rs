@@ -34,6 +34,7 @@ pub struct CreateServerRequest {
     pub icon_url: Option<String>,
     pub is_public: Option<bool>,
     pub require_invite: Option<bool>,
+    pub template_id: Option<Uuid>,
 }
 
 #[derive(Debug, serde::Deserialize, Validate)]
@@ -126,6 +127,36 @@ pub async fn create_server(
         .bind(server.id)
         .execute(&mut *tx)
         .await?;
+
+    // Apply template channels if requested.
+    if let Some(tmpl_id) = req.template_id {
+        use crate::models::{ServerTemplate, ServerTemplateDto};
+
+        let tmpl = sqlx::query_as::<_, ServerTemplate>(
+            "SELECT id, name, description, category, template_data, is_builtin, created_at
+             FROM server_templates WHERE id = $1",
+        )
+        .bind(tmpl_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::Validation(format!("Template {tmpl_id} not found")))?;
+
+        let dto = ServerTemplateDto::try_from(tmpl)?;
+
+        for ch in &dto.channels {
+            sqlx::query(
+                "INSERT INTO channels (server_id, name, type, position, category)
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(server.id)
+            .bind(&ch.name)
+            .bind(&ch.r#type)
+            .bind(ch.position)
+            .bind(&ch.category)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
 
     tx.commit().await?;
 

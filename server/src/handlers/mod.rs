@@ -26,6 +26,7 @@ pub mod roles;
 pub mod search;
 pub mod servers;
 pub mod shared;
+pub mod templates;
 pub mod users;
 pub mod voice;
 pub mod webhooks;

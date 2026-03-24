@@ -1,13 +1,17 @@
-use axum::{extract::State, Json};
+use axum::{
+    extract::{Path, State},
+    Json,
+};
 use serde::Deserialize;
 use tracing::info;
+use uuid::Uuid;
 use validator::Validate;
 
 use super::shared::{require_http_url, validation_error};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
-    models::{UpdateUserDto, User, UserDto},
+    models::{PublicProfileDto, UpdateUserDto, User, UserDto},
     state::AppState,
 };
 
@@ -114,5 +118,23 @@ pub async fn update_current_user(
     .await?
     .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
+    Ok(Json(user.into()))
+}
+
+/// GET /users/:user_id — fetch any user's public profile.
+/// Returns only public fields; never exposes email or password_hash.
+pub async fn get_user_profile(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<Json<PublicProfileDto>> {
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+    if user.disabled {
+        return Err(AppError::NotFound("User not found".into()));
+    }
     Ok(Json(user.into()))
 }
