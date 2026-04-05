@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/invites).
+Please visit the new site for the latest version.
+
+---
+
 # Invite Links
 
 Together supports shareable invite links that allow users to join a server. Each invite has a unique 8-character alphanumeric code, and can optionally be configured with an expiry time and a maximum number of uses.

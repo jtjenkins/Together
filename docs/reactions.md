@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/reactions).
+Please visit the new site for the latest version.
+
+---
+
 # Emoji Reactions
 
 This guide covers how emoji reactions work in Together, including available endpoints, permissions, real-time events, and current limitations.

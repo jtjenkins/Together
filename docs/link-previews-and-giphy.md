@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/link-previews-and-giphy).
+Please visit the new site for the latest version.
+
+---
+
 # Link Previews and Giphy Integration
 
 Together supports automatic link previews for URLs pasted in messages and a built-in GIF search powered by the Giphy API.

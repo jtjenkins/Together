@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/roles-and-permissions).
+Please visit the new site for the latest version.
+
+---
+
 # Role Management
 
 Together uses a Discord-compatible role-based permission system. Roles carry a set of permission bitflags and a position in the hierarchy. Higher-position roles outrank lower ones, and non-owner users can only manage roles below their own highest position.

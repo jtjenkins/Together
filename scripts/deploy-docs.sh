@@ -21,6 +21,8 @@ if [ -z "$REMOTE_HOST" ]; then
   exit 1
 fi
 
+SSH_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DOCS_DIR="$SCRIPT_DIR/docs/site"
 
@@ -35,10 +37,10 @@ DIST="$DOCS_DIR/.vitepress/dist"
 echo "→ Uploading to ${REMOTE_HOST}:${REMOTE_PATH}..."
 
 # Ensure remote directory exists
-ssh "$REMOTE_HOST" "mkdir -p ${REMOTE_PATH}"
+ssh "$SSH_OPTS" "$REMOTE_HOST" "mkdir -p ${REMOTE_PATH}"
 
 # rsync is better than scp for this (only sends changed files)
-rsync -avz --delete "$DIST/" "$REMOTE_HOST:${REMOTE_PATH}/"
+rsync -avz -e "ssh $SSH_OPTS" --delete "$DIST/" "$REMOTE_HOST:${REMOTE_PATH}/"
 
 echo "✓ Docs deployed to ${REMOTE_HOST}:${REMOTE_PATH}"
 echo "  → https://docs.together-chat.com"

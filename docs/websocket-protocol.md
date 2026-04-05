@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/reference/websocket-protocol).
+Please visit the new site for the latest version.
+
+---
+
 # WebSocket Gateway Protocol
 
 Together uses a WebSocket gateway for all real-time communication: chat messages, presence
