@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/member-moderation).
+Please visit the new site for the latest version.
+
+---
+
 # Member Moderation — Kick, Ban, Timeout
 
 Manual member moderation allows server staff to kick, ban, or timeout members. These are human-initiated actions, distinct from auto-moderation rules.

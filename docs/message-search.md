@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/message-search).
+Please visit the new site for the latest version.
+
+---
+
 # Message Search
 
 Together supports full-text search across all messages in a server, powered by PostgreSQL's built-in full-text search engine. This guide explains how to search, what results look like, and what limitations apply.

@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/channel-categories).
+Please visit the new site for the latest version.
+
+---
+
 # Channel Categories
 
 This guide explains how to use channel categories in Together — including creating, editing, and removing them, how to organize channels within categories, who can manage them, and current limitations.

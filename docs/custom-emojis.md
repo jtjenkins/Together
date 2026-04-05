@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/custom-emojis).
+Please visit the new site for the latest version.
+
+---
+
 # Custom Emojis
 
 This guide covers how custom server emojis work in Together, including uploading, deleting, display in messages, and the constraints that apply.

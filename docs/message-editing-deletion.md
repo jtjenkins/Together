@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/message-editing-deletion).
+Please visit the new site for the latest version.
+
+---
+
 # Message Editing and Deletion
 
 This guide covers how to edit and delete messages in Together, including who can perform each action and what to expect in edge cases.

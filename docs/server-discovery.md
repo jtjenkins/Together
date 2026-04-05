@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/reference/server-discovery).
+Please visit the new site for the latest version.
+
+---
+
 # Server Discovery
 
 Together includes a server browser that lets you find and join public communities without needing an invite link. This guide covers browsing, joining, making your server discoverable, and the privacy implications of doing so.

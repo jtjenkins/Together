@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/presence-status).
+Please visit the new site for the latest version.
+
+---
+
 # Presence and Status System
 
 Together tracks each user's online status and an optional custom status message. Status changes are persisted to the database and broadcast in real time to all server co-members.

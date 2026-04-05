@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/auto-moderation).
+Please visit the new site for the latest version.
+
+---
+
 # Auto-Moderation Admin Guide
 
 Together's auto-moderation system enforces configurable rules on incoming messages. All rule checks run server-side; clients receive an error response when a message is blocked.

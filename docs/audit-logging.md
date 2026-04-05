@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/audit-logging).
+Please visit the new site for the latest version.
+
+---
+
 # Audit Logging — Admin Guide
 
 Audit logs record administrative actions taken within a server, giving server owners a tamper-evident history of who did what and when.
