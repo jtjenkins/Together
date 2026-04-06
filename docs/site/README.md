@@ -6,7 +6,7 @@ Built with [VitePress](https://vitepress.dev/). Served at https://docs.together-
 
 ```bash
 npm install
-npm run dev          # Start dev server at http://localhost:3000
+npm run dev          # Start dev server at http://localhost:5173
 npm run build        # Build for production
 npm run preview      # Preview production build
 ```
@@ -15,8 +15,10 @@ npm run preview      # Preview production build
 
 ```bash
 ../../scripts/deploy-docs.sh user@your-server
+```
 
 Or set env var:
+
 ```bash
 REMOTE_HOST=user@your-server ../../scripts/deploy-docs.sh
 ```

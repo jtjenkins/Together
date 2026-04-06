@@ -15,7 +15,7 @@ Server-level roles define a baseline set of permissions for every channel. Chann
 - **`allow`** — permission bits to explicitly grant in this channel
 - **`deny`** — permission bits to explicitly revoke in this channel
 
-The `allow` and `deny` bitfields must not have overlapping bits. Both use the same permission bitflag values documented in [roles.md](roles.md#permission-bitflags).
+The `allow` and `deny` bitfields must not have overlapping bits. Both use the same permission bitflag values documented in [Roles & Permissions](/features/roles-and-permissions#permission-bitflags).
 
 ---
 

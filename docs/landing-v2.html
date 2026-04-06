@@ -879,6 +879,8 @@ cp .env.example .env
     const overlay = document.querySelector('.nav-overlay');
     const panel = document.querySelector('.nav-mobile');
 
+    if (!toggle || !overlay || !panel) return;
+
     function open() {
       toggle.classList.add('open');
       toggle.setAttribute('aria-expanded', 'true');

@@ -11,7 +11,7 @@ Together includes all the essentials for running a community — text channels, 
 | Feature | Description |
 |---------|-------------|
 | [Text Channels & Threads](/features/channels) | Real-time chat with threading, pinning, and rich formatting |
-| [Direct Messages](/features/direct-messages) | One-on-one and group DMs with full history |
+| [Direct Messages](/features/direct-messages) | One-on-one DMs with full history |
 | [Voice & Go Live](/features/voice-and-screen-share) | P2P WebRTC voice channels and screen sharing |
 
 ## Organization

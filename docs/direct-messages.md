@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/direct-messages).
+Please visit the new site for the latest version.
+
+---
+
 # Direct Messages
 
 This guide covers the direct message (DM) system in Together, including how DM channels work, how to send and retrieve messages, read acknowledgement, and real-time events.

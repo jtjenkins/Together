@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/guides/server-export).
+Please visit the new site for the latest version.
+
+---
+
 # Together Server Export
 
 This document describes the server data export feature — a single endpoint that lets a server owner download a complete archive of their server's data.

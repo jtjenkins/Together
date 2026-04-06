@@ -84,7 +84,7 @@ All messages in both directions use the same JSON envelope:
 5. Server sends HEARTBEAT_ACK in response to each HEARTBEAT
 6. Events flow bidirectionally for the session lifetime
 7. On disconnect (network drop, token expiry, idle timeout, etc.), client reconnects
-   with a fresh access token from /auth/login
+   with a fresh access token from /auth/refresh (or /auth/login if refresh token expired)
 ```
 
 ---
@@ -313,6 +313,7 @@ event — refer to the handler source code for full field details.
 | `MESSAGE_UNPIN`           | A message was unpinned from a channel                      |
 | `MEMBER_KICK`             | A member was kicked from the server                        |
 | `MEMBER_BAN`              | A member was banned from the server                        |
+| `MEMBER_UNBAN`            | A member was unbanned from the server                      |
 | `MEMBER_TIMEOUT`          | A member was timed out (cannot send messages until expiry) |
 | `MEMBER_TIMEOUT_REMOVE`   | A member's timeout was removed early                       |
 | `CUSTOM_EMOJI_CREATE`     | A custom emoji was added to a server                       |
@@ -444,7 +445,7 @@ Voice calls use WebRTC peer-to-peer connections with the server acting as a sign
 Access tokens expire after 15 minutes. When your WebSocket connection drops (network interruption,
 token expiry, or server restart):
 
-1. Call `POST /auth/login` to obtain a fresh access token
+1. Call `POST /auth/refresh` with your refresh token to obtain a fresh access token. If the refresh token has also expired, re-authenticate via `POST /auth/login`.
 2. Reconnect to `/ws?token=<new_token>`
 3. The server will send a `READY` event again — use it to re-sync state
 

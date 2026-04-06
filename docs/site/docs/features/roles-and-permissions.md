@@ -26,7 +26,7 @@ Permissions are stored as a 64-bit integer. Each permission occupies one bit (bi
 | 9   | 512   | `BAN_MEMBERS`     | Ban members from the server            |
 | 10  | 1024  | `MANAGE_CHANNELS` | Create, edit, and delete channels      |
 | 11  | 2048  | `MANAGE_ROLES`    | Create, edit, delete, and assign roles |
-| 12  | 4096  | `MANAGE_SERVER`   | Edit server name, icon, and settings   |
+| 12  | 4096  | _(reserved)_      | _(unused — reserved for future use)_   |
 | 13  | 8192  | `ADMINISTRATOR`   | Grants all permissions implicitly      |
 | 14  | 16384 | `CREATE_INVITES`  | Create, list, and delete invite links  |
 
@@ -54,7 +54,7 @@ A role's `permissions` field is the bitwise OR of all granted bits. For example,
 | `id`          | UUID     | Unique role identifier                       |
 | `server_id`   | UUID     | Server the role belongs to                   |
 | `name`        | string   | Display name (1-100 characters)              |
-| `permissions` | integer  | Bitflag value (0-16383)                      |
+| `permissions` | integer  | Bitflag value (0-32767)                      |
 | `color`       | string?  | Hex color code (e.g. `#FF5733`), nullable    |
 | `position`    | integer  | Hierarchy position (higher = more authority) |
 | `created_at`  | datetime | UTC creation timestamp                       |
@@ -109,7 +109,7 @@ Authorization: Bearer <token>
 | ------------------------------------ | ------ | ----------------------------------------------------------- |
 | Missing MANAGE_ROLES permission      | 403    | You need the Manage Roles permission                        |
 | Name empty or > 100 characters       | 400    | Role name must be 1-100 characters                          |
-| Permissions out of range             | 400    | Permissions must be between 0 and 16383                     |
+| Permissions out of range             | 400    | Permissions must be between 0 and 32767                     |
 | Position at or above actor's highest | 403    | Cannot create a role at or above your highest role position |
 | Granting permissions actor lacks     | 403    | Cannot grant permissions you do not have                    |
 
@@ -149,7 +149,7 @@ Authorization: Bearer <token>
 | Field         | Type    | Description            |
 | ------------- | ------- | ---------------------- |
 | `name`        | string  | 1-100 characters       |
-| `permissions` | integer | 0-16383                |
+| `permissions` | integer | 0-32767                |
 | `color`       | string  | Hex color code         |
 | `position`    | integer | New hierarchy position |
 
@@ -164,7 +164,7 @@ Only provided fields are updated; omitted fields are left unchanged.
 | Missing MANAGE_ROLES permission           | 403    | You need the Manage Roles permission                                    |
 | Role not found                            | 404    | Role not found                                                          |
 | Name empty or > 100 characters            | 400    | Role name must be 1-100 characters                                      |
-| Permissions out of range                  | 400    | Permissions must be between 0 and 16383                                 |
+| Permissions out of range                  | 400    | Permissions must be between 0 and 32767                                 |
 | Role at or above actor's highest position | 403    | Cannot edit a role at or above your highest role position               |
 | Moving role to position at or above actor | 403    | Cannot move a role to a position at or above your highest role position |
 | Granting permissions actor lacks          | 403    | Cannot grant permissions you do not have                                |

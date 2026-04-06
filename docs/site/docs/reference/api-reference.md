@@ -24,10 +24,10 @@ Tokens are obtained through the [authentication flow](/features/authentication).
 
 ## Bot Authentication
 
-Bot accounts use a dedicated token authentication mechanism. Bots are created through the admin interface and receive a long-lived API token. Pass it in the `X-Bot-Token` header:
+Bot accounts use a dedicated token authentication mechanism. Bots are created through the admin interface and receive a long-lived API token. Pass it in the `Authorization` header with a `Bot` prefix:
 
 ```
-X-Bot-Token: <your_bot_token>
+Authorization: Bot <your_bot_token>
 ```
 
 See the [Bot API](/reference/bot-api) for full documentation.
@@ -35,36 +35,36 @@ See the [Bot API](/reference/bot-api) for full documentation.
 ## API Endpoints
 
 ### Users & Auth
-- `POST /api/auth/register` — Register a new account
-- `POST /api/auth/login` — Authenticate and receive tokens
-- `POST /api/auth/refresh` — Refresh an expired access token
-- `GET /api/users/me` — Get current user profile
-- `PATCH /api/users/me` — Update current user profile
+- `POST /auth/register` — Register a new account
+- `POST /auth/login` — Authenticate and receive tokens
+- `POST /auth/refresh` — Refresh an expired access token
+- `GET /users/@me` — Get current user profile
+- `PATCH /users/@me` — Update current user profile
 
 ### Servers
-- `GET /api/servers` — List servers the user is a member of
-- `POST /api/servers` — Create a new server
-- `GET /api/servers/:id` — Get server details
-- `PATCH /api/servers/:id` — Update server settings
-- `DELETE /api/servers/:id` — Delete a server
+- `GET /servers` — List servers the user is a member of
+- `POST /servers` — Create a new server
+- `GET /servers/:id` — Get server details
+- `PATCH /servers/:id` — Update server settings
+- `DELETE /servers/:id` — Delete a server
 
 ### Channels
-- `GET /api/servers/:server_id/channels` — List channels in a server
-- `POST /api/servers/:server_id/channels` — Create a channel
-- `PATCH /api/channels/:id` — Update channel settings
-- `DELETE /api/channels/:id` — Delete a channel
+- `GET /servers/:server_id/channels` — List channels in a server
+- `POST /servers/:server_id/channels` — Create a channel
+- `PATCH /channels/:id` — Update channel settings
+- `DELETE /channels/:id` — Delete a channel
 
 ### Messages
-- `GET /api/channels/:channel_id/messages` — List messages in a channel
-- `POST /api/channels/:channel_id/messages` — Send a message
-- `PATCH /api/messages/:id` — Edit a message
-- `DELETE /api/messages/:id` — Delete a message
+- `GET /channels/:channel_id/messages` — List messages in a channel
+- `POST /channels/:channel_id/messages` — Send a message
+- `PATCH /messages/:id` — Edit a message
+- `DELETE /messages/:id` — Delete a message
 
 ### Search
-- `POST /api/search` — Full-text message search
+- `GET /servers/:id/search` — Full-text message search (server-scoped)
 
 ### ICE
-- `GET /api/ice-servers` — Get TURN/STUN server configuration
+- `GET /ice-servers` — Get TURN/STUN server configuration
 
 ## Errors
 

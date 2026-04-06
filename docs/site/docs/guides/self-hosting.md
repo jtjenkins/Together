@@ -233,7 +233,7 @@ turnutils_uclient -t -u test -w test your-domain.com
 | Users behind corporate firewalls          | **Yes**                     |
 | LAN-only deployment (no internet)         | No                          |
 
-> For more details on iOS-specific voice behavior, see [ios-voice.md](ios-voice.md).
+> For more details on iOS-specific voice behavior, see [iOS Voice Setup](/reference/ios-voice).
 
 ---
 

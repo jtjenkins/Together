@@ -58,8 +58,9 @@ export default defineConfig({
   title: 'Together',
   description: 'Self-hosted docs for Together — a Discord alternative for small gaming communities.',
   base: '/',
+  srcDir: 'docs',
 
-  ignoreDeadLinks: true,
+  ignoreDeadLinks: [/^https?:\/\//],
 
   themeConfig: {
     logo: { src: '/logo.svg', width: 24, height: 24, alt: 'Together' },

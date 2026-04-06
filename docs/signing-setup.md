@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/guides/signing-setup).
+Please visit the new site for the latest version.
+
+---
+
 # Signing Setup Guide
 
 This guide covers setting up code signing for Android APK and Linux packages (.deb, .rpm, AppImage).

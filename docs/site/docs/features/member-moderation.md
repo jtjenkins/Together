@@ -27,7 +27,7 @@ Both the actor and the target must be current members of the server (verified vi
 
 > **Tip:** Moderation permissions are granted through the role management system. Assign roles with the
 > appropriate permission bits (`KICK_MEMBERS`, `BAN_MEMBERS`, `MUTE_MEMBERS`, or `ADMINISTRATOR`) to
-> allow trusted members to moderate without being the server owner. See [roles.md](roles.md) for how
+> allow trusted members to moderate without being the server owner. See [Roles & Permissions](/features/roles-and-permissions) for how
 > to create and assign roles.
 
 ---
