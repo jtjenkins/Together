@@ -33,6 +33,16 @@ const MAX_PERMISSIONS: i64 = 32767;
 // ============================================================================
 
 /// GET /channels/:channel_id/overrides — list all permission overrides for a channel.
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/overrides",
+    params(("channel_id" = Uuid, Path, description = "Channel ID")),
+    responses(
+        (status = 200, description = "List of permission overrides", body = Vec<ChannelPermissionOverride>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "ChannelOverrides"
+)]
 pub async fn list_overrides(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -57,6 +67,19 @@ pub async fn list_overrides(
 ///
 /// Requires MANAGE_CHANNELS permission. The request must specify exactly one of
 /// `role_id` or `user_id`. The `allow` and `deny` bitfields must not overlap.
+#[utoipa::path(
+    put,
+    path = "/channels/{channel_id}/overrides",
+    params(("channel_id" = Uuid, Path, description = "Channel ID")),
+    request_body = SetChannelOverrideRequest,
+    responses(
+        (status = 200, description = "Override upserted", body = ChannelPermissionOverride),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "ChannelOverrides"
+)]
 pub async fn set_override(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -165,6 +188,21 @@ pub async fn set_override(
 }
 
 /// DELETE /channels/:channel_id/overrides/:override_id — remove a permission override.
+#[utoipa::path(
+    delete,
+    path = "/channels/{channel_id}/overrides/{override_id}",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("override_id" = Uuid, Path, description = "Override ID"),
+    ),
+    responses(
+        (status = 204, description = "Override deleted"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Override not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "ChannelOverrides"
+)]
 pub async fn delete_override(
     State(state): State<AppState>,
     auth: AuthUser,

@@ -39,6 +39,22 @@ const MAX_LIMIT: i64 = 100;
 /// Results are ranked by relevance and highlighted with `<mark>` tags.
 ///
 /// Authorization: User must be a member of the server.
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/search",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        SearchQuery
+    ),
+    responses(
+        (status = 200, description = "Search results", body = SearchResponse),
+        (status = 400, description = "Invalid search query"),
+        (status = 403, description = "Not a server member"),
+        (status = 404, description = "Server not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Search"
+)]
 pub async fn search_messages(
     Path(server_id): Path<Uuid>,
     Query(params): Query<SearchQuery>,

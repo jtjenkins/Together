@@ -39,6 +39,18 @@ const ALLOWED_EMOJI_MIME_TYPES: &[&str] = &["image/jpeg", "image/png", "image/gi
 // Handlers
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/emojis",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    responses(
+        (status = 200, description = "List of custom emojis", body = Vec<CustomEmojiDto>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "CustomEmojis"
+)]
 /// GET /servers/:server_id/emojis — list all custom emojis for a server.
 ///
 /// Authorization: caller must be a member of the server.
@@ -63,6 +75,19 @@ pub async fn list_custom_emojis(
     Ok(Json(dtos))
 }
 
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/emojis",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    request_body(content_type = "multipart/form-data", description = "Fields: 'name' (text) and 'image' (file)"),
+    responses(
+        (status = 201, description = "Custom emoji created", body = CustomEmojiDto),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "CustomEmojis"
+)]
 /// POST /servers/:server_id/emojis — upload a custom emoji image.
 ///
 /// Authorization: caller must have the MANAGE_EMOJIS permission (or be the owner).
@@ -275,6 +300,19 @@ pub async fn upload_custom_emoji(
     Ok((StatusCode::CREATED, Json(dto)))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/emojis/{emoji_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("emoji_id" = Uuid, Path, description = "Emoji ID"),
+    ),
+    responses(
+        (status = 204, description = "Custom emoji deleted"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "CustomEmojis"
+)]
 /// DELETE /servers/:server_id/emojis/:emoji_id — delete a custom emoji.
 ///
 /// Authorization: caller must have the MANAGE_EMOJIS permission (or be the owner).
@@ -324,6 +362,17 @@ pub async fn delete_custom_emoji(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    get,
+    path = "/emojis/{emoji_id}",
+    params(
+        ("emoji_id" = Uuid, Path, description = "Emoji ID"),
+    ),
+    responses(
+        (status = 200, description = "Emoji image content"),
+    ),
+    tag = "CustomEmojis"
+)]
 /// GET /emojis/:emoji_id — serve a custom emoji image (public, no auth required).
 ///
 /// Responds with the raw image bytes and appropriate `Content-Type`.

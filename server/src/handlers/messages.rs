@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -35,7 +36,7 @@ use super::polls::fetch_poll_dto;
 // Input validation
 // ============================================================================
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateMessageRequest {
     #[validate(length(
         min = 1,
@@ -50,7 +51,7 @@ pub struct CreateMessageRequest {
 ///
 /// Intentionally excludes `reply_to` — thread replies are always children of
 /// the root message identified by the URL parameter, never quote-replies.
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateThreadReplyRequest {
     #[validate(length(
         min = 1,
@@ -60,7 +61,7 @@ pub struct CreateThreadReplyRequest {
     pub content: String,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateMessageRequest {
     #[validate(length(
         min = 1,
@@ -70,7 +71,7 @@ pub struct UpdateMessageRequest {
     pub content: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
 pub struct ListMessagesQuery {
     /// Cursor: return messages created strictly before the message with this ID.
     ///
@@ -186,6 +187,20 @@ async fn enrich_messages(
 // ============================================================================
 
 /// POST /channels/:channel_id/messages — send a message (members only).
+#[utoipa::path(
+    post,
+    path = "/channels/{channel_id}/messages",
+    request_body = CreateMessageRequest,
+    params(("channel_id" = Uuid, Path, description = "Channel ID")),
+    responses(
+        (status = 201, description = "Message created", body = MessageDto),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "No permission to send messages"),
+        (status = 404, description = "Channel not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Messages"
+)]
 pub async fn create_message(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -344,6 +359,21 @@ pub async fn create_message(
 ///
 /// The cursor uses a compound `(created_at, id)` comparison to give a stable
 /// total order even when messages share an identical timestamp.
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/messages",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ListMessagesQuery
+    ),
+    responses(
+        (status = 200, description = "List of messages", body = Vec<MessageDto>),
+        (status = 403, description = "No permission to view channel"),
+        (status = 404, description = "Channel not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Messages"
+)]
 pub async fn list_messages(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -423,6 +453,20 @@ pub async fn list_messages(
 }
 
 /// PATCH /messages/:message_id — edit a message's content (author only).
+#[utoipa::path(
+    patch,
+    path = "/messages/{message_id}",
+    request_body = UpdateMessageRequest,
+    params(("message_id" = Uuid, Path, description = "Message ID")),
+    responses(
+        (status = 200, description = "Message updated", body = MessageDto),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Not the message author"),
+        (status = 404, description = "Message not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Messages"
+)]
 pub async fn update_message(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -533,6 +577,18 @@ pub async fn update_message(
 /// DELETE /messages/:message_id — soft-delete a message (author or server owner).
 ///
 /// The message row is retained with `deleted = TRUE`; no content is returned.
+#[utoipa::path(
+    delete,
+    path = "/messages/{message_id}",
+    params(("message_id" = Uuid, Path, description = "Message ID")),
+    responses(
+        (status = 204, description = "Message deleted"),
+        (status = 403, description = "Not the message author or server owner"),
+        (status = 404, description = "Message not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Messages"
+)]
 pub async fn delete_message(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -585,6 +641,21 @@ pub async fn delete_message(
 ///
 /// Returns the full MessageDto including deleted messages (deleted flag is set
 /// to true) so reply-bar previews can show "original message deleted" state.
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/messages/{message_id}",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("message_id" = Uuid, Path, description = "Message ID")
+    ),
+    responses(
+        (status = 200, description = "Message details", body = MessageDto),
+        (status = 403, description = "Not a server member"),
+        (status = 404, description = "Channel or message not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Messages"
+)]
 pub async fn get_message(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -609,6 +680,23 @@ pub async fn get_message(
 /// The parent message must be a root message (`thread_id IS NULL`). Thread replies
 /// cannot themselves be threaded (no nested threads). Returns 400 if the parent is
 /// already a thread reply.
+#[utoipa::path(
+    post,
+    path = "/channels/{channel_id}/messages/{message_id}/thread",
+    request_body = CreateThreadReplyRequest,
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("message_id" = Uuid, Path, description = "Parent message ID")
+    ),
+    responses(
+        (status = 201, description = "Thread reply created", body = MessageDto),
+        (status = 400, description = "Cannot thread off a thread reply"),
+        (status = 403, description = "Not a server member"),
+        (status = 404, description = "Channel or message not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Messages"
+)]
 pub async fn create_thread_reply(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -718,6 +806,22 @@ pub async fn create_thread_reply(
 /// history loading. Pass no cursor for the initial load (returns the first page
 /// ordered oldest-first). The `thread_reply_count` field defaults to 0 on these rows
 /// (it is only meaningful on root messages in the channel list).
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/messages/{message_id}/thread",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("message_id" = Uuid, Path, description = "Parent message ID"),
+        ListMessagesQuery
+    ),
+    responses(
+        (status = 200, description = "List of thread replies", body = Vec<MessageDto>),
+        (status = 403, description = "Not a server member"),
+        (status = 404, description = "Channel or message not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Messages"
+)]
 pub async fn list_thread_replies(
     State(state): State<AppState>,
     auth: AuthUser,

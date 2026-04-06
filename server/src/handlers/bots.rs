@@ -4,7 +4,9 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use serde::Serialize;
 use serde_json::{json, Value};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -15,6 +17,30 @@ use crate::{
     state::AppState,
 };
 
+/// Response for `GET /bots`.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ListBotsResponse {
+    pub bots: Vec<BotDto>,
+}
+
+/// Response for `GET /bots/:id/logs`.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BotLogsResponse {
+    pub logs: Vec<BotLogEntry>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/bots",
+    request_body = CreateBotDto,
+    responses(
+        (status = 201, description = "Bot created", body = BotCreatedResponse),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Bots"
+)]
 pub async fn create_bot(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -109,6 +135,16 @@ pub async fn create_bot(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/bots",
+    responses(
+        (status = 200, description = "List of bots owned by the user", body = ListBotsResponse),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Bots"
+)]
 pub async fn list_bots(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -136,6 +172,18 @@ pub async fn list_bots(
     Ok(Json(json!({ "bots": bots })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/bots/{id}",
+    params(("id" = Uuid, Path, description = "Bot ID")),
+    responses(
+        (status = 200, description = "Bot details", body = BotDto),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Bot not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Bots"
+)]
 pub async fn get_bot(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -164,6 +212,18 @@ pub async fn get_bot(
     Ok(Json(bot.into()))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/bots/{id}",
+    params(("id" = Uuid, Path, description = "Bot ID")),
+    responses(
+        (status = 204, description = "Bot revoked"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Bot not found or already revoked"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Bots"
+)]
 pub async fn revoke_bot(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -197,6 +257,19 @@ pub async fn revoke_bot(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/bots/{id}/token/regenerate",
+    params(("id" = Uuid, Path, description = "Bot ID")),
+    responses(
+        (status = 200, description = "Token regenerated", body = BotCreatedResponse),
+        (status = 400, description = "Bot is revoked"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Bot not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Bots"
+)]
 pub async fn regenerate_bot_token(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -251,6 +324,20 @@ pub async fn regenerate_bot_token(
 }
 
 /// PATCH /bots/:id — Update bot name and/or description.
+#[utoipa::path(
+    patch,
+    path = "/bots/{id}",
+    params(("id" = Uuid, Path, description = "Bot ID")),
+    request_body = UpdateBotDto,
+    responses(
+        (status = 200, description = "Bot updated", body = BotDto),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Bot not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Bots"
+)]
 pub async fn update_bot(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -333,6 +420,18 @@ pub async fn update_bot(
 ///
 /// Synthesises a log from existing data: creation, messages sent, and
 /// revocation (if applicable).
+#[utoipa::path(
+    get,
+    path = "/bots/{id}/logs",
+    params(("id" = Uuid, Path, description = "Bot ID")),
+    responses(
+        (status = 200, description = "Bot activity logs", body = BotLogsResponse),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Bot not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Bots"
+)]
 pub async fn bot_logs(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -421,6 +520,16 @@ pub async fn bot_logs(
 /// static bot token in server/proxy access logs.
 ///
 /// Returns: {"access_token": "<jwt>"}
+#[utoipa::path(
+    post,
+    path = "/bots/connect",
+    responses(
+        (status = 200, description = "Short-lived JWT access token"),
+        (status = 403, description = "Only bots can use this endpoint"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Bots"
+)]
 pub async fn bot_connect(
     auth: AuthUser,
     State(state): State<AppState>,

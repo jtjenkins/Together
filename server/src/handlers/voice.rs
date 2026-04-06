@@ -146,6 +146,18 @@ struct VoiceParticipantRow {
 /// If the user was in a voice channel on a *different* server, a
 /// `VOICE_STATE_UPDATE` leave event is broadcast to that server so its
 /// members do not see a ghost participant.
+#[utoipa::path(
+    post,
+    path = "/channels/{channel_id}/voice",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    responses(
+        (status = 201, description = "Joined voice channel", body = VoiceStateDto),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Voice"
+)]
 pub async fn join_voice_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -226,6 +238,19 @@ pub async fn join_voice_channel(
 /// DELETE /channels/:channel_id/voice — leave a voice channel.
 ///
 /// Returns 404 if the user is not currently in this specific channel.
+#[utoipa::path(
+    delete,
+    path = "/channels/{channel_id}/voice",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    responses(
+        (status = 204, description = "Left voice channel"),
+        (status = 404, description = "Not in this voice channel"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Voice"
+)]
 pub async fn leave_voice_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -256,6 +281,20 @@ pub async fn leave_voice_channel(
 /// Returns 404 if the user is not currently in this channel.
 /// Only `self_mute` and `self_deaf` are accepted; `server_mute`/`server_deaf`
 /// are excluded from the request type to prevent privilege escalation.
+#[utoipa::path(
+    patch,
+    path = "/channels/{channel_id}/voice",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    request_body = UpdateVoiceStateRequest,
+    responses(
+        (status = 200, description = "Voice state updated", body = VoiceStateDto),
+        (status = 404, description = "Not in this voice channel"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Voice"
+)]
 pub async fn update_voice_state(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -306,6 +345,18 @@ pub async fn update_voice_state(
 ///
 /// Each entry includes `username` so the response shape matches the
 /// `VOICE_STATE_UPDATE` WebSocket broadcast events.
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/voice",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    responses(
+        (status = 200, description = "List of voice participants. Each entry extends VoiceStateDto with an additional `username: String` field."),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Voice"
+)]
 pub async fn list_voice_participants(
     State(state): State<AppState>,
     auth: AuthUser,

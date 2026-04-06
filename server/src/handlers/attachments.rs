@@ -54,6 +54,19 @@ const ALLOWED_MIME_TYPES: &[&str] = &[
 // Handlers
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/messages/{message_id}/attachments",
+    params(
+        ("message_id" = Uuid, Path, description = "Message ID"),
+    ),
+    request_body(content_type = "multipart/form-data", description = "One or more files named 'files'"),
+    responses(
+        (status = 201, description = "Attachments uploaded", body = Vec<Attachment>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Attachments"
+)]
 /// POST /messages/:message_id/attachments — upload one or more files (author only).
 ///
 /// Expects a `multipart/form-data` body with one or more file fields named `files`.
@@ -281,6 +294,18 @@ pub async fn upload_attachments(
     Ok((StatusCode::CREATED, Json(created)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/messages/{message_id}/attachments",
+    params(
+        ("message_id" = Uuid, Path, description = "Message ID"),
+    ),
+    responses(
+        (status = 200, description = "List of attachments", body = Vec<Attachment>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Attachments"
+)]
 /// GET /messages/:message_id/attachments — list attachments for a message (members only).
 pub async fn list_attachments(
     State(state): State<AppState>,
@@ -303,6 +328,19 @@ pub async fn list_attachments(
     Ok(Json(attachments))
 }
 
+#[utoipa::path(
+    get,
+    path = "/files/{message_id}/{filepath}",
+    params(
+        ("message_id" = Uuid, Path, description = "Message ID"),
+        ("filepath" = String, Path, description = "File path"),
+    ),
+    responses(
+        (status = 200, description = "File content"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Attachments"
+)]
 /// GET /files/:message_id/*filepath — serve an attachment file (members only).
 ///
 /// Authorization and membership are checked before serving the file.

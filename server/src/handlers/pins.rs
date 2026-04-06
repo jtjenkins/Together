@@ -26,6 +26,19 @@ use crate::{
 /// Pin a message in a channel.  Requires the MANAGE_MESSAGES permission
 /// (or ADMINISTRATOR, or server ownership).  Idempotent — pinning an already-
 /// pinned message succeeds without error.
+#[utoipa::path(
+    post,
+    path = "/channels/{channel_id}/messages/{message_id}/pin",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("message_id" = Uuid, Path, description = "Message ID"),
+    ),
+    responses(
+        (status = 204, description = "Message pinned"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Pins"
+)]
 pub async fn pin_message(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -74,6 +87,20 @@ pub async fn pin_message(
 ///
 /// Unpin a message in a channel.  Requires the MANAGE_MESSAGES permission.
 /// Returns 404 if the message is not currently pinned.
+#[utoipa::path(
+    delete,
+    path = "/channels/{channel_id}/messages/{message_id}/pin",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("message_id" = Uuid, Path, description = "Message ID"),
+    ),
+    responses(
+        (status = 204, description = "Message unpinned"),
+        (status = 404, description = "Message is not pinned"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Pins"
+)]
 pub async fn unpin_message(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -120,6 +147,18 @@ pub async fn unpin_message(
 ///
 /// List all pinned messages in a channel, ordered by pin time (newest first).
 /// Any server member can view pinned messages.
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/pinned-messages",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    responses(
+        (status = 200, description = "List of pinned messages", body = Vec<MessageDto>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Pins"
+)]
 pub async fn list_pinned_messages(
     State(state): State<AppState>,
     auth: AuthUser,

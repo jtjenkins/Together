@@ -155,6 +155,19 @@ fn validate_webhook_url(url: &str) -> AppResult<()> {
 
 // ── POST /servers/:id/webhooks ────────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/webhooks",
+    params(("id" = Uuid, Path, description = "Server ID")),
+    request_body = CreateWebhookDto,
+    responses(
+        (status = 201, description = "Webhook created", body = WebhookCreatedResponse),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Webhooks"
+)]
 pub async fn create_webhook(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -221,6 +234,17 @@ pub async fn create_webhook(
 
 // ── GET /servers/:id/webhooks ─────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/webhooks",
+    params(("id" = Uuid, Path, description = "Server ID")),
+    responses(
+        (status = 200, description = "List of webhooks"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Webhooks"
+)]
 pub async fn list_webhooks(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -247,6 +271,21 @@ pub async fn list_webhooks(
 
 // ── GET /servers/:id/webhooks/:webhook_id ─────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/webhooks/{webhook_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("webhook_id" = Uuid, Path, description = "Webhook ID"),
+    ),
+    responses(
+        (status = 200, description = "Webhook details", body = WebhookDto),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Webhook not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Webhooks"
+)]
 pub async fn get_webhook(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -271,6 +310,23 @@ pub async fn get_webhook(
 
 // ── PATCH /servers/:id/webhooks/:webhook_id ───────────────────────────────────
 
+#[utoipa::path(
+    patch,
+    path = "/servers/{id}/webhooks/{webhook_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("webhook_id" = Uuid, Path, description = "Webhook ID"),
+    ),
+    request_body = UpdateWebhookDto,
+    responses(
+        (status = 200, description = "Webhook updated", body = WebhookDto),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Webhook not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Webhooks"
+)]
 pub async fn update_webhook(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -350,6 +406,21 @@ pub async fn update_webhook(
 
 // ── DELETE /servers/:id/webhooks/:webhook_id ──────────────────────────────────
 
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/webhooks/{webhook_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("webhook_id" = Uuid, Path, description = "Webhook ID"),
+    ),
+    responses(
+        (status = 204, description = "Webhook deleted"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Webhook not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Webhooks"
+)]
 pub async fn delete_webhook(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -381,6 +452,21 @@ pub async fn delete_webhook(
 // ── POST /servers/:id/webhooks/:webhook_id/test ───────────────────────────────
 
 /// Send a test ping event to the webhook URL.
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/webhooks/{webhook_id}/test",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("webhook_id" = Uuid, Path, description = "Webhook ID"),
+    ),
+    responses(
+        (status = 202, description = "Test event queued"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Webhook not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Webhooks"
+)]
 pub async fn test_webhook(
     auth: AuthUser,
     State(state): State<AppState>,

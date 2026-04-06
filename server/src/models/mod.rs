@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -29,7 +30,7 @@ pub struct User {
     pub disabled_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateUserDto {
     pub username: String,
     pub email: Option<String>,
@@ -37,7 +38,7 @@ pub struct CreateUserDto {
 }
 
 /// Public user shape returned by all API responses.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UserDto {
     pub id: Uuid,
     pub username: String,
@@ -70,7 +71,7 @@ impl From<User> for UserDto {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateUserDto {
     pub avatar_url: Option<String>,
     pub bio: Option<String>,
@@ -81,7 +82,7 @@ pub struct UpdateUserDto {
 }
 
 /// Public profile shape for GET /users/:id — omits private fields like email.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PublicProfileDto {
     pub id: Uuid,
     pub username: String,
@@ -127,7 +128,7 @@ pub struct ServerTemplate {
 }
 
 /// A single channel definition inside a template's JSONB data.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct TemplateChannelDto {
     pub name: String,
     pub r#type: String,
@@ -142,7 +143,7 @@ pub struct TemplateData {
 }
 
 /// Public API shape for a server template.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ServerTemplateDto {
     pub id: Uuid,
     pub name: String,
@@ -195,7 +196,7 @@ pub struct Session {
 // ============================================================================
 
 /// Singleton row holding instance-wide configuration.
-#[derive(Debug, FromRow, Serialize)]
+#[derive(Debug, FromRow, Serialize, ToSchema)]
 pub struct InstanceSettings {
     pub id: i32,
     pub registration_mode: String,
@@ -203,7 +204,7 @@ pub struct InstanceSettings {
     pub updated_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateSettingsRequest {
     pub registration_mode: Option<String>,
@@ -213,7 +214,7 @@ pub struct UpdateSettingsRequest {
 // Server Models
 // ============================================================================
 
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct Server {
     pub id: Uuid,
     pub name: String,
@@ -225,7 +226,7 @@ pub struct Server {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateServerDto {
     pub name: String,
     pub icon_url: Option<String>,
@@ -233,7 +234,7 @@ pub struct CreateServerDto {
     pub require_invite: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateServerDto {
     pub name: Option<String>,
     pub icon_url: Option<String>,
@@ -241,7 +242,7 @@ pub struct UpdateServerDto {
     pub require_invite: Option<bool>,
 }
 
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct ServerMember {
     pub user_id: Uuid,
     pub server_id: Uuid,
@@ -250,7 +251,7 @@ pub struct ServerMember {
 }
 
 /// Server enriched with live member count for API responses.
-#[derive(Debug, FromRow, Serialize)]
+#[derive(Debug, FromRow, Serialize, ToSchema)]
 pub struct ServerDto {
     pub id: Uuid,
     pub name: String,
@@ -264,7 +265,7 @@ pub struct ServerDto {
 }
 
 /// Member of a server, combining user fields with membership metadata.
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct MemberDto {
     pub user_id: Uuid,
     pub username: String,
@@ -279,7 +280,7 @@ pub struct MemberDto {
 // Channel Models
 // ============================================================================
 
-#[derive(Debug, Clone, Deserialize, Serialize, sqlx::Type)]
+#[derive(Debug, Clone, Deserialize, Serialize, sqlx::Type, ToSchema)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "text", rename_all = "lowercase")]
 pub enum ChannelType {
@@ -287,7 +288,7 @@ pub enum ChannelType {
     Voice,
 }
 
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct Channel {
     pub id: Uuid,
     pub server_id: Uuid,
@@ -299,7 +300,7 @@ pub struct Channel {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateChannelDto {
     pub name: String,
     pub r#type: ChannelType,
@@ -307,7 +308,7 @@ pub struct CreateChannelDto {
     pub category: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateChannelDto {
     pub name: Option<String>,
     pub topic: Option<String>,
@@ -319,7 +320,7 @@ pub struct UpdateChannelDto {
 // Message Models
 // ============================================================================
 
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct Message {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -351,13 +352,13 @@ pub struct Message {
     pub pinned_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateMessageDto {
     pub content: String,
     pub reply_to: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateMessageDto {
     pub content: String,
 }
@@ -395,7 +396,7 @@ pub struct VoiceState {
 /// left all voice channels (used in `VOICE_STATE_UPDATE` leave broadcasts).
 /// This is a separate type from `VoiceState` to decouple the API shape from
 /// the DB row and prevent future field additions from accidentally leaking.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct VoiceStateDto {
     pub user_id: Uuid,
     pub channel_id: Option<Uuid>,
@@ -451,7 +452,7 @@ impl VoiceStateDto {
 /// Only user-controlled flags are accepted; `server_mute`/`server_deaf` are
 /// excluded at the type level to prevent privilege escalation. Unknown fields
 /// are rejected (deny_unknown_fields) rather than silently ignored.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateVoiceStateRequest {
     pub self_mute: Option<bool>,
@@ -465,7 +466,7 @@ pub struct UpdateVoiceStateRequest {
 // ============================================================================
 
 /// A file attached to a message.
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct Attachment {
     pub id: Uuid,
     pub message_id: Uuid,
@@ -494,7 +495,7 @@ pub struct CustomEmoji {
 }
 
 /// API response shape for a custom emoji (omits internal `filename`).
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CustomEmojiDto {
     pub id: Uuid,
     pub server_id: Uuid,
@@ -528,14 +529,14 @@ impl CustomEmojiDto {
 // ============================================================================
 
 /// A private channel shared between exactly two users.
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct DirectMessageChannel {
     pub id: Uuid,
     pub created_at: DateTime<Utc>,
 }
 
 /// A DM channel enriched with participant info for API responses.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DirectMessageChannelDto {
     pub id: Uuid,
     /// The other participant (not the requesting user).
@@ -551,7 +552,7 @@ pub struct DirectMessageChannelDto {
 /// `author_id` is `None` when the originating user account has been deleted
 /// (the foreign key has `ON DELETE SET NULL`). Clients should render deleted
 /// accounts as "Deleted User".
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct DirectMessage {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -566,7 +567,7 @@ pub struct DirectMessage {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateDirectMessageDto {
     pub content: String,
 }
@@ -587,7 +588,7 @@ pub struct MessageReaction {
 }
 
 /// Aggregated reaction count for a single emoji on a message.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ReactionCount {
     pub emoji: String,
     pub count: i64,
@@ -626,7 +627,7 @@ pub struct ReadState {
 /// Channels with no `channel_read_states` row are omitted entirely — this
 /// means "never acknowledged" and "zero unread" are indistinguishable until
 /// the user first acknowledges the channel.
-#[derive(Debug, FromRow, Serialize)]
+#[derive(Debug, FromRow, Serialize, ToSchema)]
 pub struct UnreadCount {
     pub channel_id: Uuid,
     pub unread_count: i64,
@@ -634,7 +635,7 @@ pub struct UnreadCount {
 
 // ── MessageDto ─────────────────────────────────────────────────────────────
 /// API response for a message. Wraps Message with optional rich content.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct MessageDto {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -682,13 +683,13 @@ impl MessageDto {
 }
 
 // ── Poll Models ────────────────────────────────────────────────────────────
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PollOption {
     pub id: Uuid,
     pub text: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PollDto {
     pub id: Uuid,
     pub question: String,
@@ -698,27 +699,27 @@ pub struct PollDto {
     pub user_vote: Option<Uuid>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PollOptionDto {
     pub id: Uuid,
     pub text: String,
     pub votes: i64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreatePollPayload {
     pub question: String,
     /// 2 to 10 option texts; IDs are generated server-side
     pub options: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CastVotePayload {
     pub option_id: Uuid,
 }
 
 // ── Server Event Models ─────────────────────────────────────────────────────
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ServerEventDto {
     pub id: Uuid,
     pub name: String,
@@ -728,7 +729,7 @@ pub struct ServerEventDto {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateEventPayload {
     pub name: String,
     pub description: Option<String>,
@@ -736,7 +737,7 @@ pub struct CreateEventPayload {
 }
 
 // ── Giphy ───────────────────────────────────────────────────────────────────
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct GifResult {
     pub url: String,
     pub preview_url: String,
@@ -748,7 +749,7 @@ pub struct GifResult {
 // ── Audit Logging ───────────────────────────────────────────────────────────
 
 /// Audit log entry for admin actions.
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct AuditLog {
     pub id: Uuid,
     pub server_id: Option<Uuid>,
@@ -774,7 +775,7 @@ pub struct CreateAuditLog {
 }
 
 /// Audit action types.
-#[derive(Debug, Clone, Copy, strum::Display)]
+#[derive(Debug, Clone, Copy, strum::Display, ToSchema)]
 #[strum(serialize_all = "snake_case")]
 pub enum AuditAction {
     // Server actions
@@ -812,19 +813,19 @@ pub enum AuditAction {
 
 // ── Moderation Request DTOs ─────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct KickMemberRequest {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BanMemberRequest {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TimeoutMemberRequest {
     pub reason: Option<String>,
@@ -832,7 +833,7 @@ pub struct TimeoutMemberRequest {
 }
 
 /// Query parameters for listing audit logs.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
 pub struct ListAuditLogsQuery {
     /// Filter by action type.
     pub action: Option<String>,
@@ -849,7 +850,7 @@ pub struct ListAuditLogsQuery {
 // ── Search ───────────────────────────────────────────────────────────────────
 
 /// Query parameters for message search.
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema, utoipa::IntoParams)]
 pub struct SearchQuery {
     /// Search query string (2-200 characters).
     #[validate(length(min = 2, max = 200, message = "Query must be 2–200 characters"))]
@@ -864,7 +865,7 @@ pub struct SearchQuery {
 }
 
 /// A single search result with highlighted snippet.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SearchResult {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -879,7 +880,7 @@ pub struct SearchResult {
 }
 
 /// Paginated search response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SearchResponse {
     pub results: Vec<SearchResult>,
     /// Total matching messages (approximate for large result sets).
@@ -907,7 +908,7 @@ pub struct Bot {
 
 /// Public bot shape returned by REST API responses.
 /// token_hash is intentionally excluded.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BotDto {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -933,21 +934,21 @@ impl From<Bot> for BotDto {
 }
 
 /// Request body for POST /bots.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateBotDto {
     pub name: String,
     pub description: Option<String>,
 }
 
 /// Request body for PATCH /bots/:id.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateBotDto {
     pub name: Option<String>,
     pub description: Option<Option<String>>,
 }
 
 /// A single entry in a bot's activity log.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BotLogEntry {
     pub timestamp: DateTime<Utc>,
     pub event: String,
@@ -956,7 +957,7 @@ pub struct BotLogEntry {
 
 /// Response for POST /bots and POST /bots/:id/token/regenerate.
 /// Token is shown exactly once and never stored in plaintext.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BotCreatedResponse {
     pub bot: BotDto,
     /// Plaintext token — shown once at creation/regeneration only.
@@ -965,7 +966,7 @@ pub struct BotCreatedResponse {
 
 // ── Automod Models ───────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
 pub struct AutomodConfig {
     pub server_id: Uuid,
     pub enabled: bool,
@@ -980,7 +981,7 @@ pub struct AutomodConfig {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateAutomodConfigRequest {
     pub enabled: Option<bool>,
     pub spam_enabled: Option<bool>,
@@ -993,7 +994,7 @@ pub struct UpdateAutomodConfigRequest {
     pub timeout_minutes: Option<i32>,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
 pub struct AutomodWordFilter {
     pub id: Uuid,
     pub server_id: Uuid,
@@ -1002,12 +1003,12 @@ pub struct AutomodWordFilter {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AddWordFilterRequest {
     pub word: String,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
 pub struct AutomodLog {
     pub id: Uuid,
     pub server_id: Uuid,
@@ -1021,7 +1022,7 @@ pub struct AutomodLog {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
 pub struct ServerBan {
     pub user_id: Uuid,
     pub server_id: Uuid,
@@ -1030,7 +1031,7 @@ pub struct ServerBan {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
 pub struct AutomodTimeout {
     pub user_id: Uuid,
     pub server_id: Uuid,
@@ -1043,7 +1044,7 @@ pub struct AutomodTimeout {
 // ── Role Models ────────────────────────────────────────────────────────────
 
 /// A role within a server, carrying permission bitflags and display metadata.
-#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
 pub struct Role {
     pub id: Uuid,
     pub server_id: Uuid,
@@ -1055,7 +1056,7 @@ pub struct Role {
 }
 
 /// Lightweight role info attached to member responses (no server_id/permissions).
-#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
 pub struct MemberRoleInfo {
     pub id: Uuid,
     pub name: String,
@@ -1064,7 +1065,7 @@ pub struct MemberRoleInfo {
 }
 
 /// Request body for POST /servers/:id/roles.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateRoleRequest {
     pub name: String,
@@ -1074,7 +1075,7 @@ pub struct CreateRoleRequest {
 }
 
 /// Request body for PATCH /servers/:id/roles/:role_id.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateRoleRequest {
     pub name: Option<String>,
@@ -1086,7 +1087,7 @@ pub struct UpdateRoleRequest {
 // ── Channel Permission Override Models ───────────────────────────────────────
 
 /// Per-channel permission override for a role or user.
-#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, ToSchema)]
 pub struct ChannelPermissionOverride {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -1097,7 +1098,7 @@ pub struct ChannelPermissionOverride {
 }
 
 /// Request body for PUT /channels/:channel_id/overrides.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SetChannelOverrideRequest {
     pub role_id: Option<Uuid>,
@@ -1127,7 +1128,7 @@ pub struct Webhook {
 
 /// Public webhook shape returned by REST API responses.
 /// `secret` is intentionally excluded — shown only at creation.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WebhookDto {
     pub id: Uuid,
     pub server_id: Uuid,
@@ -1162,7 +1163,7 @@ impl From<Webhook> for WebhookDto {
 }
 
 /// Response for POST /servers/:id/webhooks — includes the secret (shown once).
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WebhookCreatedResponse {
     pub webhook: WebhookDto,
     /// Plaintext HMAC signing secret — shown once at creation only.
@@ -1170,7 +1171,7 @@ pub struct WebhookCreatedResponse {
 }
 
 /// Request body for POST /servers/:id/webhooks.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateWebhookDto {
     pub name: String,
     pub url: String,
@@ -1178,7 +1179,7 @@ pub struct CreateWebhookDto {
 }
 
 /// Request body for PATCH /servers/:id/webhooks/:webhook_id.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateWebhookDto {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -1189,7 +1190,7 @@ pub struct UpdateWebhookDto {
 // ── Invite Models ──────────────────────────────────────────────────────────
 
 /// Database row for a server invite link.
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, ToSchema)]
 pub struct ServerInvite {
     pub id: Uuid,
     pub server_id: Uuid,
@@ -1202,7 +1203,7 @@ pub struct ServerInvite {
 }
 
 /// Preview information shown before accepting an invite.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct InvitePreviewDto {
     pub code: String,
     pub server_name: String,
@@ -1212,7 +1213,7 @@ pub struct InvitePreviewDto {
 }
 
 /// Request body for POST /servers/:id/invites.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateInviteRequest {
     pub max_uses: Option<i32>,
@@ -1224,7 +1225,7 @@ pub struct CreateInviteRequest {
 // ============================================================================
 
 /// Instance-wide statistics returned by GET /admin/stats.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AdminStatsResponse {
     pub total_users: i64,
     pub total_servers: i64,
@@ -1237,7 +1238,7 @@ pub struct AdminStatsResponse {
 }
 
 /// Admin-enriched user row for GET /admin/users.
-#[derive(Debug, FromRow, Serialize)]
+#[derive(Debug, FromRow, Serialize, ToSchema)]
 pub struct AdminUserDto {
     pub id: Uuid,
     pub username: String,
@@ -1253,7 +1254,7 @@ pub struct AdminUserDto {
 }
 
 /// Paginated admin user list response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AdminUsersResponse {
     pub users: Vec<AdminUserDto>,
     pub total: i64,
@@ -1262,7 +1263,7 @@ pub struct AdminUsersResponse {
 }
 
 /// Admin-enriched server row for GET /admin/servers.
-#[derive(Debug, FromRow, Serialize)]
+#[derive(Debug, FromRow, Serialize, ToSchema)]
 pub struct AdminServerDto {
     pub id: Uuid,
     pub name: String,
@@ -1277,7 +1278,7 @@ pub struct AdminServerDto {
 }
 
 /// Paginated admin server list response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AdminServersResponse {
     pub servers: Vec<AdminServerDto>,
     pub total: i64,
@@ -1286,7 +1287,7 @@ pub struct AdminServersResponse {
 }
 
 /// Request body for PATCH /admin/users/:user_id.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateAdminUserRequest {
     pub is_admin: Option<bool>,
@@ -1294,7 +1295,7 @@ pub struct UpdateAdminUserRequest {
 }
 
 /// Query parameters for admin paginated list endpoints.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
 pub struct AdminListQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,

@@ -36,6 +36,21 @@ use crate::{
 /// POST /servers/:id/members/:user_id/kick
 ///
 /// Remove a member from the server. Requires KICK_MEMBERS permission.
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/members/{user_id}/kick",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("user_id" = Uuid, Path, description = "Target user ID"),
+    ),
+    request_body(content = KickMemberRequest, description = "Optional kick reason"),
+    responses(
+        (status = 204, description = "Member kicked"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Moderation"
+)]
 pub async fn kick_member(
     Path((server_id, target_user_id)): Path<(Uuid, Uuid)>,
     State(state): State<AppState>,
@@ -110,6 +125,21 @@ pub async fn kick_member(
 /// POST /servers/:id/members/:user_id/ban
 ///
 /// Ban a member from the server (remove + prevent rejoin). Requires BAN_MEMBERS permission.
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/members/{user_id}/ban",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("user_id" = Uuid, Path, description = "Target user ID"),
+    ),
+    request_body(content = BanMemberRequest, description = "Optional ban reason"),
+    responses(
+        (status = 204, description = "Member banned"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Moderation"
+)]
 pub async fn ban_member(
     Path((server_id, target_user_id)): Path<(Uuid, Uuid)>,
     State(state): State<AppState>,
@@ -201,6 +231,22 @@ pub async fn ban_member(
 /// POST /servers/:id/members/:user_id/timeout
 ///
 /// Timeout a member for N minutes. Requires MUTE_MEMBERS permission.
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/members/{user_id}/timeout",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("user_id" = Uuid, Path, description = "Target user ID"),
+    ),
+    request_body = TimeoutMemberRequest,
+    responses(
+        (status = 200, description = "Member timed out", body = AutomodTimeout),
+        (status = 400, description = "Invalid duration"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Moderation"
+)]
 pub async fn timeout_member(
     Path((server_id, target_user_id)): Path<(Uuid, Uuid)>,
     State(state): State<AppState>,
@@ -272,6 +318,20 @@ pub async fn timeout_member(
 /// DELETE /servers/:id/members/:user_id/timeout
 ///
 /// Remove an active timeout from a member. Requires MUTE_MEMBERS permission.
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/members/{user_id}/timeout",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("user_id" = Uuid, Path, description = "Target user ID"),
+    ),
+    responses(
+        (status = 204, description = "Timeout removed"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Moderation"
+)]
 pub async fn remove_timeout(
     Path((server_id, target_user_id)): Path<(Uuid, Uuid)>,
     State(state): State<AppState>,

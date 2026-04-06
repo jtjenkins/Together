@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tracing::info;
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -25,7 +26,7 @@ static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z0-9_]+$")
 // Request/Response Types
 // ============================================================================
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct RegisterRequest {
     #[validate(length(min = 2, max = 32), regex(path = *USERNAME_REGEX))]
     pub username: String,
@@ -38,13 +39,13 @@ pub struct RegisterRequest {
     pub invite_code: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct RefreshRequest {
     #[validate(length(min = 1, max = 2048))]
     pub refresh_token: String,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct LoginRequest {
     #[validate(length(min = 1, max = 128))]
     pub username: String,
@@ -52,7 +53,7 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: String,
@@ -63,6 +64,18 @@ pub struct AuthResponse {
 // Handlers
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/auth/register",
+    request_body = RegisterRequest,
+    responses(
+        (status = 201, description = "User registered", body = AuthResponse),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Registration closed or invalid invite"),
+        (status = 409, description = "Username already taken")
+    ),
+    tag = "Auth"
+)]
 pub async fn register(
     State(state): State<AppState>,
     Json(req): Json<RegisterRequest>,
@@ -182,6 +195,14 @@ pub async fn register(
 ///
 /// Returns the current registration mode so the login page can show/hide
 /// the register button and invite code field.
+#[utoipa::path(
+    get,
+    path = "/instance/registration-mode",
+    responses(
+        (status = 200, description = "Current registration mode", body = serde_json::Value)
+    ),
+    tag = "Auth"
+)]
 pub async fn get_registration_mode(
     State(state): State<AppState>,
 ) -> AppResult<Json<serde_json::Value>> {
@@ -193,6 +214,18 @@ pub async fn get_registration_mode(
     Ok(Json(json!({ "registration_mode": registration_mode })))
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Login successful", body = AuthResponse),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Invalid credentials"),
+        (status = 403, description = "Account disabled")
+    ),
+    tag = "Auth"
+)]
 pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
@@ -270,6 +303,17 @@ pub async fn login(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/refresh",
+    request_body = RefreshRequest,
+    responses(
+        (status = 200, description = "Token refreshed", body = AuthResponse),
+        (status = 401, description = "Invalid or expired refresh token"),
+        (status = 403, description = "Account disabled")
+    ),
+    tag = "Auth"
+)]
 pub async fn refresh_token(
     State(state): State<AppState>,
     Json(req): Json<RefreshRequest>,
@@ -353,13 +397,13 @@ pub async fn refresh_token(
 // Password Reset
 // ============================================================================
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ForgotPasswordRequest {
     #[validate(email)]
     pub email: String,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ResetPasswordRequest {
     pub token: String,
     #[validate(length(min = 8, max = 128))]
@@ -370,6 +414,19 @@ pub struct ResetPasswordRequest {
 ///
 /// Admin-only endpoint. Returns the reset token in the response body for
 /// manual delivery (e.g., admin sharing with user out-of-band).
+#[utoipa::path(
+    post,
+    path = "/auth/forgot-password",
+    request_body = ForgotPasswordRequest,
+    responses(
+        (status = 200, description = "Reset token generated", body = serde_json::Value),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Admin access required"),
+        (status = 404, description = "User not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Auth"
+)]
 pub async fn forgot_password(
     State(state): State<AppState>,
     auth_user: AuthUser,
@@ -438,6 +495,17 @@ pub async fn forgot_password(
 ///
 /// Validates the reset token and updates the user's password.
 /// Token is single-use and expires after 1 hour.
+#[utoipa::path(
+    post,
+    path = "/auth/reset-password",
+    request_body = ResetPasswordRequest,
+    responses(
+        (status = 200, description = "Password reset successful", body = serde_json::Value),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Invalid or expired reset token")
+    ),
+    tag = "Auth"
+)]
 pub async fn reset_password(
     State(state): State<AppState>,
     Json(req): Json<ResetPasswordRequest>,

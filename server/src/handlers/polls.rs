@@ -100,6 +100,19 @@ pub async fn fetch_poll_dto(
 
 // ── POST /channels/:channel_id/polls ───────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/channels/{channel_id}/polls",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    request_body = CreatePollPayload,
+    responses(
+        (status = 201, description = "Poll created", body = MessageDto),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Polls"
+)]
 pub async fn create_poll(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -185,6 +198,19 @@ pub async fn create_poll(
 
 // ── GET /polls/:poll_id ─────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/polls/{poll_id}",
+    params(
+        ("poll_id" = Uuid, Path, description = "Poll ID"),
+    ),
+    responses(
+        (status = 200, description = "Poll details", body = PollDto),
+        (status = 404, description = "Poll not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Polls"
+)]
 pub async fn get_poll(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -207,6 +233,20 @@ pub async fn get_poll(
 
 // ── POST /polls/:poll_id/vote ───────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/polls/{poll_id}/vote",
+    params(
+        ("poll_id" = Uuid, Path, description = "Poll ID"),
+    ),
+    request_body = CastVotePayload,
+    responses(
+        (status = 200, description = "Vote cast successfully", body = PollDto),
+        (status = 404, description = "Poll not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Polls"
+)]
 pub async fn cast_vote(
     State(state): State<AppState>,
     auth: AuthUser,

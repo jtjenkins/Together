@@ -128,6 +128,18 @@ use super::shared::sanitize_header_filename;
 // Handler
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/export",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    responses(
+        (status = 200, description = "ZIP archive of server data", content_type = "application/zip"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Export"
+)]
 /// GET /servers/:id/export — owner-only.
 ///
 /// Builds a ZIP archive in memory from live DB queries and streams it back as

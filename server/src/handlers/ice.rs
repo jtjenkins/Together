@@ -8,6 +8,8 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
 
+use utoipa::ToSchema;
+
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -36,7 +38,7 @@ const CREDENTIAL_TTL_SECS: u64 = 86400;
 // ============================================================================
 
 /// ICE server configuration for WebRTC.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, ToSchema)]
 pub struct IceServer {
     urls: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -46,7 +48,7 @@ pub struct IceServer {
 }
 
 /// Response containing ICE servers with time-limited TURN credentials.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IceServersResponse {
     ice_servers: Vec<IceServer>,
@@ -64,6 +66,15 @@ pub struct IceServersResponse {
 /// generates time-limited credentials using HMAC-SHA1.
 ///
 /// Authorization: Requires authentication (user must be logged in).
+#[utoipa::path(
+    get,
+    path = "/ice-servers",
+    responses(
+        (status = 200, description = "ICE server configurations", body = IceServersResponse),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "ICE"
+)]
 pub async fn get_ice_servers(
     State(state): State<AppState>,
     auth: AuthUser,

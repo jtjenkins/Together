@@ -70,6 +70,19 @@ pub async fn log_action(pool: &PgPool, entry: &CreateAuditLog) {
 // Handler
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/audit-logs",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ListAuditLogsQuery,
+    ),
+    responses(
+        (status = 200, description = "List of audit log entries", body = Vec<AuditLog>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "AuditLogs"
+)]
 /// GET /servers/:id/audit-logs — List audit logs for a server.
 ///
 /// Only the server owner can view audit logs.

@@ -4,6 +4,7 @@ use axum::{
 };
 use serde::Deserialize;
 use tracing::info;
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -21,7 +22,7 @@ const VALID_STATUSES: &[&str] = &["online", "away", "dnd", "offline"];
 // Input validation
 // ============================================================================
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateUserRequest {
     /// Must be a valid HTTP(S) URL when provided.
     #[validate(url)]
@@ -45,6 +46,17 @@ pub struct UpdateUserRequest {
 // Handlers
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/users/@me",
+    responses(
+        (status = 200, description = "Current user profile", body = UserDto),
+        (status = 401, description = "Not authenticated"),
+        (status = 404, description = "User not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Users"
+)]
 pub async fn get_current_user(
     State(state): State<AppState>,
     auth_user: AuthUser,
@@ -60,6 +72,19 @@ pub async fn get_current_user(
     Ok(Json(user.into()))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/users/@me",
+    request_body = UpdateUserRequest,
+    responses(
+        (status = 200, description = "User updated", body = UserDto),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Not authenticated"),
+        (status = 404, description = "User not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Users"
+)]
 pub async fn update_current_user(
     State(state): State<AppState>,
     auth_user: AuthUser,
@@ -123,6 +148,20 @@ pub async fn update_current_user(
 
 /// GET /users/:user_id — fetch any user's public profile.
 /// Returns only public fields; never exposes email or password_hash.
+#[utoipa::path(
+    get,
+    path = "/users/{user_id}",
+    params(
+        ("user_id" = Uuid, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "User public profile", body = PublicProfileDto),
+        (status = 401, description = "Not authenticated"),
+        (status = 404, description = "User not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Users"
+)]
 pub async fn get_user_profile(
     State(state): State<AppState>,
     _auth: AuthUser,

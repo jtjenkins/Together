@@ -47,6 +47,15 @@ async fn require_admin(pool: &sqlx::PgPool, user_id: Uuid) -> AppResult<()> {
 // Handlers
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/admin/stats",
+    responses(
+        (status = 200, description = "Instance statistics", body = AdminStatsResponse),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Admin"
+)]
 /// GET /admin/stats — Instance overview statistics.
 ///
 /// Returns aggregate counts, active WebSocket connections, uptime, DB latency,
@@ -113,6 +122,16 @@ async fn calculate_storage_bytes(dir: &std::path::Path) -> u64 {
     total
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/users",
+    params(AdminListQuery),
+    responses(
+        (status = 200, description = "Paginated user list", body = AdminUsersResponse),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Admin"
+)]
 /// GET /admin/users — Paginated user list with search and sorting.
 ///
 /// Query parameters:
@@ -203,6 +222,19 @@ pub async fn list_users(
     }))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/admin/users/{user_id}",
+    request_body = UpdateAdminUserRequest,
+    params(
+        ("user_id" = Uuid, Path, description = "User ID"),
+    ),
+    responses(
+        (status = 200, description = "User updated"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Admin"
+)]
 /// PATCH /admin/users/:user_id — Promote/demote admin, disable/enable account.
 ///
 /// Self-operation guards: cannot demote or disable yourself (prevents admin lockout).
@@ -300,6 +332,18 @@ pub async fn update_user(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/admin/users/{user_id}",
+    params(
+        ("user_id" = Uuid, Path, description = "User ID"),
+    ),
+    responses(
+        (status = 204, description = "User deleted"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Admin"
+)]
 /// DELETE /admin/users/:user_id — Permanently delete a user.
 ///
 /// Transaction: delete sessions, anonymize messages (SET author_id = NULL),
@@ -368,6 +412,16 @@ pub async fn delete_user(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/servers",
+    params(AdminListQuery),
+    responses(
+        (status = 200, description = "Paginated server list", body = AdminServersResponse),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Admin"
+)]
 /// GET /admin/servers — Paginated server list with search and enriched counts.
 ///
 /// Query parameters:
@@ -454,6 +508,18 @@ pub async fn list_servers(
     }))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/admin/servers/{server_id}",
+    params(
+        ("server_id" = Uuid, Path, description = "Server ID"),
+    ),
+    responses(
+        (status = 204, description = "Server deleted"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Admin"
+)]
 /// DELETE /admin/servers/:server_id — Force-delete a server (admin override).
 ///
 /// Deletes the server row; foreign key cascades handle channels, messages,
@@ -481,6 +547,15 @@ pub async fn delete_server(
 // Instance Settings
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/admin/settings",
+    responses(
+        (status = 200, description = "Instance settings", body = InstanceSettings),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Admin"
+)]
 /// GET /admin/settings — Get instance-wide settings (admin only).
 pub async fn get_settings(
     State(state): State<AppState>,
@@ -496,6 +571,16 @@ pub async fn get_settings(
     Ok(Json(settings))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/admin/settings",
+    request_body = UpdateSettingsRequest,
+    responses(
+        (status = 200, description = "Updated instance settings", body = InstanceSettings),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Admin"
+)]
 /// PATCH /admin/settings — Update instance settings (admin only).
 pub async fn update_settings(
     State(state): State<AppState>,

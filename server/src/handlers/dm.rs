@@ -5,6 +5,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -21,13 +22,13 @@ use crate::{
 // Input validation
 // ============================================================================
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct OpenDmRequest {
     /// The ID of the user to open a DM with.
     pub user_id: Uuid,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct SendDmRequest {
     #[validate(length(
         min = 1,
@@ -37,7 +38,7 @@ pub struct SendDmRequest {
     pub content: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
 pub struct ListDmMessagesQuery {
     pub before: Option<Uuid>,
     pub limit: Option<i64>,
@@ -146,6 +147,19 @@ async fn build_channel_dto(
 /// Uses a PostgreSQL advisory transaction lock keyed to the sorted pair of
 /// user UUIDs so that concurrent requests cannot create duplicate channels.
 /// The lock is released automatically when the transaction commits or rolls back.
+#[utoipa::path(
+    post,
+    path = "/dm-channels",
+    request_body = OpenDmRequest,
+    responses(
+        (status = 200, description = "Existing DM channel returned", body = DirectMessageChannelDto),
+        (status = 201, description = "New DM channel created", body = DirectMessageChannelDto),
+        (status = 400, description = "Cannot DM yourself"),
+        (status = 404, description = "Target user not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "DirectMessages"
+)]
 pub async fn open_dm_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -268,6 +282,15 @@ pub async fn open_dm_channel(
 }
 
 /// GET /dm-channels — list all DM channels for the authenticated user.
+#[utoipa::path(
+    get,
+    path = "/dm-channels",
+    responses(
+        (status = 200, description = "List of DM channels", body = Vec<DirectMessageChannelDto>)
+    ),
+    security(("bearer_auth" = [])),
+    tag = "DirectMessages"
+)]
 pub async fn list_dm_channels(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -340,6 +363,19 @@ pub async fn list_dm_channels(
 }
 
 /// POST /dm-channels/:id/messages — send a message to a DM channel.
+#[utoipa::path(
+    post,
+    path = "/dm-channels/{id}/messages",
+    request_body = SendDmRequest,
+    params(("id" = Uuid, Path, description = "DM channel ID")),
+    responses(
+        (status = 201, description = "DM message sent", body = DirectMessage),
+        (status = 400, description = "Validation error"),
+        (status = 404, description = "DM channel not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "DirectMessages"
+)]
 pub async fn send_dm_message(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -398,6 +434,20 @@ pub async fn send_dm_message(
 }
 
 /// GET /dm-channels/:id/messages — list messages in a DM channel with cursor pagination.
+#[utoipa::path(
+    get,
+    path = "/dm-channels/{id}/messages",
+    params(
+        ("id" = Uuid, Path, description = "DM channel ID"),
+        ListDmMessagesQuery
+    ),
+    responses(
+        (status = 200, description = "List of DM messages", body = Vec<DirectMessage>),
+        (status = 404, description = "DM channel not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "DirectMessages"
+)]
 pub async fn list_dm_messages(
     State(state): State<AppState>,
     auth: AuthUser,
