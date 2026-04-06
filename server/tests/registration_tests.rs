@@ -2,6 +2,7 @@ mod common;
 
 use axum::http::StatusCode;
 use serde_json::json;
+use serial_test::serial;
 
 // ============================================================================
 // Helpers
@@ -12,7 +13,7 @@ async fn setup_admin() -> (axum::Router, String, sqlx::PgPool) {
 
     // Reset registration mode to 'open' before registering test users.
     // Tests share the DB singleton, so a previous test may have changed the mode.
-    // NOTE: This can race with parallel tests — CI retries handle flakes.
+    // All tests in this file use #[serial] to prevent races on this shared row.
     sqlx::query("UPDATE instance_settings SET registration_mode = 'open' WHERE id = 1")
         .execute(&pool)
         .await
@@ -78,6 +79,7 @@ async fn admin_settings_requires_admin() {
 }
 
 #[tokio::test]
+#[serial]
 async fn admin_get_settings() {
     let (app, admin_token, _pool) = setup_admin().await;
 
@@ -87,6 +89,7 @@ async fn admin_get_settings() {
 }
 
 #[tokio::test]
+#[serial]
 async fn admin_update_registration_mode() {
     let (app, admin_token, pool) = setup_admin().await;
 
@@ -105,6 +108,7 @@ async fn admin_update_registration_mode() {
 }
 
 #[tokio::test]
+#[serial]
 async fn admin_update_invalid_mode_rejected() {
     let (app, admin_token, _pool) = setup_admin().await;
 
@@ -123,6 +127,7 @@ async fn admin_update_invalid_mode_rejected() {
 // ============================================================================
 
 #[tokio::test]
+#[serial]
 async fn registration_open_allows_signup() {
     let (app, _admin_token, pool) = setup_admin().await;
 
@@ -141,17 +146,12 @@ async fn registration_open_allows_signup() {
 }
 
 #[tokio::test]
+#[serial]
 async fn registration_closed_blocks_signup() {
-    let (app, admin_token, pool) = setup_admin().await;
+    let (app, _admin_token, pool) = setup_admin().await;
 
-    // Use API to set closed (atomic with request processing)
-    common::patch_json_authed(
-        app.clone(),
-        "/admin/settings",
-        &admin_token,
-        json!({ "registration_mode": "closed" }),
-    )
-    .await;
+    // Direct DB update to avoid race with parallel tests resetting mode to "open"
+    set_registration_mode(&pool, "closed").await;
 
     // Immediately try to register — mode is "closed" in the DB
     let (status, body) = common::post_json(
@@ -171,6 +171,7 @@ async fn registration_closed_blocks_signup() {
 }
 
 #[tokio::test]
+#[serial]
 async fn registration_invite_only_without_code_fails() {
     let (app, _admin_token, pool) = setup_admin().await;
 
@@ -191,6 +192,7 @@ async fn registration_invite_only_without_code_fails() {
 }
 
 #[tokio::test]
+#[serial]
 async fn registration_invite_only_with_invalid_code_fails() {
     let (app, _admin_token, pool) = setup_admin().await;
 
@@ -220,6 +222,7 @@ async fn registration_invite_only_with_invalid_code_fails() {
 // ============================================================================
 
 #[tokio::test]
+#[serial]
 async fn server_require_invite_blocks_direct_join() {
     let (app, admin_token, pool) = setup_admin().await;
 
@@ -254,6 +257,7 @@ async fn server_require_invite_blocks_direct_join() {
 }
 
 #[tokio::test]
+#[serial]
 async fn server_without_require_invite_allows_join() {
     let pool = common::test_pool().await;
     // Reset registration mode before creating users
