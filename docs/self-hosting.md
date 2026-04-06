@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/guides/self-hosting).
+Please visit the new site for the latest version.
+
+---
+
 # Self-Hosting Together
 
 This guide walks through deploying Together on your own server using Docker Compose. No Kubernetes,

@@ -1,0 +1,58 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/site/**'
+      - 'docs/openapi.yaml'
+      - 'scripts/deploy-docs.sh'
+
+jobs:
+  deploy:
+    name: Build & Deploy Docs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/site
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: docs/site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Copy OpenAPI spec
+        run: cp ../../docs/openapi.yaml docs/public/openapi.yaml
+
+      - name: Build docs site
+        run: npx vitepress build
+
+      - name: Verify build output
+        run: test -f .vitepress/dist/index.html || (echo "Build output missing" && exit 1)
+
+      - name: Deploy to server
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DOCS_DEPLOY_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.DOCS_DEPLOY_HOST }}
+          REMOTE_PATH: /var/www/docs.together-chat.com
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H "${REMOTE_HOST##*@}" >> ~/.ssh/known_hosts 2>/dev/null
+
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes" \
+            .vitepress/dist/ \
+            "$REMOTE_HOST:$REMOTE_PATH/"
+
+          rm -f ~/.ssh/deploy_key

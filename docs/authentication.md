@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/authentication).
+Please visit the new site for the latest version.
+
+---
+
 # Together Authentication
 
 This document describes the authentication system for Together — registration, login, token management, and password reset flows.

@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/reference/webhooks).
+Please visit the new site for the latest version.
+
+---
+
 # Webhooks
 
 This document describes Together's webhook system — outbound HTTP notifications sent to external URLs when events occur in a server.

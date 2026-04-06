@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/message-pinning).
+Please visit the new site for the latest version.
+
+---
+
 # Message Pinning
 
 This guide covers how to pin and unpin messages in Together, including who can perform each action, where pinned messages appear, and current limitations.

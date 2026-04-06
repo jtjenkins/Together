@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/polls-and-events).
+Please visit the new site for the latest version.
+
+---
+
 # Polls and Server Events
 
 This guide covers creating polls and scheduling server events in Together, including the API endpoints, request/response formats, voting behaviour, and real-time updates.

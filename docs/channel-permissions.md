@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/channel-permissions).
+Please visit the new site for the latest version.
+
+---
+
 # Channel Permission Overrides
 
 Together supports Discord-style per-channel permission overrides. Overrides let server administrators fine-tune which roles or users can do what in individual channels, without changing server-wide role permissions.

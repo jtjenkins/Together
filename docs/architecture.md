@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/guides/architecture).
+Please visit the new site for the latest version.
+
+---
+
 # Architecture & Technical Design
 
 ## Design Philosophy

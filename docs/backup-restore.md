@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/guides/backup-restore).
+Please visit the new site for the latest version.
+
+---
+
 # Backup & Restore Guide
 
 This guide covers comprehensive backup and restore procedures for Together, protecting your community data and minimizing downtime.

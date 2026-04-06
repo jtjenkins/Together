@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/guides/instance-admin).
+Please visit the new site for the latest version.
+
+---
+
 # Instance Admin Dashboard
 
 The instance admin dashboard provides instance-level management of users and servers. It is separate from server-scoped moderation (kick, ban, roles) — instance admin operates across the entire Together deployment.

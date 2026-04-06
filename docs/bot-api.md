@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/reference/bot-api).
+Please visit the new site for the latest version.
+
+---
+
 # Together Bot API
 
 This document describes the Bot API for Together — the interface used to register, manage, and authenticate automated bot users.

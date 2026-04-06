@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/reference/ios-voice).
+Please visit the new site for the latest version.
+
+---
+
 # iOS Voice Setup
 
 Together's voice feature uses WebRTC. On iOS, the WKWebView (Safari engine used by

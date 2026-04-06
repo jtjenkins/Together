@@ -1,3 +1,8 @@
+⚠️ This document has been moved to the [Together docs site](https://docs.together-chat.com/features/voice-and-screen-share).
+Please visit the new site for the latest version.
+
+---
+
 # Screen Sharing
 
 Together supports screen sharing within voice channels. Multiple participants can share their screens simultaneously, and all active shares appear in a video grid alongside camera feeds.
