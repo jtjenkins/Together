@@ -107,11 +107,12 @@ jobs:
         run: cargo test --locked
 
       # Upload the debug binary so the e2e job can reuse it without recompiling.
+      # Path is relative to $GITHUB_WORKSPACE, not the job's working-directory.
       - name: Upload server binary
         uses: actions/upload-artifact@v4
         with:
           name: server-binary
-          path: target/debug/together-server
+          path: server/target/debug/together-server
           retention-days: 1
 
   # ── OpenAPI Spec Drift Check ─────────────────────────────────────────────────
