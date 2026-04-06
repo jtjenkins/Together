@@ -44,6 +44,20 @@ fn validate_emoji(emoji: &str) -> AppResult<()> {
 ///
 /// Add an emoji reaction to a message.  Idempotent — adding the same emoji
 /// twice is not an error (the duplicate is silently ignored).
+#[utoipa::path(
+    put,
+    path = "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("message_id" = Uuid, Path, description = "Message ID"),
+        ("emoji" = String, Path, description = "Emoji string"),
+    ),
+    responses(
+        (status = 204, description = "Reaction added"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Reactions"
+)]
 pub async fn add_reaction(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -103,6 +117,21 @@ pub async fn add_reaction(
 ///
 /// Remove the authenticated user's reaction from a message.
 /// Returns 404 if the message or reaction does not exist.
+#[utoipa::path(
+    delete,
+    path = "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("message_id" = Uuid, Path, description = "Message ID"),
+        ("emoji" = String, Path, description = "Emoji string"),
+    ),
+    responses(
+        (status = 204, description = "Reaction removed"),
+        (status = 404, description = "Reaction not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Reactions"
+)]
 pub async fn remove_reaction(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -152,6 +181,19 @@ pub async fn remove_reaction(
 ///
 /// List aggregated reaction counts for a message, with a `me` flag indicating
 /// whether the authenticated user has added each reaction.
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/messages/{message_id}/reactions",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+        ("message_id" = Uuid, Path, description = "Message ID"),
+    ),
+    responses(
+        (status = 200, description = "List of reaction counts", body = Vec<ReactionCount>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Reactions"
+)]
 pub async fn list_reactions(
     State(state): State<AppState>,
     auth: AuthUser,

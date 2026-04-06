@@ -7,6 +7,15 @@ use crate::{
     state::AppState,
 };
 
+#[utoipa::path(
+    get,
+    path = "/server-templates",
+    responses(
+        (status = 200, description = "List of server templates", body = Vec<ServerTemplateDto>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Templates"
+)]
 /// GET /server-templates — list all available server templates.
 pub async fn list_templates(
     State(state): State<AppState>,

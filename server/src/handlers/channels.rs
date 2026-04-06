@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -21,7 +22,7 @@ use crate::{
 // Input validation
 // ============================================================================
 
-#[derive(Debug, serde::Deserialize, Validate)]
+#[derive(Debug, serde::Deserialize, Validate, ToSchema)]
 pub struct CreateChannelRequest {
     #[validate(length(min = 1, max = 100, message = "Channel name must be 1–100 characters"))]
     pub name: String,
@@ -32,7 +33,7 @@ pub struct CreateChannelRequest {
     pub category: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize, Validate)]
+#[derive(Debug, serde::Deserialize, Validate, ToSchema)]
 pub struct UpdateChannelRequest {
     #[validate(length(min = 1, max = 100, message = "Channel name must be 1–100 characters"))]
     pub name: Option<String>,
@@ -69,6 +70,20 @@ async fn fetch_channel(
 // ============================================================================
 
 /// POST /servers/:id/channels — create a channel in a server (owner only).
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/channels",
+    request_body = CreateChannelRequest,
+    params(("id" = Uuid, Path, description = "Server ID")),
+    responses(
+        (status = 201, description = "Channel created", body = Channel),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Not the server owner"),
+        (status = 404, description = "Server not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Channels"
+)]
 pub async fn create_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -127,6 +142,18 @@ pub async fn create_channel(
 }
 
 /// GET /servers/:id/channels — list all channels in a server (members only).
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/channels",
+    params(("id" = Uuid, Path, description = "Server ID")),
+    responses(
+        (status = 200, description = "List of channels", body = Vec<Channel>),
+        (status = 403, description = "Not a server member"),
+        (status = 404, description = "Server not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Channels"
+)]
 pub async fn list_channels(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -148,6 +175,21 @@ pub async fn list_channels(
 }
 
 /// GET /servers/:id/channels/:channel_id — get a single channel (members only).
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/channels/{channel_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("channel_id" = Uuid, Path, description = "Channel ID")
+    ),
+    responses(
+        (status = 200, description = "Channel details", body = Channel),
+        (status = 403, description = "Not a server member"),
+        (status = 404, description = "Server or channel not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Channels"
+)]
 pub async fn get_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -160,6 +202,23 @@ pub async fn get_channel(
 }
 
 /// PATCH /servers/:id/channels/:channel_id — update a channel (owner only).
+#[utoipa::path(
+    patch,
+    path = "/servers/{id}/channels/{channel_id}",
+    request_body = UpdateChannelRequest,
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("channel_id" = Uuid, Path, description = "Channel ID")
+    ),
+    responses(
+        (status = 200, description = "Channel updated", body = Channel),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Not the server owner"),
+        (status = 404, description = "Server or channel not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Channels"
+)]
 pub async fn update_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -230,6 +289,21 @@ pub async fn update_channel(
 ///
 /// This is a hard delete; any messages in the channel are also removed by the
 /// database cascade constraint (ON DELETE CASCADE on messages.channel_id).
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/channels/{channel_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("channel_id" = Uuid, Path, description = "Channel ID")
+    ),
+    responses(
+        (status = 204, description = "Channel deleted"),
+        (status = 403, description = "Not the server owner"),
+        (status = 404, description = "Server or channel not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Channels"
+)]
 pub async fn delete_channel(
     State(state): State<AppState>,
     auth: AuthUser,

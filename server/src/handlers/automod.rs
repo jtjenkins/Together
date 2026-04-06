@@ -35,6 +35,18 @@ use crate::{
 // Handlers
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/automod",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    responses(
+        (status = 200, description = "Automod configuration", body = AutomodConfig),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Automod"
+)]
 /// GET /servers/:id/automod — Returns 404 if no config exists yet.
 ///
 /// Only the server owner can view automod settings.
@@ -65,6 +77,19 @@ pub async fn get_automod_config(
     Ok(Json(config))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/servers/{id}/automod",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    request_body = UpdateAutomodConfigRequest,
+    responses(
+        (status = 200, description = "Updated automod configuration", body = AutomodConfig),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Automod"
+)]
 /// PATCH /servers/:id/automod — Upsert automod config with partial updates via COALESCE.
 ///
 /// Only the server owner can update automod settings.
@@ -145,6 +170,18 @@ pub async fn update_automod_config(
     Ok(Json(config))
 }
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/automod/words",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    responses(
+        (status = 200, description = "List of word filters", body = Vec<AutomodWordFilter>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Automod"
+)]
 /// GET /servers/:id/automod/words — List all word filters for a server.
 ///
 /// Only the server owner can view word filters.
@@ -172,6 +209,19 @@ pub async fn list_word_filters(
     Ok(Json(words))
 }
 
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/automod/words",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    request_body = AddWordFilterRequest,
+    responses(
+        (status = 201, description = "Word filter added", body = AutomodWordFilter),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Automod"
+)]
 /// POST /servers/:id/automod/words — Add a word to the filter list.
 ///
 /// Only the server owner can add word filters.
@@ -210,6 +260,19 @@ pub async fn add_word_filter(
     Ok((StatusCode::CREATED, Json(filter)))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/automod/words/{word}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("word" = String, Path, description = "Word to remove"),
+    ),
+    responses(
+        (status = 204, description = "Word filter removed"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Automod"
+)]
 /// DELETE /servers/:id/automod/words/:word — Remove a word from the filter list.
 ///
 /// Only the server owner can remove word filters.
@@ -236,6 +299,18 @@ pub async fn remove_word_filter(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/automod/logs",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    responses(
+        (status = 200, description = "Recent automod action logs", body = Vec<AutomodLog>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Automod"
+)]
 /// GET /servers/:id/automod/logs — List the 100 most recent automod actions.
 ///
 /// Only the server owner can view automod logs.
@@ -264,6 +339,18 @@ pub async fn list_automod_logs(
     Ok(Json(logs))
 }
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/bans",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    responses(
+        (status = 200, description = "List of server bans", body = Vec<ServerBan>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Automod"
+)]
 /// GET /servers/:id/bans — List all bans for a server.
 ///
 /// Requires BAN_MEMBERS permission (or server owner / ADMINISTRATOR).
@@ -294,6 +381,19 @@ pub async fn list_bans(
     Ok(Json(bans))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/bans/{user_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("user_id" = Uuid, Path, description = "Banned user ID"),
+    ),
+    responses(
+        (status = 204, description = "Ban removed"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Automod"
+)]
 /// DELETE /servers/:id/bans/:user_id — Unban a user from a server.
 ///
 /// Requires BAN_MEMBERS permission (or server owner / ADMINISTRATOR).

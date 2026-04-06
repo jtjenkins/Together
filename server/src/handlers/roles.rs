@@ -38,6 +38,19 @@ const MAX_PERMISSIONS: i64 = 32767;
 // ============================================================================
 
 /// POST /servers/:id/roles — create a new role.
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/roles",
+    params(("id" = Uuid, Path, description = "Server ID")),
+    request_body = CreateRoleRequest,
+    responses(
+        (status = 201, description = "Role created", body = Role),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Roles"
+)]
 pub async fn create_role(
     Path(server_id): Path<Uuid>,
     State(state): State<AppState>,
@@ -148,6 +161,16 @@ pub async fn create_role(
 }
 
 /// GET /servers/:id/roles — list all roles in a server.
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/roles",
+    params(("id" = Uuid, Path, description = "Server ID")),
+    responses(
+        (status = 200, description = "List of roles", body = Vec<Role>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Roles"
+)]
 pub async fn list_roles(
     Path(server_id): Path<Uuid>,
     State(state): State<AppState>,
@@ -169,6 +192,23 @@ pub async fn list_roles(
 }
 
 /// PATCH /servers/:id/roles/:role_id — update a role.
+#[utoipa::path(
+    patch,
+    path = "/servers/{id}/roles/{role_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("role_id" = Uuid, Path, description = "Role ID"),
+    ),
+    request_body = UpdateRoleRequest,
+    responses(
+        (status = 200, description = "Role updated", body = Role),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Role not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Roles"
+)]
 pub async fn update_role(
     Path((server_id, role_id)): Path<(Uuid, Uuid)>,
     State(state): State<AppState>,
@@ -300,6 +340,21 @@ pub async fn update_role(
 }
 
 /// DELETE /servers/:id/roles/:role_id — delete a role.
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/roles/{role_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("role_id" = Uuid, Path, description = "Role ID"),
+    ),
+    responses(
+        (status = 204, description = "Role deleted"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Role not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Roles"
+)]
 pub async fn delete_role(
     Path((server_id, role_id)): Path<(Uuid, Uuid)>,
     State(state): State<AppState>,
@@ -368,6 +423,22 @@ pub async fn delete_role(
 }
 
 /// PUT /servers/:id/members/:user_id/roles/:role_id — assign a role to a member.
+#[utoipa::path(
+    put,
+    path = "/servers/{id}/members/{user_id}/roles/{role_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("user_id" = Uuid, Path, description = "Target user ID"),
+        ("role_id" = Uuid, Path, description = "Role ID"),
+    ),
+    responses(
+        (status = 204, description = "Role assigned"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Role or member not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Roles"
+)]
 pub async fn assign_role(
     Path((server_id, target_user_id, role_id)): Path<(Uuid, Uuid, Uuid)>,
     State(state): State<AppState>,
@@ -448,6 +519,22 @@ pub async fn assign_role(
 }
 
 /// DELETE /servers/:id/members/:user_id/roles/:role_id — remove a role from a member.
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/members/{user_id}/roles/{role_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("user_id" = Uuid, Path, description = "Target user ID"),
+        ("role_id" = Uuid, Path, description = "Role ID"),
+    ),
+    responses(
+        (status = 204, description = "Role removed"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Role or member not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Roles"
+)]
 pub async fn remove_role(
     Path((server_id, target_user_id, role_id)): Path<(Uuid, Uuid, Uuid)>,
     State(state): State<AppState>,

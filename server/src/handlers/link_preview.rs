@@ -123,13 +123,23 @@ fn get_title_tag(doc: &Html) -> Option<String> {
 
 // ── Query params ───────────────────────────────────────────────────────────
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct LinkPreviewQuery {
     pub url: String,
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/link-preview",
+    params(LinkPreviewQuery),
+    responses(
+        (status = 200, description = "Link preview metadata", body = LinkPreviewDto),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "LinkPreview"
+)]
 /// GET /link-preview?url=<encoded-url>
 ///
 /// Returns Open Graph metadata for the given URL, with results cached for 24 hours.

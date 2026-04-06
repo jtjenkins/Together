@@ -9,6 +9,7 @@ use reqwest::Client;
 use serde::Serialize;
 use sqlx::PgPool;
 use tokio::sync::RwLock;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::config::Config;
@@ -20,7 +21,7 @@ use crate::websocket::ConnectionManager;
 ///
 /// At most one session exists per channel at a time — enforced by the
 /// `start_go_live` handler under a write lock.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct GoLiveSession {
     /// The user currently broadcasting.
     pub broadcaster_id: Uuid,

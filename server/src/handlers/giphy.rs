@@ -11,7 +11,7 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct GiphySearchParams {
     pub q: String,
     #[serde(default = "default_limit")]
@@ -22,6 +22,16 @@ fn default_limit() -> u8 {
     15
 }
 
+#[utoipa::path(
+    get,
+    path = "/giphy/search",
+    params(GiphySearchParams),
+    responses(
+        (status = 200, description = "GIF search results", body = Vec<GifResult>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Giphy"
+)]
 pub async fn search_giphy(
     State(state): State<AppState>,
     _auth: AuthUser,

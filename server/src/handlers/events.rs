@@ -17,6 +17,19 @@ use super::shared::{fetch_channel_by_id, require_member};
 
 // ── POST /channels/:channel_id/events ──────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/channels/{channel_id}/events",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    request_body = CreateEventPayload,
+    responses(
+        (status = 201, description = "Event created", body = MessageDto),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Events"
+)]
 pub async fn create_event(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -104,6 +117,18 @@ struct ServerEventRow {
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/events",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+    ),
+    responses(
+        (status = 200, description = "List of upcoming events", body = Vec<ServerEventDto>),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Events"
+)]
 pub async fn list_events(
     State(state): State<AppState>,
     auth: AuthUser,

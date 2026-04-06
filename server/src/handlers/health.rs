@@ -10,6 +10,7 @@ use serde::Serialize;
 use std::sync::OnceLock;
 use std::time::Instant;
 use tokio::time::Duration;
+use utoipa::ToSchema;
 
 use crate::state::AppState;
 
@@ -35,7 +36,7 @@ pub fn uptime_secs() -> Option<u64> {
 // Response types
 // ============================================================================
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct HealthResponse {
     pub status: &'static str,
     pub service: &'static str,
@@ -46,7 +47,7 @@ pub struct HealthResponse {
     pub connections: ConnectionsHealth,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct DatabaseHealth {
     pub status: &'static str,
     /// Present on both success and failure. On failure this reflects the time
@@ -54,19 +55,19 @@ pub struct DatabaseHealth {
     pub latency_ms: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ConnectionsHealth {
     pub websocket: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ReadinessResponse {
     pub ready: bool,
     pub checks: std::collections::HashMap<&'static str, CheckResult>,
 }
 
 /// Result of a single readiness check.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct CheckResult {
     pub ok: bool,
     /// Human-readable failure category, present only when `ok` is false.
@@ -74,7 +75,7 @@ pub struct CheckResult {
     pub error: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct LivenessResponse {
     pub alive: bool,
 }
@@ -90,6 +91,15 @@ pub struct LivenessResponse {
 ///
 /// Returns `200 OK` when all checks pass, `503 Service Unavailable` if any
 /// check fails.
+#[utoipa::path(
+    get,
+    path = "/health",
+    responses(
+        (status = 200, description = "Service healthy", body = HealthResponse),
+        (status = 503, description = "Service degraded", body = HealthResponse)
+    ),
+    tag = "Health"
+)]
 pub async fn health_check(State(state): State<AppState>) -> (StatusCode, Json<HealthResponse>) {
     let db_start = Instant::now();
     let db_result = tokio::time::timeout(
@@ -145,6 +155,15 @@ pub async fn health_check(State(state): State<AppState>) -> (StatusCode, Json<He
 ///
 /// Checks:
 /// - Database connectivity
+#[utoipa::path(
+    get,
+    path = "/health/ready",
+    responses(
+        (status = 200, description = "Service ready", body = ReadinessResponse),
+        (status = 503, description = "Service not ready", body = ReadinessResponse)
+    ),
+    tag = "Health"
+)]
 pub async fn readiness_check(
     State(state): State<AppState>,
 ) -> (StatusCode, Json<ReadinessResponse>) {
@@ -192,6 +211,14 @@ pub async fn readiness_check(
 /// Returns `200 OK` if the process is alive and able to respond to requests.
 /// This is intentionally lightweight and queries no external dependencies —
 /// if this handler can respond, the process is not deadlocked.
+#[utoipa::path(
+    get,
+    path = "/health/live",
+    responses(
+        (status = 200, description = "Service alive", body = LivenessResponse)
+    ),
+    tag = "Health"
+)]
 pub async fn liveness_check() -> (StatusCode, Json<LivenessResponse>) {
     (StatusCode::OK, Json(LivenessResponse { alive: true }))
 }

@@ -5,6 +5,7 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::shared::{fetch_channel_by_id, require_member};
@@ -26,7 +27,7 @@ const VALID_QUALITIES: &[&str] = &["480p", "720p", "1080p"];
 // Request / response types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct StartGoLiveRequest {
     /// Quality tier: "480p" | "720p" | "1080p". Defaults to "720p".
     pub quality: Option<String>,
@@ -74,6 +75,19 @@ async fn require_in_voice_channel(
 ///
 /// Enforces: one broadcaster per channel, broadcaster must be in the channel.
 /// Broadcasts `GO_LIVE_START` to all server members on success.
+#[utoipa::path(
+    post,
+    path = "/channels/{channel_id}/go-live",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    request_body = StartGoLiveRequest,
+    responses(
+        (status = 201, description = "Go Live session started", body = GoLiveSession),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "GoLive"
+)]
 pub async fn start_go_live(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -131,6 +145,19 @@ pub async fn start_go_live(
 ///
 /// Only the current broadcaster (or a server admin) may stop the session.
 /// Broadcasts `GO_LIVE_STOP` to all server members.
+#[utoipa::path(
+    delete,
+    path = "/channels/{channel_id}/go-live",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    responses(
+        (status = 204, description = "Go Live session stopped"),
+        (status = 404, description = "No active Go Live session"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "GoLive"
+)]
 pub async fn stop_go_live(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -167,6 +194,19 @@ pub async fn stop_go_live(
 /// GET /channels/:channel_id/go-live — get the active Go Live session, if any.
 ///
 /// Returns 200 with the session JSON when live, 404 when no session is active.
+#[utoipa::path(
+    get,
+    path = "/channels/{channel_id}/go-live",
+    params(
+        ("channel_id" = Uuid, Path, description = "Channel ID"),
+    ),
+    responses(
+        (status = 200, description = "Active Go Live session"),
+        (status = 404, description = "No active Go Live session"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "GoLive"
+)]
 pub async fn get_go_live(
     State(state): State<AppState>,
     auth: AuthUser,

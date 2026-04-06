@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use serde_json::{json, Value};
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -25,7 +26,7 @@ use crate::{
 // Input validation
 // ============================================================================
 
-#[derive(Debug, serde::Deserialize, Validate)]
+#[derive(Debug, serde::Deserialize, Validate, ToSchema)]
 pub struct CreateServerRequest {
     #[validate(length(min = 1, max = 100, message = "Server name must be 1–100 characters"))]
     pub name: String,
@@ -37,7 +38,7 @@ pub struct CreateServerRequest {
     pub template_id: Option<Uuid>,
 }
 
-#[derive(Debug, serde::Deserialize, Validate)]
+#[derive(Debug, serde::Deserialize, Validate, ToSchema)]
 pub struct UpdateServerRequest {
     #[validate(length(min = 1, max = 100, message = "Server name must be 1–100 characters"))]
     pub name: Option<String>,
@@ -78,6 +79,18 @@ async fn server_dto(pool: &sqlx::PgPool, server: Server) -> AppResult<ServerDto>
 // ============================================================================
 
 /// POST /servers — create a new server; creator is auto-joined as owner.
+#[utoipa::path(
+    post,
+    path = "/servers",
+    request_body = CreateServerRequest,
+    responses(
+        (status = 201, description = "Server created", body = ServerDto),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Not authenticated")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn create_server(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -179,6 +192,16 @@ pub async fn create_server(
 }
 
 /// GET /servers — list all servers the authenticated user belongs to.
+#[utoipa::path(
+    get,
+    path = "/servers",
+    responses(
+        (status = 200, description = "List of user's servers", body = Vec<ServerDto>),
+        (status = 401, description = "Not authenticated")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn list_servers(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -234,6 +257,21 @@ pub async fn list_servers(
 }
 
 /// GET /servers/:id — get a single server (members only).
+#[utoipa::path(
+    get,
+    path = "/servers/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID")
+    ),
+    responses(
+        (status = 200, description = "Server details", body = ServerDto),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not a member"),
+        (status = 404, description = "Server not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn get_server(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -246,6 +284,23 @@ pub async fn get_server(
 }
 
 /// PATCH /servers/:id — update name, icon, or public visibility (owner only).
+#[utoipa::path(
+    patch,
+    path = "/servers/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID")
+    ),
+    request_body = UpdateServerRequest,
+    responses(
+        (status = 200, description = "Server updated", body = ServerDto),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not the server owner"),
+        (status = 404, description = "Server not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn update_server(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -324,6 +379,21 @@ pub async fn update_server(
 }
 
 /// DELETE /servers/:id — delete server and all its data (owner only).
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID")
+    ),
+    responses(
+        (status = 204, description = "Server deleted"),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not the server owner"),
+        (status = 404, description = "Server not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn delete_server(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -364,6 +434,22 @@ pub async fn delete_server(
 ///
 /// Private servers (`is_public = false`) return 404 to avoid leaking their
 /// existence. Membership-by-invite is not yet implemented.
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/join",
+    params(
+        ("id" = Uuid, Path, description = "Server ID")
+    ),
+    responses(
+        (status = 201, description = "Joined server"),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Banned or invite required"),
+        (status = 404, description = "Server not found"),
+        (status = 409, description = "Already a member")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn join_server(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -425,6 +511,22 @@ pub async fn join_server(
 }
 
 /// DELETE /servers/:id/leave — leave a server (non-owners only).
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/leave",
+    params(
+        ("id" = Uuid, Path, description = "Server ID")
+    ),
+    responses(
+        (status = 204, description = "Left server"),
+        (status = 400, description = "Owner cannot leave"),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not a member"),
+        (status = 404, description = "Server not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn leave_server(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -454,6 +556,16 @@ pub async fn leave_server(
 /// Results are capped at 50 — discovery is intentionally lightweight with no pagination.
 /// Does NOT filter out servers the caller already belongs to; clients derive "Joined"
 /// state by cross-referencing their own server list.
+#[utoipa::path(
+    get,
+    path = "/servers/browse",
+    responses(
+        (status = 200, description = "List of public servers", body = Vec<ServerDto>),
+        (status = 401, description = "Not authenticated")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn browse_servers(
     State(state): State<AppState>,
     _auth: AuthUser,
@@ -475,7 +587,7 @@ pub async fn browse_servers(
 }
 
 /// Member response enriched with role information.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, ToSchema)]
 pub struct MemberWithRolesDto {
     #[serde(flatten)]
     pub member: MemberDto,
@@ -483,6 +595,21 @@ pub struct MemberWithRolesDto {
 }
 
 /// GET /servers/:id/members — list all members of a server (members only).
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/members",
+    params(
+        ("id" = Uuid, Path, description = "Server ID")
+    ),
+    responses(
+        (status = 200, description = "List of server members", body = Vec<MemberWithRolesDto>),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not a member"),
+        (status = 404, description = "Server not found")
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Servers"
+)]
 pub async fn list_members(
     State(state): State<AppState>,
     auth: AuthUser,

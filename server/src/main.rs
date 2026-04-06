@@ -11,6 +11,8 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -21,6 +23,7 @@ use tokio::sync::RwLock;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 
 use together_server::config::Config;
+use together_server::openapi::ApiDoc;
 use together_server::state::AppState;
 use together_server::webhook_delivery;
 use together_server::websocket::ConnectionManager;
@@ -45,6 +48,19 @@ async fn require_loopback(
 
 #[tokio::main]
 async fn main() {
+    // --dump-openapi: print the OpenAPI JSON spec to stdout and exit.
+    // Used by CI and the docs site build to generate the spec without starting the server.
+    // Must be the first (and only) argument: `together-server --dump-openapi`
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--dump-openapi") {
+        let spec = ApiDoc::openapi().to_pretty_json().unwrap_or_else(|e| {
+            eprintln!("Failed to serialize OpenAPI spec: {e}");
+            std::process::exit(1);
+        });
+        println!("{spec}");
+        return;
+    }
+
     // Initialize tracing — JSON in production, human-readable in dev.
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         "together_server=info,tower_http=info,sqlx=warn"
@@ -611,6 +627,14 @@ async fn main() {
         // Merge health routes after all middleware so they are not subject
         // to rate limiting or other API-only layers.
         .merge(health_router);
+
+    // OpenAPI spec + Swagger UI — dev only.
+    // In production the spec is available via `--dump-openapi` and the docs site.
+    let app = if config.is_dev {
+        app.merge(SwaggerUi::new("/swagger-ui").url("/openapi.json", ApiDoc::openapi()))
+    } else {
+        app
+    };
 
     // Start server
     info!("🎧 Server listening on http://{}", addr);

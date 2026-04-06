@@ -92,6 +92,47 @@ jobs:
       - name: Test
         run: cargo test --locked
 
+  # ── OpenAPI Spec Drift Check ─────────────────────────────────────────────────
+  openapi-check:
+    name: OpenAPI Spec Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "server -> target"
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Check OpenAPI spec is up to date
+        run: |
+          TMPFILE=$(mktemp /tmp/openapi-generated.XXXXXX.json)
+          trap 'rm -f "$TMPFILE"' EXIT
+          ./target/debug/together-server --dump-openapi > "$TMPFILE"
+          if ! diff -q \
+              <(jq --sort-keys . "$TMPFILE") \
+              <(jq --sort-keys . ../docs/openapi.json) \
+              > /dev/null 2>&1; then
+            echo ""
+            echo "ERROR: docs/openapi.json is out of date."
+            echo "Run: ./scripts/generate-openapi.sh"
+            exit 1
+          fi
+          echo "docs/openapi.json is up to date."
+
   # ── Security Audit ──────────────────────────────────────────────────────────
   audit:
     name: Security Audit
@@ -154,8 +195,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Copy OpenAPI spec
-        run: cp ../../docs/openapi.yaml docs/public/openapi.yaml
+      - name: Copy OpenAPI specs
+        run: |
+          cp ../../docs/openapi.yaml docs/public/openapi.yaml
+          cp ../../docs/openapi.json docs/public/openapi.json
 
       - name: Build docs site
         run: npx vitepress build

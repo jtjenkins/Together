@@ -32,6 +32,19 @@ fn generate_invite_code() -> String {
 
 // ── POST /servers/:id/invites ────────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/servers/{id}/invites",
+    params(("id" = Uuid, Path, description = "Server ID")),
+    request_body = CreateInviteRequest,
+    responses(
+        (status = 201, description = "Invite created", body = ServerInvite),
+        (status = 400, description = "Validation error"),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Invites"
+)]
 pub async fn create_invite(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -136,6 +149,17 @@ pub async fn create_invite(
 
 // ── GET /servers/:id/invites ─────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/servers/{id}/invites",
+    params(("id" = Uuid, Path, description = "Server ID")),
+    responses(
+        (status = 200, description = "List of invites", body = Vec<ServerInvite>),
+        (status = 403, description = "Insufficient permissions"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Invites"
+)]
 pub async fn list_invites(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -165,6 +189,21 @@ pub async fn list_invites(
 
 // ── DELETE /servers/:id/invites/:invite_id ───────────────────────────────────
 
+#[utoipa::path(
+    delete,
+    path = "/servers/{id}/invites/{invite_id}",
+    params(
+        ("id" = Uuid, Path, description = "Server ID"),
+        ("invite_id" = Uuid, Path, description = "Invite ID"),
+    ),
+    responses(
+        (status = 204, description = "Invite deleted"),
+        (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Invite not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Invites"
+)]
 pub async fn delete_invite(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -216,6 +255,17 @@ pub async fn delete_invite(
 // ── GET /invites/:code ───────────────────────────────────────────────────────
 
 /// Preview an invite — any authenticated user can view server info before joining.
+#[utoipa::path(
+    get,
+    path = "/invites/{code}",
+    params(("code" = String, Path, description = "Invite code")),
+    responses(
+        (status = 200, description = "Invite preview", body = InvitePreviewDto),
+        (status = 404, description = "Invite not found or expired"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Invites"
+)]
 pub async fn preview_invite(
     _auth: AuthUser,
     State(state): State<AppState>,
@@ -257,6 +307,20 @@ pub async fn preview_invite(
 // ── POST /invites/:code/accept ───────────────────────────────────────────────
 
 /// Accept an invite and join the server.
+#[utoipa::path(
+    post,
+    path = "/invites/{code}/accept",
+    params(("code" = String, Path, description = "Invite code")),
+    responses(
+        (status = 201, description = "Joined server"),
+        (status = 400, description = "Invite expired or max uses reached"),
+        (status = 403, description = "Banned from server"),
+        (status = 404, description = "Invite not found"),
+        (status = 409, description = "Already a member"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Invites"
+)]
 pub async fn accept_invite(
     auth: AuthUser,
     State(state): State<AppState>,
