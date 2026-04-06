@@ -83,6 +83,7 @@ sha1 = "0.10"
 tokio-test = "0.4"
 http-body-util = "0.1"   # BodyExt::collect() for reading response bodies in tests
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-native-tls"] }
+serial_test = "3"
 
 [[bin]]
 name = "together-server"
