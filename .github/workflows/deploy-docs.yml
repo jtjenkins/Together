@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'docs/site/**'
+      - 'docs/openapi.yaml'
       - 'scripts/deploy-docs.sh'
 
 jobs:
@@ -27,6 +28,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Copy OpenAPI spec
+        run: cp ../../docs/openapi.yaml docs/public/openapi.yaml
 
       - name: Build docs site
         run: npx vitepress build

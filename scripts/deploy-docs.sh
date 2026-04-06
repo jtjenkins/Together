@@ -45,6 +45,9 @@ if [ ! -d "$DOCS_DIR/node_modules" ]; then
 fi
 
 # Build
+# Copy OpenAPI spec into public/ so it's served as a static file
+cp "$SCRIPT_DIR/docs/openapi.yaml" "$DOCS_DIR/docs/public/openapi.yaml"
+
 echo "→ Building docs site..."
 cd "$DOCS_DIR"
 npx vitepress build

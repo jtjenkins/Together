@@ -6,13 +6,18 @@ outline: deep
 
 Together provides a complete OpenAPI 3.0 specification for the REST API.
 
-## Viewing the Spec
+## Download
 
-The full spec is located at `docs/openapi.yaml` in the Together repository. You can:
+The full spec is available as a downloadable YAML file:
 
-1. **View it locally**: Open `docs/openapi.yaml` in any text editor
-2. **Use Swagger UI**: Load the spec into [Swagger Editor](https://editor.swagger.io/) or [Swagger UI](https://swagger.io/tools/swagger-ui/)
-3. **Use with code generation**: Generate client SDKs using [OpenAPI Generator](https://openapi-generator.tech/)
+- **[Download openapi.yaml](/openapi.yaml)** — latest version, served from this docs site
+- **[View on GitHub](https://github.com/jtjenkins/Together/blob/main/docs/openapi.yaml)** — canonical source in the repository
+
+## Using the Spec
+
+1. **Swagger UI**: Load the spec into [Swagger Editor](https://editor.swagger.io/) or [Swagger UI](https://swagger.io/tools/swagger-ui/)
+2. **Code generation**: Generate client SDKs using [OpenAPI Generator](https://openapi-generator.tech/)
+3. **Import into Postman/Insomnia**: Import the YAML directly into your API client
 
 ## Coverage
 

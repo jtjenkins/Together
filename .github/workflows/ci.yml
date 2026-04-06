@@ -133,6 +133,33 @@ jobs:
         run: npm audit --audit-level=high
         working-directory: clients/desktop
 
+  # ── Docs: Build ────────────────────────────────────────────────────────────
+  docs-build:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/site
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: docs/site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Copy OpenAPI spec
+        run: cp ../../docs/openapi.yaml docs/public/openapi.yaml
+
+      - name: Build docs site
+        run: npx vitepress build
+
   # ── Web UI: Lint & Typecheck ───────────────────────────────────────────────
   web-lint:
     name: Web UI Lint & Typecheck
