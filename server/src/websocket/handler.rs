@@ -388,6 +388,12 @@ async fn cleanup_voice_on_disconnect(state: &AppState, user_id: Uuid) {
     }
 
     super::broadcast_to_server(state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+
+    // If the user was broadcasting a Go Live session in this channel, stop it
+    // so clients see the banner disappear and the channel becomes available for
+    // a new broadcast.
+    crate::handlers::go_live::stop_go_live_for_broadcaster(state, user_id, channel_id, server_id)
+        .await;
 }
 
 // ============================================================================

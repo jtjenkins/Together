@@ -42,7 +42,6 @@ async fn join_voice(app: axum::Router, token: &str, channel_id: &str) {
 struct GoLiveFixture {
     owner_token: String,
     member_token: String,
-    #[allow(dead_code)]
     server_id: String,
     voice_channel_id: String,
     text_channel_id: String,
@@ -354,6 +353,93 @@ async fn non_broadcaster_cannot_stop() {
     .await;
 
     assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+// ============================================================================
+// Go Live session is stopped when broadcaster leaves the voice channel (REST)
+// ============================================================================
+
+#[tokio::test]
+async fn go_live_stops_on_voice_leave() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    // Join voice and start go-live.
+    join_voice(app.clone(), &f.owner_token, &f.voice_channel_id).await;
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/go-live", f.voice_channel_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Leave the voice channel via REST.
+    let (status, _) = common::delete_authed(
+        app.clone(),
+        &format!("/channels/{}/voice", f.voice_channel_id),
+        &f.owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "failed to leave voice");
+
+    // Go Live session must be gone — 404 expected.
+    let (status, _) = common::get_authed(
+        app,
+        &format!("/channels/{}/go-live", f.voice_channel_id),
+        &f.owner_token,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "Go Live session should have been cleaned up on voice leave"
+    );
+}
+
+// ============================================================================
+// Go Live session is stopped when broadcaster switches to another channel
+// ============================================================================
+
+#[tokio::test]
+async fn go_live_stops_on_channel_switch() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    // Create a second voice channel.
+    let vc2 =
+        create_voice_channel(app.clone(), &f.owner_token, &f.server_id, "Stream Room 2").await;
+    let vc2_id = vc2["id"].as_str().unwrap();
+
+    // Join the first voice channel and start go-live.
+    join_voice(app.clone(), &f.owner_token, &f.voice_channel_id).await;
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/go-live", f.voice_channel_id),
+        &f.owner_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Switch to the second voice channel.
+    join_voice(app.clone(), &f.owner_token, vc2_id).await;
+
+    // The first channel's Go Live session must be gone.
+    let (status, _) = common::get_authed(
+        app,
+        &format!("/channels/{}/go-live", f.voice_channel_id),
+        &f.owner_token,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "Go Live session in the old channel should have been cleaned up on channel switch"
+    );
 }
 
 // ============================================================================
