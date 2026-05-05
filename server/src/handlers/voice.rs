@@ -111,6 +111,7 @@ async fn broadcast_voice_leave(state: &AppState, user_id: Uuid, server_id: Uuid)
 /// and broadcast a leave event to the old server.
 #[derive(sqlx::FromRow)]
 struct PriorVoiceLocation {
+    channel_id: Uuid,
     server_id: Uuid,
 }
 
@@ -182,7 +183,7 @@ pub async fn join_voice_channel(
     // If they are in a channel on a different server we must broadcast a leave
     // to that server — the UPSERT overwrites the DB row silently.
     let prior: Option<PriorVoiceLocation> = match sqlx::query_as::<_, PriorVoiceLocation>(
-        "SELECT c.server_id
+        "SELECT vs.channel_id, c.server_id
          FROM voice_states vs
          JOIN channels c ON vs.channel_id = c.id
          WHERE vs.user_id = $1",
@@ -230,6 +231,17 @@ pub async fn join_voice_channel(
         if prior.server_id != channel.server_id {
             broadcast_voice_leave(&state, auth.user_id(), prior.server_id).await;
         }
+        // If the user moved to a different channel (same or different server),
+        // stop any Go Live session they were broadcasting in the old channel.
+        if prior.channel_id != channel_id {
+            super::go_live::stop_go_live_for_broadcaster(
+                &state,
+                auth.user_id(),
+                prior.channel_id,
+                prior.server_id,
+            )
+            .await;
+        }
     }
 
     Ok((StatusCode::CREATED, Json(VoiceStateDto::from(vs))))
@@ -271,6 +283,13 @@ pub async fn leave_voice_channel(
     }
 
     broadcast_voice_leave(&state, auth.user_id(), channel.server_id).await;
+    super::go_live::stop_go_live_for_broadcaster(
+        &state,
+        auth.user_id(),
+        channel_id,
+        channel.server_id,
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }

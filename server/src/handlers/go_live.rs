@@ -34,8 +34,43 @@ pub struct StartGoLiveRequest {
 }
 
 // ============================================================================
-// Private helpers
+// Helpers
 // ============================================================================
+
+/// Stop any active Go Live session that `user_id` is broadcasting in `channel_id`,
+/// broadcasting `GO_LIVE_STOP` to the server if a session was found.
+///
+/// Called from all voice-leave paths (REST leave, channel switch, WebSocket
+/// disconnect) so that Go Live sessions are never left orphaned when the
+/// broadcaster exits the voice channel.
+pub(crate) async fn stop_go_live_for_broadcaster(
+    state: &AppState,
+    user_id: Uuid,
+    channel_id: Uuid,
+    server_id: Uuid,
+) {
+    let was_live = {
+        let mut sessions = state.go_live_sessions.write().await;
+        if sessions
+            .get(&channel_id)
+            .map(|s| s.broadcaster_id == user_id)
+            .unwrap_or(false)
+        {
+            sessions.remove(&channel_id);
+            true
+        } else {
+            false
+        }
+    };
+
+    if was_live {
+        let payload = serde_json::json!({
+            "channel_id":     channel_id,
+            "broadcaster_id": user_id,
+        });
+        broadcast_to_server(state, server_id, EVENT_GO_LIVE_STOP, payload).await;
+    }
+}
 
 fn require_voice_channel(channel: &crate::models::Channel) -> AppResult<()> {
     if !matches!(channel.r#type, ChannelType::Voice) {
