@@ -147,6 +147,7 @@ pub async fn ban_member(
     body: Option<Json<BanMemberRequest>>,
 ) -> AppResult<StatusCode> {
     require_member(&state.pool, server_id, auth.user_id()).await?;
+    require_member(&state.pool, server_id, target_user_id).await?;
     can_moderate(
         &state.pool,
         server_id,
