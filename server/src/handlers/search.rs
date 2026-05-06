@@ -100,7 +100,7 @@ pub async fn search_messages(
               AND m.channel_id = $2
               AND c.server_id = $3
               AND to_tsvector('english', m.content) @@ plainto_tsquery('english', $1)
-              AND ($4::uuid IS NULL OR m.created_at < (SELECT created_at FROM messages WHERE id = $4))
+              AND ($4::uuid IS NULL OR m.created_at < (SELECT created_at FROM messages WHERE id = $4 AND channel_id = $2))
             ORDER BY rank DESC, m.created_at DESC
             LIMIT $5
             "#,
@@ -132,7 +132,11 @@ pub async fn search_messages(
             WHERE m.deleted = FALSE
               AND c.server_id = $2
               AND to_tsvector('english', m.content) @@ plainto_tsquery('english', $1)
-              AND ($3::uuid IS NULL OR m.created_at < (SELECT created_at FROM messages WHERE id = $3))
+              AND ($3::uuid IS NULL OR m.created_at < (
+                  SELECT created_at FROM messages m2
+                  JOIN channels c2 ON c2.id = m2.channel_id
+                  WHERE m2.id = $3 AND c2.server_id = $2
+              ))
             ORDER BY rank DESC, m.created_at DESC
             LIMIT $4
             "#,

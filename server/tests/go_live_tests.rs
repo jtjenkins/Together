@@ -357,6 +357,54 @@ async fn non_broadcaster_cannot_stop() {
 }
 
 // ============================================================================
+// Server admin (owner) can stop a broadcaster's Go Live session
+// ============================================================================
+
+#[tokio::test]
+async fn admin_can_stop_go_live() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let f = setup(app.clone()).await;
+
+    // Member joins voice and starts Go Live — owner is NOT the broadcaster.
+    join_voice(app.clone(), &f.member_token, &f.voice_channel_id).await;
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{}/go-live", f.voice_channel_id),
+        &f.member_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "member should be able to start go-live");
+
+    // Server owner (has Manage Channels via ADMINISTRATOR) stops the session.
+    let (status, _) = common::delete_authed(
+        app.clone(),
+        &format!("/channels/{}/go-live", f.voice_channel_id),
+        &f.owner_token,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NO_CONTENT,
+        "server owner should be able to stop any broadcaster's Go Live session"
+    );
+
+    // Session should be gone.
+    let (status, _) = common::get_authed(
+        app,
+        &format!("/channels/{}/go-live", f.voice_channel_id),
+        &f.owner_token,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "Go Live session should be gone after admin stop"
+    );
+}
+
+// ============================================================================
 // Non-member cannot access go-live
 // ============================================================================
 

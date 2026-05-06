@@ -8,7 +8,9 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::shared::{fetch_channel_by_id, require_member};
+use super::shared::{
+    fetch_channel_by_id, require_member, require_permission, PERMISSION_MANAGE_CHANNELS,
+};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -167,24 +169,45 @@ pub async fn stop_go_live(
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
     require_voice_channel(&channel)?;
 
+    // Read the current broadcaster ID without holding the write lock during the
+    // async permission DB query below.
+    let broadcaster_id = {
+        let sessions = state.go_live_sessions.read().await;
+        sessions
+            .get(&channel_id)
+            .map(|s| s.broadcaster_id)
+            .ok_or_else(|| AppError::NotFound("No active Go Live session in this channel".into()))?
+    };
+
+    if broadcaster_id != auth.user_id() {
+        // Caller is not the broadcaster; they need Manage Channels (or Administrator).
+        require_permission(
+            &state.pool,
+            channel.server_id,
+            auth.user_id(),
+            PERMISSION_MANAGE_CHANNELS,
+            "Only the broadcaster or a member with Manage Channels permission can end the Go Live session",
+        )
+        .await?;
+    }
+
+    // Re-acquire write lock and remove, guarding against a race where the
+    // session already ended (e.g., broadcaster left the channel concurrently).
     {
         let mut sessions = state.go_live_sessions.write().await;
-        let session = sessions.get(&channel_id).ok_or_else(|| {
-            AppError::NotFound("No active Go Live session in this channel".into())
-        })?;
-
-        if session.broadcaster_id != auth.user_id() {
-            return Err(AppError::Forbidden(
-                "Only the broadcaster can end the Go Live session".into(),
-            ));
+        if sessions
+            .get(&channel_id)
+            .map(|s| s.broadcaster_id != broadcaster_id)
+            .unwrap_or(true)
+        {
+            return Err(AppError::NotFound("No active Go Live session in this channel".into()));
         }
-
         sessions.remove(&channel_id);
     }
 
     let payload = serde_json::json!({
         "channel_id":     channel_id,
-        "broadcaster_id": auth.user_id(),
+        "broadcaster_id": broadcaster_id,
     });
     broadcast_to_server(&state, channel.server_id, EVENT_GO_LIVE_STOP, payload).await;
 
