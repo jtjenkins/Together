@@ -80,7 +80,7 @@ pub struct ListMessagesQuery {
     /// a stable total order even when two messages share an identical timestamp.
     ///
     /// If the cursor ID does not exist or belongs to a different channel the
-    /// query returns an empty array (no error).
+    /// subquery returns no rows and the outer query returns an empty array.
     pub before: Option<Uuid>,
     /// Maximum number of messages to return (default 50, max 100).
     pub limit: Option<i64>,
@@ -416,7 +416,7 @@ pub async fn list_messages(
                AND m.thread_id IS NULL
                AND m.deleted = FALSE
                AND (m.created_at, m.id) < (
-                   SELECT created_at, id FROM messages WHERE id = $2
+                   SELECT created_at, id FROM messages WHERE id = $2 AND channel_id = $1
                )
              ORDER BY m.created_at DESC, m.id DESC
              LIMIT $3",
