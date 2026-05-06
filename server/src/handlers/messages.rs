@@ -538,7 +538,8 @@ pub async fn update_message(
                       WHERE t.thread_id = messages.id AND t.deleted = FALSE),
                      0
                    ) AS thread_reply_count,
-                   edited_at, deleted, created_at",
+                   edited_at, deleted, created_at,
+                   pinned, pinned_by, pinned_at",
     )
     .bind(&dto.content)
     .bind(message_id)

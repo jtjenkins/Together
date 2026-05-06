@@ -465,7 +465,7 @@ pub async fn list_dm_messages(
              WHERE channel_id = $1
                AND deleted = FALSE
                AND (created_at, id) < (
-                   SELECT created_at, id FROM direct_messages WHERE id = $2
+                   SELECT created_at, id FROM direct_messages WHERE id = $2 AND channel_id = $1
                )
              ORDER BY created_at DESC, id DESC
              LIMIT $3",
