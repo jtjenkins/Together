@@ -110,20 +110,23 @@ pub async fn start_go_live(
     let session = {
         let mut sessions = state.go_live_sessions.write().await;
 
-        // Reject if someone else is already live in this channel.
-        if let Some(existing) = sessions.get(&channel_id) {
-            if existing.broadcaster_id != auth.user_id() {
+        // Preserve the original started_at when updating an existing session so
+        // that clients always see the true session duration, not the duration since
+        // the last quality change.
+        let existing_started_at = match sessions.get(&channel_id) {
+            Some(existing) if existing.broadcaster_id != auth.user_id() => {
                 return Err(AppError::Validation(
                     "Another user is already broadcasting in this channel".into(),
                 ));
             }
-            // Caller is already the broadcaster — update quality and return.
-        }
+            Some(existing) => Some(existing.started_at),
+            None => None,
+        };
 
         let session = GoLiveSession {
             broadcaster_id: auth.user_id(),
             quality: quality.clone(),
-            started_at: Utc::now(),
+            started_at: existing_started_at.unwrap_or_else(Utc::now),
         };
         sessions.insert(channel_id, session.clone());
         session
