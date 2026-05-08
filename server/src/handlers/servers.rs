@@ -17,9 +17,10 @@ use crate::{
     handlers::audit::log_action,
     models::{
         AuditAction, CreateAuditLog, CreateServerDto, MemberDto, MemberRoleInfo, Server, ServerDto,
-        UpdateServerDto,
+        UpdateServerDto, VoiceStateDto,
     },
     state::AppState,
+    websocket::{broadcast_to_server, events::EVENT_VOICE_STATE_UPDATE},
 };
 
 // ============================================================================
@@ -539,6 +540,30 @@ pub async fn leave_server(
         return Err(AppError::Validation(
             "Server owner cannot leave — transfer ownership or delete the server".into(),
         ));
+    }
+
+    // Clean up voice state if the user is in a voice channel on this server.
+    let voice_removed = sqlx::query_scalar::<_, Uuid>(
+        "DELETE FROM voice_states
+         WHERE user_id = $1
+           AND channel_id IN (SELECT id FROM channels WHERE server_id = $2)
+         RETURNING channel_id",
+    )
+    .bind(auth.user_id())
+    .bind(server_id)
+    .fetch_optional(&state.pool)
+    .await?;
+
+    if voice_removed.is_some() {
+        let leave_dto = VoiceStateDto::leave(auth.user_id());
+        match serde_json::to_value(&leave_dto) {
+            Ok(payload) => {
+                broadcast_to_server(&state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to serialize VoiceStateDto for leave broadcast");
+            }
+        }
     }
 
     sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
