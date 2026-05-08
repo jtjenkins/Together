@@ -185,13 +185,14 @@ pub async fn create_poll(
     let mut dto = MessageDto::from_message(message);
     dto.poll = Some(poll_dto);
 
-    broadcast_to_server(
-        &state,
-        channel.server_id,
-        EVENT_MESSAGE_CREATE,
-        serde_json::to_value(&dto).unwrap_or_default(),
-    )
-    .await;
+    match serde_json::to_value(&dto) {
+        Ok(payload) => {
+            broadcast_to_server(&state, channel.server_id, EVENT_MESSAGE_CREATE, payload).await;
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to serialize poll MessageDto for broadcast");
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(dto)))
 }

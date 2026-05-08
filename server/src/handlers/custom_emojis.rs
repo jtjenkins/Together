@@ -286,16 +286,14 @@ pub async fn upload_custom_emoji(
 
     let dto = CustomEmojiDto::from_row(row);
 
-    broadcast_to_server(
-        &state,
-        server_id,
-        EVENT_CUSTOM_EMOJI_CREATE,
-        serde_json::to_value(&dto).unwrap_or_else(|e| {
+    match serde_json::to_value(&dto) {
+        Ok(payload) => {
+            broadcast_to_server(&state, server_id, EVENT_CUSTOM_EMOJI_CREATE, payload).await;
+        }
+        Err(e) => {
             tracing::error!(error = ?e, "Failed to serialize CustomEmojiDto for broadcast");
-            serde_json::Value::Null
-        }),
-    )
-    .await;
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(dto)))
 }
