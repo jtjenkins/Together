@@ -177,6 +177,7 @@ pub async fn list_pinned_messages(
         mention_user_ids: Vec<Uuid>,
         mention_everyone: bool,
         thread_id: Option<Uuid>,
+        thread_reply_count: i32,
         edited_at: Option<chrono::DateTime<chrono::Utc>>,
         deleted: bool,
         created_at: chrono::DateTime<chrono::Utc>,
@@ -188,6 +189,11 @@ pub async fn list_pinned_messages(
     let rows = sqlx::query_as::<_, PinnedRow>(
         "SELECT id, channel_id, author_id, content, reply_to,
                 mention_user_ids, mention_everyone, thread_id,
+                COALESCE(
+                    (SELECT COUNT(*)::int FROM messages t
+                     WHERE t.thread_id = messages.id AND t.deleted = FALSE),
+                    0
+                ) AS thread_reply_count,
                 edited_at, deleted, created_at,
                 pinned, pinned_by, pinned_at
          FROM messages
@@ -209,7 +215,7 @@ pub async fn list_pinned_messages(
             mention_user_ids: r.mention_user_ids,
             mention_everyone: r.mention_everyone,
             thread_id: r.thread_id,
-            thread_reply_count: 0,
+            thread_reply_count: r.thread_reply_count,
             edited_at: r.edited_at,
             deleted: r.deleted,
             created_at: r.created_at,
