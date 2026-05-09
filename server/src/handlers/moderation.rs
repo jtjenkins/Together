@@ -70,11 +70,15 @@ pub async fn kick_member(
 
     let reason = body.and_then(|b| b.0.reason);
 
-    // Clean up voice state if the target is in a voice channel.
+    // Clean up voice state if the target is in a voice channel belonging to this server.
     let voice_removed = sqlx::query_scalar::<_, Uuid>(
-        "DELETE FROM voice_states WHERE user_id = $1 RETURNING channel_id",
+        "DELETE FROM voice_states
+         WHERE user_id = $1
+           AND channel_id IN (SELECT id FROM channels WHERE server_id = $2)
+         RETURNING channel_id",
     )
     .bind(target_user_id)
+    .bind(server_id)
     .fetch_optional(&state.pool)
     .await?;
 
@@ -158,11 +162,15 @@ pub async fn ban_member(
 
     let reason = body.and_then(|b| b.0.reason);
 
-    // Clean up voice state.
+    // Clean up voice state if the target is in a voice channel belonging to this server.
     let voice_removed = sqlx::query_scalar::<_, Uuid>(
-        "DELETE FROM voice_states WHERE user_id = $1 RETURNING channel_id",
+        "DELETE FROM voice_states
+         WHERE user_id = $1
+           AND channel_id IN (SELECT id FROM channels WHERE server_id = $2)
+         RETURNING channel_id",
     )
     .bind(target_user_id)
+    .bind(server_id)
     .fetch_optional(&state.pool)
     .await?;
 
