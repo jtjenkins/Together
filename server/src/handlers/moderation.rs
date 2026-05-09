@@ -27,8 +27,8 @@ use crate::{
     websocket::{
         broadcast_to_server,
         events::{
-            EVENT_MEMBER_BAN, EVENT_MEMBER_KICK, EVENT_MEMBER_TIMEOUT, EVENT_MEMBER_TIMEOUT_REMOVE,
-            EVENT_VOICE_STATE_UPDATE,
+            EVENT_GO_LIVE_STOP, EVENT_MEMBER_BAN, EVENT_MEMBER_KICK, EVENT_MEMBER_TIMEOUT,
+            EVENT_MEMBER_TIMEOUT_REMOVE, EVENT_VOICE_STATE_UPDATE,
         },
     },
 };
@@ -91,6 +91,33 @@ pub async fn kick_member(
             Err(e) => {
                 tracing::error!(error = ?e, "Failed to serialize VoiceStateDto");
             }
+        }
+    }
+
+    // If the target was broadcasting a Go Live session in the voice channel they
+    // just lost, remove it from the in-memory map and notify the server.
+    // Without this cleanup, the channel is permanently locked: `start_go_live`
+    // would reject new broadcasters with "Another user is already broadcasting".
+    if let Some(channel_id) = voice_removed {
+        let removed = {
+            let mut sessions = state.go_live_sessions.write().await;
+            if sessions.get(&channel_id).map(|s| s.broadcaster_id) == Some(target_user_id) {
+                sessions.remove(&channel_id)
+            } else {
+                None
+            }
+        };
+        if removed.is_some() {
+            broadcast_to_server(
+                &state,
+                server_id,
+                EVENT_GO_LIVE_STOP,
+                serde_json::json!({
+                    "channel_id":     channel_id,
+                    "broadcaster_id": target_user_id,
+                }),
+            )
+            .await;
         }
     }
 
@@ -183,6 +210,32 @@ pub async fn ban_member(
             Err(e) => {
                 tracing::error!(error = ?e, "Failed to serialize VoiceStateDto");
             }
+        }
+    }
+
+    // If the target was broadcasting a Go Live session, stop it.
+    // Same rationale as in `kick_member`: without this cleanup the channel is
+    // permanently blocked from new broadcasts after the broadcaster is banned.
+    if let Some(channel_id) = voice_removed {
+        let removed = {
+            let mut sessions = state.go_live_sessions.write().await;
+            if sessions.get(&channel_id).map(|s| s.broadcaster_id) == Some(target_user_id) {
+                sessions.remove(&channel_id)
+            } else {
+                None
+            }
+        };
+        if removed.is_some() {
+            broadcast_to_server(
+                &state,
+                server_id,
+                EVENT_GO_LIVE_STOP,
+                serde_json::json!({
+                    "channel_id":     channel_id,
+                    "broadcaster_id": target_user_id,
+                }),
+            )
+            .await;
         }
     }
 
