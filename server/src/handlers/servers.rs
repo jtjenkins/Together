@@ -17,9 +17,13 @@ use crate::{
     handlers::audit::log_action,
     models::{
         AuditAction, CreateAuditLog, CreateServerDto, MemberDto, MemberRoleInfo, Server, ServerDto,
-        UpdateServerDto,
+        UpdateServerDto, VoiceStateDto,
     },
     state::AppState,
+    websocket::{
+        broadcast_to_server,
+        events::{EVENT_GO_LIVE_STOP, EVENT_VOICE_STATE_UPDATE},
+    },
 };
 
 // ============================================================================
@@ -539,6 +543,58 @@ pub async fn leave_server(
         return Err(AppError::Validation(
             "Server owner cannot leave — transfer ownership or delete the server".into(),
         ));
+    }
+
+    // Clean up voice state if the user is in a voice channel belonging to this server.
+    let voice_removed = sqlx::query_scalar::<_, Uuid>(
+        "DELETE FROM voice_states
+         WHERE user_id = $1
+           AND channel_id IN (SELECT id FROM channels WHERE server_id = $2)
+         RETURNING channel_id",
+    )
+    .bind(auth.user_id())
+    .bind(server_id)
+    .fetch_optional(&state.pool)
+    .await?;
+
+    if let Some(removed_channel_id) = voice_removed {
+        let leave_dto = VoiceStateDto::leave(auth.user_id());
+        match serde_json::to_value(&leave_dto) {
+            Ok(payload) => {
+                broadcast_to_server(&state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to serialize VoiceStateDto for leave_server broadcast");
+            }
+        }
+
+        // Clean up any active Go Live session the departing user was broadcasting.
+        // Releasing the write lock before broadcast matches the pattern in stop_go_live.
+        let go_live_stopped = {
+            let mut sessions = state.go_live_sessions.write().await;
+            if sessions
+                .get(&removed_channel_id)
+                .is_some_and(|s| s.broadcaster_id == auth.user_id())
+            {
+                sessions.remove(&removed_channel_id);
+                true
+            } else {
+                false
+            }
+        };
+
+        if go_live_stopped {
+            broadcast_to_server(
+                &state,
+                server_id,
+                EVENT_GO_LIVE_STOP,
+                serde_json::json!({
+                    "channel_id": removed_channel_id,
+                    "broadcaster_id": auth.user_id(),
+                }),
+            )
+            .await;
+        }
     }
 
     sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
