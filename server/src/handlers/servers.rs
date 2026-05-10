@@ -17,9 +17,13 @@ use crate::{
     handlers::audit::log_action,
     models::{
         AuditAction, CreateAuditLog, CreateServerDto, MemberDto, MemberRoleInfo, Server, ServerDto,
-        UpdateServerDto,
+        UpdateServerDto, VoiceStateDto,
     },
     state::AppState,
+    websocket::{
+        broadcast_to_server,
+        events::{EVENT_GO_LIVE_STOP, EVENT_VOICE_STATE_UPDATE},
+    },
 };
 
 // ============================================================================
@@ -407,6 +411,54 @@ pub async fn delete_server(
         ));
     }
 
+    // Snapshot users in voice channels so we can broadcast leave events before the cascade delete
+    // removes voice_states rows and the server_members rows that broadcast_to_server needs.
+    let voice_users: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT user_id FROM voice_states
+         WHERE channel_id IN (SELECT id FROM channels WHERE server_id = $1)",
+    )
+    .bind(server_id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    // Snapshot active Go Live sessions for voice channels in this server.
+    let voice_channel_ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM channels WHERE server_id = $1 AND type = 'voice'",
+    )
+    .bind(server_id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    let go_live_entries: Vec<(Uuid, Uuid)> = {
+        let sessions = state.go_live_sessions.read().await;
+        voice_channel_ids
+            .iter()
+            .filter_map(|ch_id| sessions.get(ch_id).map(|s| (*ch_id, s.broadcaster_id)))
+            .collect()
+    };
+
+    // Broadcast leave events before the delete so broadcast_to_server can still
+    // query server_members (cascade-deleted along with the server row).
+    for user_id in &voice_users {
+        let leave_dto = VoiceStateDto::leave(*user_id);
+        match serde_json::to_value(&leave_dto) {
+            Ok(payload) => {
+                broadcast_to_server(&state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to serialize VoiceStateDto for leave broadcast");
+            }
+        }
+    }
+
+    for (channel_id, broadcaster_id) in &go_live_entries {
+        let payload = json!({
+            "channel_id":     channel_id,
+            "broadcaster_id": broadcaster_id,
+        });
+        broadcast_to_server(&state, server_id, EVENT_GO_LIVE_STOP, payload).await;
+    }
+
     // Log before delete — server_id will be SET NULL on the audit row.
     log_action(
         &state.pool,
@@ -426,6 +478,14 @@ pub async fn delete_server(
         .bind(server_id)
         .execute(&state.pool)
         .await?;
+
+    // Remove orphaned Go Live sessions from the in-memory map after the cascade delete.
+    {
+        let mut sessions = state.go_live_sessions.write().await;
+        for (channel_id, _) in &go_live_entries {
+            sessions.remove(channel_id);
+        }
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
