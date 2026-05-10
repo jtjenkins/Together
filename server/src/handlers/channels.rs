@@ -14,8 +14,13 @@ use crate::{
     handlers::audit::log_action,
     models::{
         AuditAction, Channel, ChannelType, CreateAuditLog, CreateChannelDto, UpdateChannelDto,
+        VoiceStateDto,
     },
     state::AppState,
+    websocket::{
+        broadcast_to_server,
+        events::{EVENT_GO_LIVE_STOP, EVENT_VOICE_STATE_UPDATE},
+    },
 };
 
 // ============================================================================
@@ -317,8 +322,30 @@ pub async fn delete_channel(
         ));
     }
 
-    // Fetch channel name before delete for the audit log.
+    // Fetch channel before delete for the audit log and type check.
     let channel = fetch_channel(&state.pool, server_id, channel_id).await?;
+
+    // For voice channels, snapshot participants and Go Live state before deletion
+    // so we can broadcast cleanup events after the channel (and its voice_states)
+    // are cascade-deleted from the DB.
+    let (voice_user_ids, go_live_broadcaster): (Vec<Uuid>, Option<Uuid>) =
+        if matches!(channel.r#type, ChannelType::Voice) {
+            let user_ids = sqlx::query_scalar::<_, Uuid>(
+                "SELECT user_id FROM voice_states WHERE channel_id = $1",
+            )
+            .bind(channel_id)
+            .fetch_all(&state.pool)
+            .await?;
+
+            let broadcaster = {
+                let sessions = state.go_live_sessions.read().await;
+                sessions.get(&channel_id).map(|s| s.broadcaster_id)
+            };
+
+            (user_ids, broadcaster)
+        } else {
+            (vec![], None)
+        };
 
     let result = sqlx::query("DELETE FROM channels WHERE id = $1 AND server_id = $2")
         .bind(channel_id)
@@ -328,6 +355,32 @@ pub async fn delete_channel(
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("Channel not found".into()));
+    }
+
+    // Broadcast voice leave events for every participant who was in the channel.
+    for user_id in voice_user_ids {
+        let dto = VoiceStateDto::leave(user_id);
+        match serde_json::to_value(&dto) {
+            Ok(payload) => {
+                broadcast_to_server(&state, server_id, EVENT_VOICE_STATE_UPDATE, payload).await;
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to serialize VoiceStateDto");
+            }
+        }
+    }
+
+    // Stop any active Go Live session in this channel and notify clients.
+    if let Some(broadcaster_id) = go_live_broadcaster {
+        {
+            let mut sessions = state.go_live_sessions.write().await;
+            sessions.remove(&channel_id);
+        }
+        let payload = serde_json::json!({
+            "channel_id":     channel_id,
+            "broadcaster_id": broadcaster_id,
+        });
+        broadcast_to_server(&state, server_id, EVENT_GO_LIVE_STOP, payload).await;
     }
 
     log_action(
