@@ -13,7 +13,10 @@ use crate::{
     websocket::{broadcast_to_server, events::EVENT_MESSAGE_CREATE},
 };
 
-use super::shared::{fetch_channel_by_id, require_member};
+use super::automod::check_timeout;
+use super::shared::{
+    fetch_channel_by_id, require_channel_permission, require_member, PERMISSION_SEND_MESSAGES,
+};
 
 // ── POST /channels/:channel_id/events ──────────────────────────────────────
 
@@ -44,6 +47,18 @@ pub async fn create_event(
 
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    require_channel_permission(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        PERMISSION_SEND_MESSAGES,
+        "You don't have permission to send messages in this channel",
+    )
+    .await?;
+
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
 
     let display_time = req.starts_at.format("%b %-d, %Y at %-I:%M %p UTC");
     let message_content = format!("📅 **Event**: {} — {}", req.name.trim(), display_time);

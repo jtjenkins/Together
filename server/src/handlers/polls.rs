@@ -17,7 +17,10 @@ use crate::{
     },
 };
 
-use super::shared::{fetch_channel_by_id, require_member};
+use super::automod::check_timeout;
+use super::shared::{
+    fetch_channel_by_id, require_channel_permission, require_member, PERMISSION_SEND_MESSAGES,
+};
 
 // ── Row types for query_as ──────────────────────────────────────────────────
 
@@ -137,6 +140,18 @@ pub async fn create_poll(
 
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    require_channel_permission(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        PERMISSION_SEND_MESSAGES,
+        "You don't have permission to send messages in this channel",
+    )
+    .await?;
+
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
 
     let options_json: Vec<serde_json::Value> = req
         .options
