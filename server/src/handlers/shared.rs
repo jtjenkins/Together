@@ -185,7 +185,7 @@ pub async fn require_manage_messages(
         Ok(())
     } else {
         Err(AppError::Forbidden(
-            "You need the Manage Messages permission to pin messages".into(),
+            "You need the Manage Messages permission".into(),
         ))
     }
 }
