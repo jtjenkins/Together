@@ -11,9 +11,9 @@ use validator::Validate;
 
 use super::automod::{check_automod, check_timeout};
 use super::shared::{
-    fetch_channel_by_id, fetch_message, fetch_message_including_deleted, fetch_server,
-    require_channel_permission, require_member, validation_error, PERMISSION_SEND_MESSAGES,
-    PERMISSION_VIEW_CHANNEL,
+    fetch_channel_by_id, fetch_message, fetch_message_including_deleted,
+    require_channel_permission, require_manage_messages, require_member, validation_error,
+    PERMISSION_SEND_MESSAGES, PERMISSION_VIEW_CHANNEL,
 };
 use super::webhooks::dispatch_event;
 use crate::{
@@ -583,7 +583,7 @@ pub async fn update_message(
     params(("message_id" = Uuid, Path, description = "Message ID")),
     responses(
         (status = 204, description = "Message deleted"),
-        (status = 403, description = "Not the message author or server owner"),
+        (status = 403, description = "Not the message author and lacks Manage Messages permission"),
         (status = 404, description = "Message not found")
     ),
     security(("bearer_auth" = [])),
@@ -598,18 +598,15 @@ pub async fn delete_message(
 
     // Resolve the server this message belongs to (message → channel → server).
     let channel = fetch_channel_by_id(&state.pool, message.channel_id).await?;
-    let server = fetch_server(&state.pool, channel.server_id).await?;
 
     // Verify the caller is still an active member.
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
     let is_author = message.author_id == Some(auth.user_id());
-    let is_owner = server.owner_id == auth.user_id();
 
-    if !is_author && !is_owner {
-        return Err(AppError::Forbidden(
-            "Only the message author or server owner can delete it".into(),
-        ));
+    // Non-authors need MANAGE_MESSAGES (or ADMINISTRATOR, or server ownership).
+    if !is_author {
+        require_manage_messages(&state.pool, channel.server_id, auth.user_id()).await?;
     }
 
     // AND deleted = FALSE ensures rows_affected() == 0 on a concurrent double-delete.

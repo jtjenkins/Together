@@ -540,3 +540,57 @@ async fn delete_message_already_deleted_returns_404() {
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn delete_message_manage_messages_can_delete_others() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+    let (owner_token, sid, cid) = setup_server_and_channel(app.clone()).await;
+
+    // Register a moderator member and capture their user ID.
+    let mod_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let mod_token = mod_body["access_token"].as_str().unwrap().to_owned();
+    let mod_id = mod_body["user"]["id"].as_str().unwrap().to_owned();
+
+    // Join the server.
+    common::make_server_public(app.clone(), &owner_token, &sid).await;
+    let (join_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{sid}/join"),
+        &mod_token,
+        json!({}),
+    )
+    .await;
+    assert!(
+        join_status == StatusCode::OK || join_status == StatusCode::CREATED,
+        "join failed: {join_status}"
+    );
+
+    // Create a role with MANAGE_MESSAGES (bit 2 = 4) and assign it to the moderator.
+    let (role_status, role_body) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{sid}/roles"),
+        &owner_token,
+        json!({ "name": "Moderator", "permissions": 4 }),
+    )
+    .await;
+    assert_eq!(role_status, StatusCode::CREATED, "create_role failed: {role_body}");
+    let role_id = role_body["id"].as_str().unwrap();
+
+    let (assign_status, _) = common::put_authed(
+        app.clone(),
+        &format!("/servers/{sid}/members/{mod_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(assign_status, StatusCode::NO_CONTENT, "assign_role failed");
+
+    // Owner posts a message; moderator should be able to delete it.
+    let msg = common::create_message(app.clone(), &owner_token, &cid, "owner msg").await;
+    let mid = msg["id"].as_str().unwrap();
+
+    let (status, _) =
+        common::delete_authed(app, &format!("/messages/{mid}"), &mod_token).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+}
