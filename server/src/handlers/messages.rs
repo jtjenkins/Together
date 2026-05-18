@@ -487,6 +487,20 @@ pub async fn update_message(
         ));
     }
 
+    // Edits carry the same timeout and content rules as new messages — a
+    // timed-out user must not be able to sneak filtered content in via edit.
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
+    check_automod(
+        &state.pool,
+        channel.server_id,
+        message.channel_id,
+        auth.user_id(),
+        auth.username(),
+        &req.content,
+        None,
+    )
+    .await?;
+
     let dto = UpdateMessageDto {
         content: req.content,
     };
