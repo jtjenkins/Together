@@ -17,6 +17,7 @@ use crate::{
     },
 };
 
+use super::automod::check_timeout;
 use super::shared::{fetch_channel_by_id, require_member};
 
 // ── Row types for query_as ──────────────────────────────────────────────────
@@ -276,6 +277,9 @@ pub async fn cast_vote(
     }
 
     require_member(&state.pool, poll.server_id, auth.user_id()).await?;
+
+    // Timed-out members may not cast votes.
+    check_timeout(&state.pool, poll.server_id, auth.user_id()).await?;
 
     // Upsert vote (single-choice: PK on poll_id+user_id)
     sqlx::query(
