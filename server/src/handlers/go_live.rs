@@ -8,6 +8,7 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use super::automod::check_timeout;
 use super::shared::{fetch_channel_by_id, require_member};
 use crate::{
     auth::AuthUser,
@@ -96,6 +97,7 @@ pub async fn start_go_live(
 ) -> AppResult<(StatusCode, Json<GoLiveSession>)> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
     require_voice_channel(&channel)?;
     require_in_voice_channel(&state, auth.user_id(), channel_id).await?;
 
