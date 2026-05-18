@@ -12,6 +12,7 @@ use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
+use super::automod::check_timeout;
 use super::shared::{
     fetch_channel_by_id, fetch_message, require_channel_permission, require_member,
     PERMISSION_ATTACH_FILES,
@@ -105,6 +106,8 @@ pub async fn upload_attachments(
         "You don't have permission to attach files in this channel",
     )
     .await?;
+
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
 
     if message.author_id != Some(auth.user_id()) {
         return Err(AppError::Forbidden(
