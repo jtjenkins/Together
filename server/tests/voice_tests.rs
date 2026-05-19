@@ -956,3 +956,54 @@ async fn participant_list_includes_video_fields() {
     assert!(!participants[0]["self_video"].as_bool().unwrap());
     assert!(!participants[0]["self_screen"].as_bool().unwrap());
 }
+
+#[tokio::test]
+async fn timed_out_member_cannot_join_voice_channel() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &owner_token, "Timeout Voice Guild").await;
+    let server_id = server["id"].as_str().unwrap();
+
+    let vc = create_voice_channel(app.clone(), &owner_token, server_id, "General Voice").await;
+    let vc_id = vc["id"].as_str().unwrap();
+
+    // Register member and get their user ID for the timeout endpoint.
+    let member_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let member_id = member_body["id"].as_str().unwrap();
+    let member_token = member_body["access_token"].as_str().unwrap().to_owned();
+
+    common::make_server_public(app.clone(), &owner_token, server_id).await;
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        &member_token,
+        json!({}),
+    )
+    .await;
+
+    // Owner applies a timeout to the member.
+    let (timeout_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 60 }),
+    )
+    .await;
+    assert_eq!(timeout_status, StatusCode::NO_CONTENT, "setup timeout failed");
+
+    // Timed-out member attempts to join a voice channel — must be blocked.
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/channels/{vc_id}/voice"),
+        &member_token,
+        json!({}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(body["error"].as_str().unwrap().contains("timed out"));
+}
