@@ -7,7 +7,9 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
-use super::shared::{fetch_server, require_member, validation_error};
+use super::shared::{
+    fetch_server, require_member, require_permission, validation_error, PERMISSION_MANAGE_CHANNELS,
+};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
@@ -69,7 +71,7 @@ async fn fetch_channel(
 // Handlers
 // ============================================================================
 
-/// POST /servers/:id/channels — create a channel in a server (owner only).
+/// POST /servers/:id/channels — create a channel in a server (Manage Channels permission required).
 #[utoipa::path(
     post,
     path = "/servers/{id}/channels",
@@ -78,7 +80,7 @@ async fn fetch_channel(
     responses(
         (status = 201, description = "Channel created", body = Channel),
         (status = 400, description = "Validation error"),
-        (status = 403, description = "Not the server owner"),
+        (status = 403, description = "Insufficient permissions"),
         (status = 404, description = "Server not found")
     ),
     security(("bearer_auth" = [])),
@@ -92,13 +94,15 @@ pub async fn create_channel(
 ) -> AppResult<(StatusCode, Json<Channel>)> {
     req.validate().map_err(validation_error)?;
 
-    let server = fetch_server(&state.pool, server_id).await?;
-
-    if server.owner_id != auth.user_id() {
-        return Err(AppError::Forbidden(
-            "Only the server owner can create channels".into(),
-        ));
-    }
+    require_member(&state.pool, server_id, auth.user_id()).await?;
+    require_permission(
+        &state.pool,
+        server_id,
+        auth.user_id(),
+        PERMISSION_MANAGE_CHANNELS,
+        "You need the Manage Channels permission to create channels",
+    )
+    .await?;
 
     let dto = CreateChannelDto {
         name: req.name,
@@ -201,7 +205,7 @@ pub async fn get_channel(
     Ok(Json(channel))
 }
 
-/// PATCH /servers/:id/channels/:channel_id — update a channel (owner only).
+/// PATCH /servers/:id/channels/:channel_id — update a channel (Manage Channels permission required).
 #[utoipa::path(
     patch,
     path = "/servers/{id}/channels/{channel_id}",
@@ -213,7 +217,7 @@ pub async fn get_channel(
     responses(
         (status = 200, description = "Channel updated", body = Channel),
         (status = 400, description = "Validation error"),
-        (status = 403, description = "Not the server owner"),
+        (status = 403, description = "Insufficient permissions"),
         (status = 404, description = "Server or channel not found")
     ),
     security(("bearer_auth" = [])),
@@ -227,13 +231,15 @@ pub async fn update_channel(
 ) -> AppResult<Json<Channel>> {
     req.validate().map_err(validation_error)?;
 
-    let server = fetch_server(&state.pool, server_id).await?;
-
-    if server.owner_id != auth.user_id() {
-        return Err(AppError::Forbidden(
-            "Only the server owner can update channels".into(),
-        ));
-    }
+    require_member(&state.pool, server_id, auth.user_id()).await?;
+    require_permission(
+        &state.pool,
+        server_id,
+        auth.user_id(),
+        PERMISSION_MANAGE_CHANNELS,
+        "You need the Manage Channels permission to update channels",
+    )
+    .await?;
 
     let dto = UpdateChannelDto {
         name: req.name,
@@ -285,7 +291,7 @@ pub async fn update_channel(
     Ok(Json(updated))
 }
 
-/// DELETE /servers/:id/channels/:channel_id — delete a channel (owner only).
+/// DELETE /servers/:id/channels/:channel_id — delete a channel (Manage Channels permission required).
 ///
 /// This is a hard delete; any messages in the channel are also removed by the
 /// database cascade constraint (ON DELETE CASCADE on messages.channel_id).
@@ -298,7 +304,7 @@ pub async fn update_channel(
     ),
     responses(
         (status = 204, description = "Channel deleted"),
-        (status = 403, description = "Not the server owner"),
+        (status = 403, description = "Insufficient permissions"),
         (status = 404, description = "Server or channel not found")
     ),
     security(("bearer_auth" = [])),
@@ -309,13 +315,15 @@ pub async fn delete_channel(
     auth: AuthUser,
     Path((server_id, channel_id)): Path<(Uuid, Uuid)>,
 ) -> AppResult<StatusCode> {
-    let server = fetch_server(&state.pool, server_id).await?;
-
-    if server.owner_id != auth.user_id() {
-        return Err(AppError::Forbidden(
-            "Only the server owner can delete channels".into(),
-        ));
-    }
+    require_member(&state.pool, server_id, auth.user_id()).await?;
+    require_permission(
+        &state.pool,
+        server_id,
+        auth.user_id(),
+        PERMISSION_MANAGE_CHANNELS,
+        "You need the Manage Channels permission to delete channels",
+    )
+    .await?;
 
     // Fetch channel name before delete for the audit log.
     let channel = fetch_channel(&state.pool, server_id, channel_id).await?;
