@@ -647,6 +647,123 @@ async fn update_channel_not_found() {
 }
 
 // ============================================================================
+// MANAGE_CHANNELS permission — non-owner with permission can manage channels
+// ============================================================================
+
+const PERMISSION_MANAGE_CHANNELS: i64 = 1024;
+
+async fn setup_server_with_manage_channels_member(
+) -> (axum::Router, String, String, String, String) {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let member_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let member_token = member_body["access_token"].as_str().unwrap().to_owned();
+    let member_id = member_body["user"]["id"].as_str().unwrap().to_owned();
+
+    let server = common::create_server(app.clone(), &owner_token, "Perm Test Guild").await;
+    let sid = server["id"].as_str().unwrap().to_owned();
+
+    common::make_server_public(app.clone(), &owner_token, &sid).await;
+    let (join_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{sid}/join"),
+        &member_token,
+        json!({}),
+    )
+    .await;
+    assert!(
+        join_status == axum::http::StatusCode::OK
+            || join_status == axum::http::StatusCode::CREATED,
+        "join failed with {join_status}"
+    );
+
+    let (role_status, role) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{sid}/roles"),
+        &owner_token,
+        json!({ "name": "Channel Manager", "permissions": PERMISSION_MANAGE_CHANNELS }),
+    )
+    .await;
+    assert_eq!(role_status, axum::http::StatusCode::CREATED, "role creation failed: {role}");
+    let role_id = role["id"].as_str().unwrap().to_owned();
+
+    let (assign_status, _) = common::put_authed(
+        app.clone(),
+        &format!("/servers/{sid}/members/{member_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(assign_status, axum::http::StatusCode::NO_CONTENT, "role assignment failed");
+
+    (app, owner_token, member_token, sid, member_id)
+}
+
+#[tokio::test]
+async fn create_channel_manage_channels_permission_can_create() {
+    let (app, _, member_token, sid, _) = setup_server_with_manage_channels_member().await;
+
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/servers/{sid}/channels"),
+        &member_token,
+        json!({ "name": "mod-channel", "type": "text" }),
+    )
+    .await;
+
+    assert_eq!(status, axum::http::StatusCode::CREATED);
+    assert_eq!(body["name"], "mod-channel");
+}
+
+#[tokio::test]
+async fn update_channel_manage_channels_permission_can_update() {
+    let (app, owner_token, member_token, sid, _) =
+        setup_server_with_manage_channels_member().await;
+
+    let ch = common::create_channel(app.clone(), &owner_token, &sid, "old-name").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/servers/{sid}/channels/{cid}"),
+        &member_token,
+        json!({ "name": "renamed" }),
+    )
+    .await;
+
+    assert_eq!(status, axum::http::StatusCode::OK);
+    assert_eq!(body["name"], "renamed");
+}
+
+#[tokio::test]
+async fn delete_channel_manage_channels_permission_can_delete() {
+    let (app, owner_token, member_token, sid, _) =
+        setup_server_with_manage_channels_member().await;
+
+    let ch = common::create_channel(app.clone(), &owner_token, &sid, "deletable").await;
+    let cid = ch["id"].as_str().unwrap();
+
+    let (status, _) = common::delete_authed(
+        app.clone(),
+        &format!("/servers/{sid}/channels/{cid}"),
+        &member_token,
+    )
+    .await;
+    assert_eq!(status, axum::http::StatusCode::NO_CONTENT);
+
+    let (status, _) = common::get_authed(
+        app,
+        &format!("/servers/{sid}/channels/{cid}"),
+        &member_token,
+    )
+    .await;
+    assert_eq!(status, axum::http::StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
 // Cross-server isolation — channels must not be reachable via another server's ID
 // ============================================================================
 
