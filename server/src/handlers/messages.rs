@@ -487,6 +487,19 @@ pub async fn update_message(
         ));
     }
 
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    check_automod(
+        &state.pool,
+        channel.server_id,
+        message.channel_id,
+        auth.user_id(),
+        auth.username(),
+        &req.content,
+        Some(message_id),
+    )
+    .await?;
+
     let dto = UpdateMessageDto {
         content: req.content,
     };
