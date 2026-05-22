@@ -9,6 +9,7 @@ use super::shared::{fetch_channel_by_id, fetch_message, require_manage_messages,
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
+    handlers::automod::check_timeout,
     models::MessageDto,
     state::AppState,
     websocket::{
@@ -46,6 +47,7 @@ pub async fn pin_message(
 ) -> AppResult<StatusCode> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
     require_manage_messages(&state.pool, channel.server_id, auth.user_id()).await?;
 
     let msg = fetch_message(&state.pool, message_id).await?;
@@ -108,6 +110,7 @@ pub async fn unpin_message(
 ) -> AppResult<StatusCode> {
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
     require_manage_messages(&state.pool, channel.server_id, auth.user_id()).await?;
 
     let msg = fetch_message(&state.pool, message_id).await?;
