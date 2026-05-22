@@ -182,6 +182,119 @@ async fn pin_message_wrong_channel_returns_404(pool: sqlx::PgPool) {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
+// ── timeout tests ────────────────────────────────────────────────────────────
+
+/// Helper: register a member, join the given public server, grant MANAGE_MESSAGES,
+/// and apply a 60-minute timeout.  Returns (member_token, member_id).
+async fn setup_timed_out_member_with_manage_messages(
+    app: axum::Router,
+    owner_token: &str,
+    server_id: &str,
+) -> (String, String) {
+    let member_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let member_token = member_body["access_token"].as_str().unwrap().to_owned();
+    let member_id = member_body["user"]["id"].as_str().unwrap().to_owned();
+
+    let (join_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        &member_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(join_status, StatusCode::CREATED, "member join failed");
+
+    // Grant MANAGE_MESSAGES (bit 2 = 4) via a role so the member would normally be allowed.
+    let (role_status, role_body) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        owner_token,
+        serde_json::json!({ "name": "Pinner", "permissions": 4 }),
+    )
+    .await;
+    assert_eq!(role_status, StatusCode::CREATED, "role creation failed");
+    let role_id = role_body["id"].as_str().unwrap().to_owned();
+
+    let (assign_status, _) = common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{role_id}"),
+        owner_token,
+    )
+    .await;
+    assert_eq!(assign_status, StatusCode::NO_CONTENT, "role assign failed");
+
+    // Apply a 60-minute timeout to the member.
+    let (timeout_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/timeout"),
+        owner_token,
+        serde_json::json!({ "duration_minutes": 60 }),
+    )
+    .await;
+    assert_eq!(timeout_status, StatusCode::NO_CONTENT, "timeout failed");
+
+    (member_token, member_id)
+}
+
+#[sqlx::test]
+async fn timed_out_member_cannot_pin_message(pool: sqlx::PgPool) {
+    let app = common::create_test_app(pool);
+    let (owner_token, sid, cid, mid) = setup(app.clone()).await;
+
+    common::make_server_public(app.clone(), &owner_token, &sid).await;
+    let (member_token, _) =
+        setup_timed_out_member_with_manage_messages(app.clone(), &owner_token, &sid).await;
+
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/channels/{cid}/messages/{mid}/pin"),
+        &member_token,
+        serde_json::json!({}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[sqlx::test]
+async fn timed_out_member_cannot_unpin_message(pool: sqlx::PgPool) {
+    let app = common::create_test_app(pool);
+    let (owner_token, sid, cid, mid) = setup(app.clone()).await;
+
+    common::make_server_public(app.clone(), &owner_token, &sid).await;
+    let (member_token, _) =
+        setup_timed_out_member_with_manage_messages(app.clone(), &owner_token, &sid).await;
+
+    // Owner pins the message first.
+    let (pin_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{cid}/messages/{mid}/pin"),
+        &owner_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(pin_status, StatusCode::NO_CONTENT);
+
+    // Timed-out member tries to unpin → 403.
+    let (status, body) = common::delete_authed(
+        app,
+        &format!("/channels/{cid}/messages/{mid}/pin"),
+        &member_token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
 // ── unpin_message tests ───────────────────────────────────────────────────────
 
 #[sqlx::test]
