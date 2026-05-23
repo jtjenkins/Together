@@ -10,6 +10,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 
+use super::automod::check_timeout;
 use super::shared::{fetch_server, require_member};
 use crate::{
     auth::AuthUser,
@@ -176,6 +177,7 @@ pub async fn create_webhook(
 ) -> AppResult<(StatusCode, Json<WebhookCreatedResponse>)> {
     require_member(&state.pool, server_id, auth.user_id()).await?;
     require_manage_webhooks(&state.pool, server_id, auth.user_id()).await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let name = payload.name.trim().to_string();
     if name.is_empty() || name.chars().count() > 100 {
@@ -335,6 +337,7 @@ pub async fn update_webhook(
 ) -> AppResult<Json<WebhookDto>> {
     require_member(&state.pool, server_id, auth.user_id()).await?;
     require_manage_webhooks(&state.pool, server_id, auth.user_id()).await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     // Verify webhook belongs to this server.
     let existing = sqlx::query_as::<_, Webhook>(
@@ -428,6 +431,7 @@ pub async fn delete_webhook(
 ) -> AppResult<StatusCode> {
     require_member(&state.pool, server_id, auth.user_id()).await?;
     require_manage_webhooks(&state.pool, server_id, auth.user_id()).await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let rows = sqlx::query("DELETE FROM webhooks WHERE id = $1 AND server_id = $2")
         .bind(webhook_id)
@@ -474,6 +478,7 @@ pub async fn test_webhook(
 ) -> AppResult<StatusCode> {
     require_member(&state.pool, server_id, auth.user_id()).await?;
     require_manage_webhooks(&state.pool, server_id, auth.user_id()).await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let webhook = sqlx::query_as::<_, Webhook>(
         "SELECT id, server_id, created_by, name, url, secret, event_types,
