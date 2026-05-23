@@ -10,6 +10,7 @@ use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
+use super::automod::check_timeout;
 use super::shared::{fetch_server, require_manage_emojis, require_member};
 use crate::{
     auth::AuthUser,
@@ -105,6 +106,7 @@ pub async fn upload_custom_emoji(
 ) -> AppResult<(StatusCode, Json<CustomEmojiDto>)> {
     let server = fetch_server(&state.pool, server_id).await?;
     require_manage_emojis(&state.pool, server.id, auth.user_id()).await?;
+    check_timeout(&state.pool, server.id, auth.user_id()).await?;
 
     // Check the server hasn't already hit the emoji cap.
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM custom_emojis WHERE server_id = $1")
@@ -324,6 +326,7 @@ pub async fn delete_custom_emoji(
 ) -> AppResult<StatusCode> {
     let server = fetch_server(&state.pool, server_id).await?;
     require_manage_emojis(&state.pool, server.id, auth.user_id()).await?;
+    check_timeout(&state.pool, server.id, auth.user_id()).await?;
 
     let row = sqlx::query_as::<_, CustomEmoji>(
         "DELETE FROM custom_emojis WHERE id = $1 AND server_id = $2

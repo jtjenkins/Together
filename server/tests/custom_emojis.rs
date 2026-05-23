@@ -243,3 +243,147 @@ async fn non_member_cannot_list() {
     let (status, _) = get_authed(app.clone(), &format!("/servers/{sid}/emojis"), &outsider).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ============================================================================
+// Timeout checks — timed-out admin cannot manage custom emojis
+// ============================================================================
+
+/// Returns `(app, admin_token, server_id)` where the admin has ADMINISTRATOR
+/// permission but is currently timed out by the server owner.
+async fn setup_with_timed_out_admin() -> (axum::Router, String, String) {
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    let owner_token = register_and_get_token(app.clone(), &unique_username(), "pass1234").await;
+    let admin_body = register_user(app.clone(), &unique_username(), "pass1234").await;
+    let admin_token = admin_body["access_token"].as_str().unwrap().to_owned();
+    let admin_id = admin_body["user"]["id"].as_str().unwrap().to_owned();
+
+    let server = create_server(app.clone(), &owner_token, "Emoji Guild").await;
+    let server_id = server["id"].as_str().unwrap().to_owned();
+
+    make_server_public(app.clone(), &owner_token, &server_id).await;
+    let (status, _) = post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        &admin_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert!(
+        status == StatusCode::OK || status == StatusCode::CREATED,
+        "admin join failed: {status}"
+    );
+
+    // Create a role with ADMINISTRATOR permission and assign it to admin.
+    const PERMISSION_ADMINISTRATOR: i64 = 8192;
+    let (status, role) = post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        serde_json::json!({ "name": "Admin", "permissions": PERMISSION_ADMINISTRATOR }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create role failed: {role}");
+    let role_id = role["id"].as_str().unwrap();
+
+    let (status, _) = put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{admin_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert!(
+        status == StatusCode::OK || status == StatusCode::CREATED,
+        "assign role failed: {status}"
+    );
+
+    // Owner times out the admin.
+    let (status, _) = post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{admin_id}/timeout"),
+        &owner_token,
+        serde_json::json!({ "duration_minutes": 60 }),
+    )
+    .await;
+    assert!(
+        status == StatusCode::OK || status == StatusCode::CREATED,
+        "timeout failed: {status}"
+    );
+
+    (app, admin_token, server_id)
+}
+
+#[tokio::test]
+async fn timed_out_admin_cannot_upload_emoji() {
+    let (app, admin_token, server_id) = setup_with_timed_out_admin().await;
+
+    let (status, _) = upload_emoji(app, &admin_token, &server_id, "blocked").await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn timed_out_admin_cannot_delete_emoji() {
+    let pool = test_pool().await;
+    let app = create_test_app(pool);
+
+    // Owner creates the server and uploads an emoji.
+    let owner_token = register_and_get_token(app.clone(), &unique_username(), "pass1234").await;
+    let server = create_server(app.clone(), &owner_token, "Emoji Guild 2").await;
+    let server_id = server["id"].as_str().unwrap();
+
+    let (status, body) = upload_emoji(app.clone(), &owner_token, server_id, "to_delete").await;
+    assert_eq!(status, StatusCode::CREATED, "owner upload failed: {body}");
+    let emoji_id = body["id"].as_str().unwrap().to_owned();
+
+    // Register an admin, join, get ADMINISTRATOR role, then get timed out.
+    let admin_body = register_user(app.clone(), &unique_username(), "pass1234").await;
+    let admin_token = admin_body["access_token"].as_str().unwrap().to_owned();
+    let admin_id = admin_body["user"]["id"].as_str().unwrap().to_owned();
+
+    make_server_public(app.clone(), &owner_token, server_id).await;
+    let (status, _) = post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        &admin_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert!(status == StatusCode::OK || status == StatusCode::CREATED);
+
+    const PERMISSION_ADMINISTRATOR: i64 = 8192;
+    let (status, role) = post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        serde_json::json!({ "name": "Admin", "permissions": PERMISSION_ADMINISTRATOR }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let role_id = role["id"].as_str().unwrap();
+
+    let (status, _) = put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{admin_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert!(status == StatusCode::OK || status == StatusCode::CREATED);
+
+    post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{admin_id}/timeout"),
+        &owner_token,
+        serde_json::json!({ "duration_minutes": 60 }),
+    )
+    .await;
+
+    // Timed-out admin tries to delete the emoji.
+    let (status, _) = delete_authed(
+        app,
+        &format!("/servers/{server_id}/emojis/{emoji_id}"),
+        &admin_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}

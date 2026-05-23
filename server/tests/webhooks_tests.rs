@@ -489,3 +489,150 @@ async fn create_webhook_no_auth() {
 
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
+
+// ============================================================================
+// Timeout checks — timed-out admin cannot manage webhooks
+// ============================================================================
+
+/// Set up a server where the server owner has timed out a non-owner admin
+/// (a member with ADMINISTRATOR permission).  Returns `(app, owner_token,
+/// admin_token, server_id, webhook_id)` where `webhook_id` is a webhook the
+/// owner created before the admin was timed out.
+async fn setup_server_with_timed_out_admin() -> (
+    axum::Router,
+    String, // owner token
+    String, // admin token
+    String, // server_id
+    String, // pre-created webhook_id (owner-created)
+) {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let admin_body =
+        common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let admin_token = admin_body["access_token"].as_str().unwrap().to_owned();
+    let admin_id = admin_body["user"]["id"].as_str().unwrap().to_owned();
+
+    let server = common::create_server(app.clone(), &owner_token, "Webhook Guild").await;
+    let server_id = server["id"].as_str().unwrap().to_owned();
+
+    // Make server public and let admin join.
+    common::make_server_public(app.clone(), &owner_token, &server_id).await;
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/join"),
+        &admin_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert!(
+        status == StatusCode::OK || status == StatusCode::CREATED,
+        "admin join failed: {status}"
+    );
+
+    // Create a role with ADMINISTRATOR permission and assign it to admin.
+    const PERMISSION_ADMINISTRATOR: i64 = 8192;
+    let (status, role) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        serde_json::json!({ "name": "Admin", "permissions": PERMISSION_ADMINISTRATOR }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create role failed: {role}");
+    let role_id = role["id"].as_str().unwrap();
+
+    let (status, _) = common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{admin_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+    assert!(
+        status == StatusCode::OK || status == StatusCode::CREATED,
+        "assign role failed: {status}"
+    );
+
+    // Owner creates a webhook that the admin can then try to update/delete/test.
+    let (status, created) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/webhooks"),
+        &owner_token,
+        webhook_payload("owner-hook"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "owner create webhook failed");
+    let webhook_id = created["webhook"]["id"].as_str().unwrap().to_owned();
+
+    // Owner times out the admin.
+    let (status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{admin_id}/timeout"),
+        &owner_token,
+        serde_json::json!({ "duration_minutes": 60 }),
+    )
+    .await;
+    assert!(
+        status == StatusCode::OK || status == StatusCode::CREATED,
+        "timeout failed: {status}"
+    );
+
+    (app, owner_token, admin_token, server_id, webhook_id)
+}
+
+#[tokio::test]
+async fn timed_out_admin_cannot_create_webhook() {
+    let (app, _owner, admin_token, server_id, _wh_id) = setup_server_with_timed_out_admin().await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/webhooks"),
+        &admin_token,
+        webhook_payload("blocked-hook"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn timed_out_admin_cannot_update_webhook() {
+    let (app, _owner, admin_token, server_id, wh_id) = setup_server_with_timed_out_admin().await;
+
+    let (status, _) = common::patch_json_authed(
+        app,
+        &format!("/servers/{server_id}/webhooks/{wh_id}"),
+        &admin_token,
+        serde_json::json!({ "name": "sneaky-rename" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn timed_out_admin_cannot_delete_webhook() {
+    let (app, _owner, admin_token, server_id, wh_id) = setup_server_with_timed_out_admin().await;
+
+    let (status, _) = common::delete_authed(
+        app,
+        &format!("/servers/{server_id}/webhooks/{wh_id}"),
+        &admin_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn timed_out_admin_cannot_test_webhook() {
+    let (app, _owner, admin_token, server_id, wh_id) = setup_server_with_timed_out_admin().await;
+
+    let (status, _) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/webhooks/{wh_id}/test"),
+        &admin_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
