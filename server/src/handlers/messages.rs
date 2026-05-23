@@ -487,6 +487,19 @@ pub async fn update_message(
         ));
     }
 
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    check_automod(
+        &state.pool,
+        channel.server_id,
+        message.channel_id,
+        auth.user_id(),
+        auth.username(),
+        &req.content,
+        Some(message_id),
+    )
+    .await?;
+
     let dto = UpdateMessageDto {
         content: req.content,
     };
@@ -709,6 +722,30 @@ pub async fn create_thread_reply(
     // reading any message data, to avoid leaking message existence to non-members.
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
+
+    // Thread replies must obey the same channel-level permission, timeout, and
+    // automod rules as regular messages.  Without these checks a timed-out or
+    // muted user could bypass restrictions via the thread endpoint.
+    require_channel_permission(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        PERMISSION_SEND_MESSAGES,
+        "You don't have permission to send messages in this channel",
+    )
+    .await?;
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
+    check_automod(
+        &state.pool,
+        channel.server_id,
+        channel_id,
+        auth.user_id(),
+        auth.username(),
+        &req.content,
+        None,
+    )
+    .await?;
 
     let parent = fetch_message(&state.pool, message_id).await?;
 
