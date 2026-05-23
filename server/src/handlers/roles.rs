@@ -11,6 +11,7 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
+use super::automod::check_timeout;
 use super::shared::{
     fetch_server, get_user_highest_position, get_user_permissions, require_member,
     require_permission, PERMISSION_ADMINISTRATOR, PERMISSION_MANAGE_ROLES,
@@ -67,6 +68,7 @@ pub async fn create_role(
         "You need the Manage Roles permission",
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     // Validate name length.
     if req.name.is_empty() || req.name.len() > 100 {
@@ -225,6 +227,7 @@ pub async fn update_role(
         "You need the Manage Roles permission",
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     // Fetch the role and verify it belongs to this server.
     let role = sqlx::query_as::<_, Role>(
@@ -370,6 +373,7 @@ pub async fn delete_role(
         "You need the Manage Roles permission",
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let role = sqlx::query_as::<_, Role>(
         "SELECT id, server_id, name, permissions, color, position, created_at
@@ -455,6 +459,7 @@ pub async fn assign_role(
         "You need the Manage Roles permission",
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let role = sqlx::query_as::<_, Role>(
         "SELECT id, server_id, name, permissions, color, position, created_at
@@ -551,6 +556,7 @@ pub async fn remove_role(
         "You need the Manage Roles permission",
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let role = sqlx::query_as::<_, Role>(
         "SELECT id, server_id, name, permissions, color, position, created_at

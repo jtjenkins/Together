@@ -10,6 +10,7 @@ use validator::Validate;
 
 use std::collections::HashMap;
 
+use super::automod::check_timeout;
 use super::shared::{fetch_server, require_http_url, require_member};
 use crate::{
     auth::AuthUser,
@@ -330,6 +331,7 @@ pub async fn update_server(
             "Only the server owner can update it".into(),
         ));
     }
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let dto = UpdateServerDto {
         name: req.name,
@@ -406,6 +408,7 @@ pub async fn delete_server(
             "Only the server owner can delete it".into(),
         ));
     }
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     // Log before delete — server_id will be SET NULL on the audit row.
     log_action(

@@ -581,3 +581,135 @@ async fn ban_already_banned_is_idempotent() {
         "double ban should not error, got {status}"
     );
 }
+
+// ============================================================================
+// Timeout guard on moderation endpoints
+// ============================================================================
+
+/// Give moderator the specified permission, timeout them, return (app, moderator_token, target_id).
+async fn setup_timed_out_moderator(
+    permission: i64,
+) -> (axum::Router, String, String, String, String) {
+    let (app, owner_token, mod_token, server_id, mod_id) = setup_server_with_member().await;
+
+    // Register a third user (the target of moderation actions).
+    let target_body = common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let target_token = target_body["access_token"].as_str().unwrap().to_owned();
+    let target_id = target_body["user"]["id"].as_str().unwrap().to_owned();
+    common::post_json_authed(app.clone(), &format!("/servers/{server_id}/join"), &target_token, json!({})).await;
+
+    // Give the moderator the required permission via a role.
+    let (status, role_obj) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Moderator", "permissions": permission }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let role_id = role_obj["id"].as_str().unwrap().to_owned();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{mod_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Timeout the moderator.
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{mod_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 60 }),
+    )
+    .await;
+
+    (app, mod_token, target_id, server_id, owner_token)
+}
+
+#[tokio::test]
+async fn timed_out_moderator_cannot_kick() {
+    // KICK_MEMBERS = 256
+    let (app, mod_token, target_id, server_id, _) = setup_timed_out_moderator(256).await;
+
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{target_id}/kick"),
+        &mod_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_moderator_cannot_ban() {
+    // BAN_MEMBERS = 512
+    let (app, mod_token, target_id, server_id, _) = setup_timed_out_moderator(512).await;
+
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{target_id}/ban"),
+        &mod_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_moderator_cannot_timeout_member() {
+    // MUTE_MEMBERS = 128
+    let (app, mod_token, target_id, server_id, _) = setup_timed_out_moderator(128).await;
+
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/members/{target_id}/timeout"),
+        &mod_token,
+        json!({ "duration_minutes": 10 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_moderator_cannot_remove_timeout() {
+    // MUTE_MEMBERS = 128
+    let (app, mod_token, target_id, server_id, owner_token) =
+        setup_timed_out_moderator(128).await;
+
+    // First, put the target under a timeout (as owner).
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{target_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 10 }),
+    )
+    .await;
+
+    // The timed-out moderator tries to remove it.
+    let (status, body) = common::delete_authed(
+        app,
+        &format!("/servers/{server_id}/members/{target_id}/timeout"),
+        &mod_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
