@@ -11,6 +11,7 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
+use super::automod::check_timeout;
 use super::shared::{
     can_moderate, require_member, PERMISSION_BAN_MEMBERS, PERMISSION_KICK_MEMBERS,
     PERMISSION_MUTE_MEMBERS,
@@ -67,6 +68,7 @@ pub async fn kick_member(
         PERMISSION_KICK_MEMBERS,
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let reason = body.and_then(|b| b.0.reason);
 
@@ -155,6 +157,7 @@ pub async fn ban_member(
         PERMISSION_BAN_MEMBERS,
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     let reason = body.and_then(|b| b.0.reason);
 
@@ -263,6 +266,7 @@ pub async fn timeout_member(
         PERMISSION_MUTE_MEMBERS,
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     if body.duration_minutes < 1 || body.duration_minutes > 40320 {
         return Err(crate::error::AppError::Validation(
@@ -347,6 +351,7 @@ pub async fn remove_timeout(
         PERMISSION_MUTE_MEMBERS,
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     sqlx::query("DELETE FROM automod_timeouts WHERE server_id = $1 AND user_id = $2")
         .bind(server_id)

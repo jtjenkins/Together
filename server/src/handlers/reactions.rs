@@ -5,6 +5,7 @@ use axum::{
 };
 use uuid::Uuid;
 
+use super::automod::check_timeout;
 use super::shared::{
     fetch_channel_by_id, fetch_message, require_channel_permission, require_member,
     PERMISSION_ADD_REACTIONS,
@@ -78,6 +79,8 @@ pub async fn add_reaction(
         "You don't have permission to add reactions in this channel",
     )
     .await?;
+
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
 
     // Verify the message belongs to this channel and is not deleted.
     let msg = fetch_message(&state.pool, message_id).await?;

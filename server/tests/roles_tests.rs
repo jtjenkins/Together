@@ -595,3 +595,168 @@ async fn list_members_includes_roles() {
     let roles = member["roles"].as_array().unwrap();
     assert!(roles.iter().any(|r| r["name"] == "VIP"));
 }
+
+// ============================================================================
+// Timeout guard on role mutation endpoints
+// ============================================================================
+
+/// Shared helper: give member MANAGE_ROLES, timeout them, return a role id
+/// the owner created for use in update/delete/assign/remove tests.
+async fn setup_timed_out_role_manager() -> (
+    axum::Router,
+    String, // owner_token
+    String, // member_token
+    String, // server_id
+    String, // member_id
+    String, // existing_role_id
+) {
+    let (app, owner_token, member_token, server_id, member_id) =
+        setup_server_with_member().await;
+
+    // Give member MANAGE_ROLES (bit 11 = 2048).
+    let (status, role_obj) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Manager", "permissions": 2048 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let mgr_role_id = role_obj["id"].as_str().unwrap().to_owned();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{mgr_role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Create a second role for the member to operate on.
+    let (status, target_role) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Target", "permissions": 0 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let target_role_id = target_role["id"].as_str().unwrap().to_owned();
+
+    // Timeout the member.
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 60 }),
+    )
+    .await;
+
+    (app, owner_token, member_token, server_id, member_id, target_role_id)
+}
+
+#[tokio::test]
+async fn timed_out_user_cannot_create_role() {
+    let (app, _owner_token, member_token, server_id, _member_id, _role_id) =
+        setup_timed_out_role_manager().await;
+
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles"),
+        &member_token,
+        json!({ "name": "NewRole", "permissions": 0 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_user_cannot_update_role() {
+    let (app, _owner_token, member_token, server_id, _member_id, role_id) =
+        setup_timed_out_role_manager().await;
+
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/servers/{server_id}/roles/{role_id}"),
+        &member_token,
+        json!({ "name": "Renamed" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_user_cannot_delete_role() {
+    let (app, _owner_token, member_token, server_id, _member_id, role_id) =
+        setup_timed_out_role_manager().await;
+
+    let (status, body) = common::delete_authed(
+        app,
+        &format!("/servers/{server_id}/roles/{role_id}"),
+        &member_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_user_cannot_assign_role() {
+    let (app, owner_token, member_token, server_id, _member_id, role_id) =
+        setup_timed_out_role_manager().await;
+
+    // Create a third user to be the target.
+    let target_body = common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let target_token = target_body["access_token"].as_str().unwrap().to_owned();
+    let target_id = target_body["user"]["id"].as_str().unwrap().to_owned();
+    common::make_server_public(app.clone(), &owner_token, &server_id).await;
+    common::post_json_authed(app.clone(), &format!("/servers/{server_id}/join"), &target_token, json!({})).await;
+
+    let (status, body) = common::put_authed(
+        app,
+        &format!("/servers/{server_id}/members/{target_id}/roles/{role_id}"),
+        &member_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_user_cannot_remove_role() {
+    let (app, owner_token, member_token, server_id, _member_id, role_id) =
+        setup_timed_out_role_manager().await;
+
+    // Create a third user, have them join, and assign them the role (as owner).
+    let target_body = common::register_user(app.clone(), &common::unique_username(), "pass1234").await;
+    let target_token = target_body["access_token"].as_str().unwrap().to_owned();
+    let target_id = target_body["user"]["id"].as_str().unwrap().to_owned();
+    common::make_server_public(app.clone(), &owner_token, &server_id).await;
+    common::post_json_authed(app.clone(), &format!("/servers/{server_id}/join"), &target_token, json!({})).await;
+    common::put_authed(app.clone(), &format!("/servers/{server_id}/members/{target_id}/roles/{role_id}"), &owner_token).await;
+
+    let (status, body) = common::delete_authed(
+        app,
+        &format!("/servers/{server_id}/members/{target_id}/roles/{role_id}"),
+        &member_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}

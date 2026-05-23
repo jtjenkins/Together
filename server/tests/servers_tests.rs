@@ -719,3 +719,88 @@ async fn list_members_non_member_sees_404() {
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ============================================================================
+// Timeout guard on server owner endpoints
+// ============================================================================
+
+#[tokio::test]
+async fn timed_out_owner_cannot_update_server() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &owner_token, "Test Server").await;
+    let server_id = server["id"].as_str().unwrap();
+    let owner_id = server["owner_id"].as_str().unwrap().to_owned();
+
+    // Timeout the owner (use a second admin account to do it).
+    // For simplicity, insert the timeout directly via a second user who is also owner.
+    // Actually, owners cannot be timed out by regular means, but check_timeout just
+    // reads automod_timeouts — we can insert it as the owner timing themselves out
+    // by using the pool to insert directly via a raw DB call.
+    // Instead, use a simpler approach: create a second user, make them join, and
+    // use a raw POST to timeout the owner (won't work since owner can't be timed out
+    // by a member). Use owner's own token to call the endpoint on themselves isn't
+    // possible either. We'll use the test pool to insert directly.
+    let pool2 = common::test_pool().await;
+    sqlx::query(
+        "INSERT INTO automod_timeouts (user_id, server_id, expires_at, reason, created_by)
+         VALUES ($1::uuid, $2::uuid, NOW() + INTERVAL '1 hour', 'test', $1::uuid)",
+    )
+    .bind(&owner_id)
+    .bind(server_id)
+    .execute(&pool2)
+    .await
+    .unwrap();
+
+    let (status, body) = common::patch_json_authed(
+        app,
+        &format!("/servers/{server_id}"),
+        &owner_token,
+        serde_json::json!({ "name": "Renamed" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_owner_cannot_delete_server() {
+    let pool = common::test_pool().await;
+    let app = common::create_test_app(pool);
+
+    let owner_token =
+        common::register_and_get_token(app.clone(), &common::unique_username(), "pass1234").await;
+    let server = common::create_server(app.clone(), &owner_token, "Doomed Server").await;
+    let server_id = server["id"].as_str().unwrap();
+    let owner_id = server["owner_id"].as_str().unwrap().to_owned();
+
+    // Insert the timeout directly into the database.
+    let pool2 = common::test_pool().await;
+    sqlx::query(
+        "INSERT INTO automod_timeouts (user_id, server_id, expires_at, reason, created_by)
+         VALUES ($1::uuid, $2::uuid, NOW() + INTERVAL '1 hour', 'test', $1::uuid)",
+    )
+    .bind(&owner_id)
+    .bind(server_id)
+    .execute(&pool2)
+    .await
+    .unwrap();
+
+    let (status, body) = common::delete_authed(
+        app,
+        &format!("/servers/{server_id}"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
