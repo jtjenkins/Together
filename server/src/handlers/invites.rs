@@ -6,6 +6,7 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
+use super::automod::check_timeout;
 use super::shared::{require_member, require_permission, PERMISSION_CREATE_INVITES};
 use crate::{
     auth::AuthUser,
@@ -60,6 +61,7 @@ pub async fn create_invite(
         "You need the Create Invites permission",
     )
     .await?;
+    check_timeout(&state.pool, server_id, auth.user_id()).await?;
 
     // Validate max_uses if provided.
     if let Some(max_uses) = req.max_uses {

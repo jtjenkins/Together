@@ -10,6 +10,7 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
+use super::automod::check_timeout;
 use super::shared::{
     fetch_channel_by_id, require_channel_permission, require_member, PERMISSION_MANAGE_CHANNELS,
 };
@@ -97,6 +98,7 @@ pub async fn set_override(
         "You need the Manage Channels permission to edit channel overrides",
     )
     .await?;
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
 
     // Validate: exactly one of role_id or user_id must be set.
     match (&req.role_id, &req.user_id) {
@@ -219,6 +221,7 @@ pub async fn delete_override(
         "You need the Manage Channels permission to delete channel overrides",
     )
     .await?;
+    check_timeout(&state.pool, channel.server_id, auth.user_id()).await?;
 
     let result =
         sqlx::query("DELETE FROM channel_permission_overrides WHERE id = $1 AND channel_id = $2")

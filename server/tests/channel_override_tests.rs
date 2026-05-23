@@ -257,6 +257,113 @@ async fn no_override_preserves_existing_behavior() {
 }
 
 // ============================================================================
+// Timeout enforcement
+// ============================================================================
+
+#[tokio::test]
+async fn timed_out_user_cannot_set_override() {
+    let (app, owner_token, member_token, server_id, channel_id, member_user_id, _) =
+        setup_server_with_channel_and_member().await;
+
+    // Give the member MANAGE_CHANNELS (bit 10 = 1024) via a role.
+    let (_, role) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Chan Manager", "permissions": 1024 }),
+    )
+    .await;
+    let role_id = role["id"].as_str().unwrap();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_user_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Timeout the member.
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_user_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 60 }),
+    )
+    .await;
+
+    // Timed-out member tries to set a channel override.
+    let (status, body) = common::put_json_authed(
+        app,
+        &format!("/channels/{channel_id}/overrides"),
+        &member_token,
+        json!({ "role_id": role_id, "allow": 0, "deny": 2 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected timed-out error, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn timed_out_user_cannot_delete_override() {
+    let (app, owner_token, member_token, server_id, channel_id, member_user_id, pool) =
+        setup_server_with_channel_and_member().await;
+
+    // Give the member MANAGE_CHANNELS (bit 10 = 1024) via a role.
+    let (_, role) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Chan Manager 2", "permissions": 1024 }),
+    )
+    .await;
+    let role_id = role["id"].as_str().unwrap();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_user_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Insert a real override to try to delete.
+    let override_id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO channel_permission_overrides (channel_id, role_id, allow, deny)
+         VALUES ($1, $2, 0, 2)
+         RETURNING id",
+    )
+    .bind(uuid::Uuid::parse_str(&channel_id).unwrap())
+    .bind(uuid::Uuid::parse_str(role_id).unwrap())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // Timeout the member.
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_user_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 60 }),
+    )
+    .await;
+
+    // Timed-out member tries to delete the override.
+    let (status, body) = common::delete_authed(
+        app,
+        &format!("/channels/{channel_id}/overrides/{override_id}"),
+        &member_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected timed-out error, got: {body}"
+    );
+}
+
+// ============================================================================
 // DELETE /channels/:channel_id/overrides/:override_id
 // ============================================================================
 

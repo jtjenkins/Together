@@ -441,3 +441,54 @@ async fn accept_invite_increments_uses() {
         .unwrap();
     assert_eq!(updated["uses"], 1);
 }
+
+// ============================================================================
+// Timeout guard on create invite
+// ============================================================================
+
+#[tokio::test]
+async fn timed_out_member_cannot_create_invite() {
+    let (app, owner_token, member_token, server_id, member_id) =
+        setup_server_with_member().await;
+
+    // Give the member the CREATE_INVITES permission via a role.
+    let (status, role) = common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/roles"),
+        &owner_token,
+        json!({ "name": "Inviter", "permissions": 16384 }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create role failed: {role}");
+    let role_id = role["id"].as_str().unwrap();
+
+    common::put_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/roles/{role_id}"),
+        &owner_token,
+    )
+    .await;
+
+    // Timeout the member.
+    common::post_json_authed(
+        app.clone(),
+        &format!("/servers/{server_id}/members/{member_id}/timeout"),
+        &owner_token,
+        json!({ "duration_minutes": 60 }),
+    )
+    .await;
+
+    // Timed-out member tries to create an invite.
+    let (status, body) = common::post_json_authed(
+        app,
+        &format!("/servers/{server_id}/invites"),
+        &member_token,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        body["error"].as_str().unwrap_or("").contains("timed out"),
+        "expected 'timed out' in error, got: {body}"
+    );
+}
