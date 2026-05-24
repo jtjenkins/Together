@@ -111,7 +111,7 @@ struct EventMapRow {
 /// Batch-enrich a list of messages with poll and event data.
 /// Runs 2 queries regardless of message count (no N+1 for event/poll mapping),
 /// plus one query per poll found on this page (typically 0–2 per page).
-async fn enrich_messages(
+pub(super) async fn enrich_messages(
     pool: &sqlx::PgPool,
     caller_id: uuid::Uuid,
     messages: Vec<Message>,
