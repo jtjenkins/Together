@@ -290,3 +290,91 @@ async fn non_member_cannot_list_pinned_messages(pool: sqlx::PgPool) {
     // require_member returns 404 (not 403) to avoid leaking server existence
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[sqlx::test]
+async fn list_pinned_messages_includes_poll_data(pool: sqlx::PgPool) {
+    let app = common::create_test_app(pool);
+    let (owner_token, _sid, cid, _mid) = setup(app.clone()).await;
+
+    // Create a poll message in the channel.
+    let (poll_status, poll_body) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{cid}/polls"),
+        &owner_token,
+        serde_json::json!({
+            "question": "Favorite color?",
+            "options": ["Red", "Blue"]
+        }),
+    )
+    .await;
+    assert_eq!(poll_status, StatusCode::CREATED);
+    let poll_msg_id = poll_body["id"].as_str().unwrap().to_owned();
+
+    // Pin it.
+    let (pin_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{cid}/messages/{poll_msg_id}/pin"),
+        &owner_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(pin_status, StatusCode::NO_CONTENT);
+
+    // list_pinned_messages must include poll data, not return null.
+    let (status, body) = common::get_authed(
+        app,
+        &format!("/channels/{cid}/pinned-messages"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let pinned = body.as_array().unwrap();
+    assert_eq!(pinned.len(), 1);
+    assert_eq!(pinned[0]["id"].as_str().unwrap(), poll_msg_id);
+    assert!(
+        !pinned[0]["poll"].is_null(),
+        "poll data must not be null for a pinned poll message"
+    );
+}
+
+#[sqlx::test]
+async fn list_pinned_messages_reflects_thread_reply_count(pool: sqlx::PgPool) {
+    let app = common::create_test_app(pool);
+    let (owner_token, _sid, cid, mid) = setup(app.clone()).await;
+
+    // Add a thread reply to the message.
+    let (reply_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{cid}/messages/{mid}/thread"),
+        &owner_token,
+        serde_json::json!({ "content": "thread reply" }),
+    )
+    .await;
+    assert_eq!(reply_status, StatusCode::CREATED);
+
+    // Pin the root message.
+    let (pin_status, _) = common::post_json_authed(
+        app.clone(),
+        &format!("/channels/{cid}/messages/{mid}/pin"),
+        &owner_token,
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(pin_status, StatusCode::NO_CONTENT);
+
+    // list_pinned_messages must report the accurate reply count.
+    let (status, body) = common::get_authed(
+        app,
+        &format!("/channels/{cid}/pinned-messages"),
+        &owner_token,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let pinned = body.as_array().unwrap();
+    assert_eq!(pinned.len(), 1);
+    assert_eq!(
+        pinned[0]["thread_reply_count"].as_i64().unwrap(),
+        1,
+        "thread_reply_count must reflect actual replies, not be hardcoded to 0"
+    );
+}

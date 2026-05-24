@@ -5,11 +5,12 @@ use axum::{
 };
 use uuid::Uuid;
 
+use super::messages::enrich_messages;
 use super::shared::{fetch_channel_by_id, fetch_message, require_manage_messages, require_member};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
-    models::MessageDto,
+    models::{Message, MessageDto},
     state::AppState,
     websocket::{
         broadcast_to_server,
@@ -167,59 +168,24 @@ pub async fn list_pinned_messages(
     let channel = fetch_channel_by_id(&state.pool, channel_id).await?;
     require_member(&state.pool, channel.server_id, auth.user_id()).await?;
 
-    #[derive(sqlx::FromRow)]
-    struct PinnedRow {
-        id: Uuid,
-        channel_id: Uuid,
-        author_id: Option<Uuid>,
-        content: String,
-        reply_to: Option<Uuid>,
-        mention_user_ids: Vec<Uuid>,
-        mention_everyone: bool,
-        thread_id: Option<Uuid>,
-        edited_at: Option<chrono::DateTime<chrono::Utc>>,
-        deleted: bool,
-        created_at: chrono::DateTime<chrono::Utc>,
-        pinned: bool,
-        pinned_by: Option<Uuid>,
-        pinned_at: Option<chrono::DateTime<chrono::Utc>>,
-    }
-
-    let rows = sqlx::query_as::<_, PinnedRow>(
-        "SELECT id, channel_id, author_id, content, reply_to,
-                mention_user_ids, mention_everyone, thread_id,
-                edited_at, deleted, created_at,
-                pinned, pinned_by, pinned_at
-         FROM messages
-         WHERE channel_id = $1 AND pinned = TRUE AND deleted = FALSE
-         ORDER BY pinned_at DESC",
+    let messages = sqlx::query_as::<_, Message>(
+        "SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to,
+                m.mention_user_ids, m.mention_everyone, m.thread_id,
+                COALESCE(
+                    (SELECT COUNT(*)::int FROM messages t
+                     WHERE t.thread_id = m.id AND t.deleted = FALSE),
+                    0
+                ) AS thread_reply_count,
+                m.edited_at, m.deleted, m.created_at,
+                m.pinned, m.pinned_by, m.pinned_at
+         FROM messages m
+         WHERE m.channel_id = $1 AND m.pinned = TRUE AND m.deleted = FALSE
+         ORDER BY m.pinned_at DESC",
     )
     .bind(channel_id)
     .fetch_all(&state.pool)
     .await?;
 
-    let dtos = rows
-        .into_iter()
-        .map(|r| MessageDto {
-            id: r.id,
-            channel_id: r.channel_id,
-            author_id: r.author_id,
-            content: r.content,
-            reply_to: r.reply_to,
-            mention_user_ids: r.mention_user_ids,
-            mention_everyone: r.mention_everyone,
-            thread_id: r.thread_id,
-            thread_reply_count: 0,
-            edited_at: r.edited_at,
-            deleted: r.deleted,
-            created_at: r.created_at,
-            pinned: r.pinned,
-            pinned_by: r.pinned_by,
-            pinned_at: r.pinned_at,
-            poll: None,
-            event: None,
-        })
-        .collect();
-
-    Ok(Json(dtos))
+    let enriched = enrich_messages(&state.pool, auth.user_id(), messages).await?;
+    Ok(Json(enriched))
 }
