@@ -3,3 +3,4 @@ node_modules/
 .vitepress/cache/
 # Copied at build time from docs/openapi.yaml
 docs/public/openapi.yaml
+docs/public/openapi.json

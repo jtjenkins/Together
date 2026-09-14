@@ -5,8 +5,17 @@
   "targets": {
     "build": {
       "executor": "nx:run-script",
-      "options": { "script": "build" },
-      "outputs": ["{projectRoot}/.vitepress/dist"]
+      "options": {
+        "script": "build"
+      },
+      "outputs": [
+        "{projectRoot}/.vitepress/dist"
+      ],
+      "inputs": [
+        "default",
+        "{workspaceRoot}/docs/openapi.yaml",
+        "{workspaceRoot}/docs/openapi.json"
+      ]
     }
   }
 }

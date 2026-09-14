@@ -223,6 +223,21 @@ jobs:
           cache: npm
           cache-dependency-path: docs/site/package-lock.json
 
+      # Nx replays a previous build from .nx/cache when a project's inputs are
+      # unchanged, restoring its outputs (including dist/) without rebuilding.
+      # The cache is local to a runner, so persist it across runs here.
+      # .nx/installation holds the Nx version pinned in nx.json.
+      - name: Cache Nx
+        uses: actions/cache@v4
+        with:
+          path: |
+            .nx/cache
+            .nx/installation
+          key: nx-${{ runner.os }}-${{ hashFiles('nx.json') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-${{ hashFiles('nx.json') }}-
+            nx-${{ runner.os }}-
+
       - name: Install dependencies
         run: npm ci
 
@@ -231,8 +246,12 @@ jobs:
           cp ../../docs/openapi.yaml docs/public/openapi.yaml
           cp ../../docs/openapi.json docs/public/openapi.json
 
+      # The copied openapi specs above are gitignored, so Nx cannot hash them.
+      # site's build target declares {workspaceRoot}/docs/openapi.{yaml,json} as
+      # explicit inputs instead, so a spec change invalidates the cached build.
       - name: Build docs site
-        run: npx vitepress build
+        run: ./nx build site
+        working-directory: ${{ github.workspace }}
 
   # ── Web UI: Lint, Typecheck & Tests ───────────────────────────────────────
   # Combining lint and test in one job avoids a second `npm ci` and runner
@@ -285,11 +304,30 @@ jobs:
           cache: npm
           cache-dependency-path: clients/web/package-lock.json
 
+      # Nx replays a previous build from .nx/cache when a project's inputs are
+      # unchanged, restoring its outputs (including dist/) without rebuilding.
+      # The cache is local to a runner, so persist it across runs here.
+      # .nx/installation holds the Nx version pinned in nx.json.
+      - name: Cache Nx
+        uses: actions/cache@v4
+        with:
+          path: |
+            .nx/cache
+            .nx/installation
+          key: nx-${{ runner.os }}-${{ hashFiles('nx.json') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-${{ hashFiles('nx.json') }}-
+            nx-${{ runner.os }}-
+
       - name: Install dependencies
         run: npm ci
 
+      # Runs unconditionally rather than under `nx affected`: the desktop and
+      # mobile jobs consume the web-dist artifact, so it must always exist. On a
+      # cache hit Nx restores dist/ without rebuilding, so this stays cheap.
       - name: Build
-        run: npm run build
+        run: ./nx build together-web
+        working-directory: ${{ github.workspace }}
 
       # Upload the compiled frontend so downstream jobs (desktop, mobile) can
       # reuse it instead of rebuilding.
