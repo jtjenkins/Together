@@ -223,20 +223,23 @@ jobs:
           cache: npm
           cache-dependency-path: docs/site/package-lock.json
 
-      # Nx replays a previous build from .nx/cache when a project's inputs are
-      # unchanged, restoring its outputs (including dist/) without rebuilding.
-      # The cache is local to a runner, so persist it across runs here.
+      # Nx replays a previous build when a project's inputs are unchanged,
+      # restoring its outputs (including dist/) without rebuilding. Nx 23 keeps
+      # that task cache in ~/.nx/<workspace-hash>/, NOT in the workspace — a
+      # .nx/cache path caches nothing and yields a permanent 0% miss.
       # .nx/installation holds the Nx version pinned in nx.json.
+      # The key is per-job: two jobs sharing one key means only the first to
+      # finish saves, and the second silently discards its cache.
       - name: Cache Nx
         uses: actions/cache@v4
         with:
           path: |
-            .nx/cache
+            ~/.nx
             .nx/installation
-          key: nx-${{ runner.os }}-${{ hashFiles('nx.json') }}-${{ github.sha }}
+          key: nx-${{ runner.os }}-docs-${{ hashFiles('nx.json') }}-${{ github.sha }}
           restore-keys: |
-            nx-${{ runner.os }}-${{ hashFiles('nx.json') }}-
-            nx-${{ runner.os }}-
+            nx-${{ runner.os }}-docs-${{ hashFiles('nx.json') }}-
+            nx-${{ runner.os }}-docs-
 
       - name: Install dependencies
         run: npm ci
@@ -304,20 +307,23 @@ jobs:
           cache: npm
           cache-dependency-path: clients/web/package-lock.json
 
-      # Nx replays a previous build from .nx/cache when a project's inputs are
-      # unchanged, restoring its outputs (including dist/) without rebuilding.
-      # The cache is local to a runner, so persist it across runs here.
+      # Nx replays a previous build when a project's inputs are unchanged,
+      # restoring its outputs (including dist/) without rebuilding. Nx 23 keeps
+      # that task cache in ~/.nx/<workspace-hash>/, NOT in the workspace — a
+      # .nx/cache path caches nothing and yields a permanent 0% miss.
       # .nx/installation holds the Nx version pinned in nx.json.
+      # The key is per-job: two jobs sharing one key means only the first to
+      # finish saves, and the second silently discards its cache.
       - name: Cache Nx
         uses: actions/cache@v4
         with:
           path: |
-            .nx/cache
+            ~/.nx
             .nx/installation
-          key: nx-${{ runner.os }}-${{ hashFiles('nx.json') }}-${{ github.sha }}
+          key: nx-${{ runner.os }}-web-${{ hashFiles('nx.json') }}-${{ github.sha }}
           restore-keys: |
-            nx-${{ runner.os }}-${{ hashFiles('nx.json') }}-
-            nx-${{ runner.os }}-
+            nx-${{ runner.os }}-web-${{ hashFiles('nx.json') }}-
+            nx-${{ runner.os }}-web-
 
       - name: Install dependencies
         run: npm ci
