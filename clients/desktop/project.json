@@ -1,0 +1,12 @@
+{
+  "name": "together-desktop",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "nx:run-script",
+      "options": { "script": "build" },
+      "outputs": ["{projectRoot}/src-tauri/target/release/bundle"]
+    }
+  },
+  "implicitDependencies": ["together-web"]
+}

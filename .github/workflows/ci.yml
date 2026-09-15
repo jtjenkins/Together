@@ -223,6 +223,24 @@ jobs:
           cache: npm
           cache-dependency-path: docs/site/package-lock.json
 
+      # Nx replays a previous build when a project's inputs are unchanged,
+      # restoring its outputs (including dist/) without rebuilding. Nx 23 keeps
+      # that task cache in ~/.nx/<workspace-hash>/, NOT in the workspace — a
+      # .nx/cache path caches nothing and yields a permanent 0% miss.
+      # .nx/installation holds the Nx version pinned in nx.json.
+      # The key is per-job: two jobs sharing one key means only the first to
+      # finish saves, and the second silently discards its cache.
+      - name: Cache Nx
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nx
+            .nx/installation
+          key: nx-${{ runner.os }}-docs-${{ hashFiles('nx.json') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-docs-${{ hashFiles('nx.json') }}-
+            nx-${{ runner.os }}-docs-
+
       - name: Install dependencies
         run: npm ci
 
@@ -231,8 +249,12 @@ jobs:
           cp ../../docs/openapi.yaml docs/public/openapi.yaml
           cp ../../docs/openapi.json docs/public/openapi.json
 
+      # The copied openapi specs above are gitignored, so Nx cannot hash them.
+      # site's build target declares {workspaceRoot}/docs/openapi.{yaml,json} as
+      # explicit inputs instead, so a spec change invalidates the cached build.
       - name: Build docs site
-        run: npx vitepress build
+        run: ./nx build site
+        working-directory: ${{ github.workspace }}
 
   # ── Web UI: Lint, Typecheck & Tests ───────────────────────────────────────
   # Combining lint and test in one job avoids a second `npm ci` and runner
@@ -285,11 +307,33 @@ jobs:
           cache: npm
           cache-dependency-path: clients/web/package-lock.json
 
+      # Nx replays a previous build when a project's inputs are unchanged,
+      # restoring its outputs (including dist/) without rebuilding. Nx 23 keeps
+      # that task cache in ~/.nx/<workspace-hash>/, NOT in the workspace — a
+      # .nx/cache path caches nothing and yields a permanent 0% miss.
+      # .nx/installation holds the Nx version pinned in nx.json.
+      # The key is per-job: two jobs sharing one key means only the first to
+      # finish saves, and the second silently discards its cache.
+      - name: Cache Nx
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nx
+            .nx/installation
+          key: nx-${{ runner.os }}-web-${{ hashFiles('nx.json') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-web-${{ hashFiles('nx.json') }}-
+            nx-${{ runner.os }}-web-
+
       - name: Install dependencies
         run: npm ci
 
+      # Runs unconditionally rather than under `nx affected`: the desktop and
+      # mobile jobs consume the web-dist artifact, so it must always exist. On a
+      # cache hit Nx restores dist/ without rebuilding, so this stays cheap.
       - name: Build
-        run: npm run build
+        run: ./nx build together-web
+        working-directory: ${{ github.workspace }}
 
       # Upload the compiled frontend so downstream jobs (desktop, mobile) can
       # reuse it instead of rebuilding.
@@ -459,6 +503,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Default is 'tools platform-tools'. The 'tools' package is obsolete
+          # and no longer resolvable, so sdkmanager exits 1 and fails setup.
+          # The NDK is installed explicitly in the next step.
+          packages: platform-tools
 
       - name: Install Android NDK 27
         run: echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973"
