@@ -497,6 +497,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Default is 'tools platform-tools'. The 'tools' package is obsolete
+          # and no longer resolvable, so sdkmanager exits 1 and fails setup.
+          # The NDK is installed explicitly in the next step.
+          packages: platform-tools
 
       - name: Install Android NDK 27
         run: echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973"

@@ -508,7 +508,7 @@ pub async fn bot_logs(
     }
 
     // Sort by timestamp descending (newest first)
-    logs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    logs.sort_by_key(|a| std::cmp::Reverse(a.timestamp));
 
     Ok(Json(json!({ "logs": logs })))
 }
