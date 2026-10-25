@@ -145,7 +145,11 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
         }
     };
 
-    if ws_sender.send(Message::Text(ready_json)).await.is_err() {
+    if ws_sender
+        .send(Message::Text(ready_json.into()))
+        .await
+        .is_err()
+    {
         // Client disconnected before READY could be sent.
         return;
     }
@@ -158,7 +162,7 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
     // Forward outbound events from the mpsc channel to the WebSocket.
     let mut send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            if ws_sender.send(Message::Text(msg)).await.is_err() {
+            if ws_sender.send(Message::Text(msg.into())).await.is_err() {
                 break;
             }
         }

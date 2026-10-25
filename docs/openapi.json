@@ -7342,11 +7342,11 @@
           "event": {
             "oneOf": [
               {
-                "type": "null"
-              },
-              {
                 "$ref": "#/components/schemas/ServerEventDto",
                 "description": "Some when the message was created by /event"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -7384,11 +7384,11 @@
           "poll": {
             "oneOf": [
               {
-                "type": "null"
-              },
-              {
                 "$ref": "#/components/schemas/PollDto",
                 "description": "Some when the message was created by /poll"
+              },
+              {
+                "type": "null"
               }
             ]
           },
