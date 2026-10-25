@@ -2,7 +2,7 @@
 FROM rust:1.88-slim AS builder
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && \
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy manifests first for dependency cache layer
