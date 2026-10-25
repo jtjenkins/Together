@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::FromRequestParts,
     http::{request::Parts, StatusCode},
     Json,
@@ -174,7 +173,6 @@ fn auth_error(message: &str) -> AuthRejection {
     (StatusCode::UNAUTHORIZED, Json(json!({ "error": message })))
 }
 
-#[async_trait]
 impl FromRequestParts<AppState> for AuthUser {
     type Rejection = AuthRejection;
 

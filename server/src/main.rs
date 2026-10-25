@@ -34,12 +34,8 @@ use together_server::{db, handlers, websocket};
 /// When `ConnectInfo` is not available (e.g. in direct oneshot tests), access is
 /// denied — the metrics route is not registered in the test app anyway, so this
 /// branch is unreachable in practice.
-async fn require_loopback(
-    connect_info: Option<ConnectInfo<SocketAddr>>,
-    req: Request<axum::body::Body>,
-    next: Next,
-) -> Response {
-    match connect_info {
+async fn require_loopback(req: Request<axum::body::Body>, next: Next) -> Response {
+    match req.extensions().get::<ConnectInfo<SocketAddr>>().copied() {
         Some(ConnectInfo(addr)) if addr.ip().is_loopback() => next.run(req).await,
         Some(_) => StatusCode::NOT_FOUND.into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
@@ -269,12 +265,12 @@ async fn main() {
         )
         .route("/admin/users", get(handlers::admin::list_users))
         .route(
-            "/admin/users/:user_id",
+            "/admin/users/{user_id}",
             patch(handlers::admin::update_user).delete(handlers::admin::delete_user),
         )
         .route("/admin/servers", get(handlers::admin::list_servers))
         .route(
-            "/admin/servers/:server_id",
+            "/admin/servers/{server_id}",
             delete(handlers::admin::delete_server),
         )
         // Server template routes (protected)
@@ -285,174 +281,177 @@ async fn main() {
         // User routes (protected)
         .route("/users/@me", get(handlers::users::get_current_user))
         .route("/users/@me", patch(handlers::users::update_current_user))
-        .route("/users/:user_id", get(handlers::users::get_user_profile))
+        .route("/users/{user_id}", get(handlers::users::get_user_profile))
         // Server routes (protected)
         .route("/servers", post(handlers::servers::create_server))
         .route("/servers", get(handlers::servers::list_servers))
         // NOTE: /servers/browse must be registered before /servers/:id so the literal
         // path segment "browse" is not consumed by the :id parameter capture.
         .route("/servers/browse", get(handlers::servers::browse_servers))
-        .route("/servers/:id", get(handlers::servers::get_server))
-        .route("/servers/:id", patch(handlers::servers::update_server))
-        .route("/servers/:id", delete(handlers::servers::delete_server))
-        .route("/servers/:id/join", post(handlers::servers::join_server))
+        .route("/servers/{id}", get(handlers::servers::get_server))
+        .route("/servers/{id}", patch(handlers::servers::update_server))
+        .route("/servers/{id}", delete(handlers::servers::delete_server))
+        .route("/servers/{id}/join", post(handlers::servers::join_server))
         .route(
-            "/servers/:id/leave",
+            "/servers/{id}/leave",
             delete(handlers::servers::leave_server),
         )
-        .route("/servers/:id/members", get(handlers::servers::list_members))
+        .route(
+            "/servers/{id}/members",
+            get(handlers::servers::list_members),
+        )
         // Moderation routes (permission-gated)
         .route(
-            "/servers/:id/members/:user_id/kick",
+            "/servers/{id}/members/{user_id}/kick",
             post(handlers::moderation::kick_member),
         )
         .route(
-            "/servers/:id/members/:user_id/ban",
+            "/servers/{id}/members/{user_id}/ban",
             post(handlers::moderation::ban_member),
         )
         .route(
-            "/servers/:id/members/:user_id/timeout",
+            "/servers/{id}/members/{user_id}/timeout",
             post(handlers::moderation::timeout_member).delete(handlers::moderation::remove_timeout),
         )
         // Role management routes (permission-gated)
         .route(
-            "/servers/:id/roles",
+            "/servers/{id}/roles",
             get(handlers::roles::list_roles).post(handlers::roles::create_role),
         )
         .route(
-            "/servers/:id/roles/:role_id",
+            "/servers/{id}/roles/{role_id}",
             patch(handlers::roles::update_role).delete(handlers::roles::delete_role),
         )
         .route(
-            "/servers/:id/members/:user_id/roles/:role_id",
+            "/servers/{id}/members/{user_id}/roles/{role_id}",
             axum::routing::put(handlers::roles::assign_role).delete(handlers::roles::remove_role),
         )
         // Server data export (owner only)
-        .route("/servers/:id/export", get(handlers::export::export_server))
+        .route("/servers/{id}/export", get(handlers::export::export_server))
         // Audit logs (owner only)
         .route(
-            "/servers/:id/audit-logs",
+            "/servers/{id}/audit-logs",
             get(handlers::audit::list_audit_logs),
         )
         // Automod routes (owner only)
         .route(
-            "/servers/:id/automod",
+            "/servers/{id}/automod",
             get(handlers::automod::get_automod_config)
                 .patch(handlers::automod::update_automod_config),
         )
         .route(
-            "/servers/:id/automod/words",
+            "/servers/{id}/automod/words",
             get(handlers::automod::list_word_filters).post(handlers::automod::add_word_filter),
         )
         .route(
-            "/servers/:id/automod/words/:word",
+            "/servers/{id}/automod/words/{word}",
             delete(handlers::automod::remove_word_filter),
         )
         .route(
-            "/servers/:id/automod/logs",
+            "/servers/{id}/automod/logs",
             get(handlers::automod::list_automod_logs),
         )
-        .route("/servers/:id/bans", get(handlers::automod::list_bans))
+        .route("/servers/{id}/bans", get(handlers::automod::list_bans))
         .route(
-            "/servers/:id/bans/:user_id",
+            "/servers/{id}/bans/{user_id}",
             delete(handlers::automod::remove_ban),
         )
         // Search routes (protected, server-scoped)
         .route(
-            "/servers/:id/search",
+            "/servers/{id}/search",
             get(handlers::search::search_messages),
         )
         // Channel routes (protected, nested under server)
         .route(
-            "/servers/:id/channels",
+            "/servers/{id}/channels",
             post(handlers::channels::create_channel),
         )
         .route(
-            "/servers/:id/channels",
+            "/servers/{id}/channels",
             get(handlers::channels::list_channels),
         )
         .route(
-            "/servers/:id/channels/:channel_id",
+            "/servers/{id}/channels/{channel_id}",
             get(handlers::channels::get_channel),
         )
         .route(
-            "/servers/:id/channels/:channel_id",
+            "/servers/{id}/channels/{channel_id}",
             patch(handlers::channels::update_channel),
         )
         .route(
-            "/servers/:id/channels/:channel_id",
+            "/servers/{id}/channels/{channel_id}",
             delete(handlers::channels::delete_channel),
         )
         // Channel permission override routes (protected, permission-gated)
         .route(
-            "/channels/:channel_id/overrides",
+            "/channels/{channel_id}/overrides",
             get(handlers::channel_overrides::list_overrides)
                 .put(handlers::channel_overrides::set_override),
         )
         .route(
-            "/channels/:channel_id/overrides/:override_id",
+            "/channels/{channel_id}/overrides/{override_id}",
             delete(handlers::channel_overrides::delete_override),
         )
         // Message routes (protected, nested under channel)
         .route(
-            "/channels/:channel_id/messages",
+            "/channels/{channel_id}/messages",
             post(handlers::messages::create_message),
         )
         .route(
-            "/channels/:channel_id/messages",
+            "/channels/{channel_id}/messages",
             get(handlers::messages::list_messages),
         )
         .route(
-            "/messages/:message_id",
+            "/messages/{message_id}",
             patch(handlers::messages::update_message),
         )
         .route(
-            "/messages/:message_id",
+            "/messages/{message_id}",
             delete(handlers::messages::delete_message),
         )
         // Single message fetch (needed for reply-bar preview when target is off-screen)
         .route(
-            "/channels/:channel_id/messages/:message_id",
+            "/channels/{channel_id}/messages/{message_id}",
             get(handlers::messages::get_message),
         )
         // Thread routes (protected, nested under channel message)
         .route(
-            "/channels/:channel_id/messages/:message_id/thread",
+            "/channels/{channel_id}/messages/{message_id}/thread",
             get(handlers::messages::list_thread_replies),
         )
         .route(
-            "/channels/:channel_id/messages/:message_id/thread",
+            "/channels/{channel_id}/messages/{message_id}/thread",
             post(handlers::messages::create_thread_reply),
         )
         // Reaction routes (protected, nested under channel message)
         .route(
-            "/channels/:channel_id/messages/:message_id/reactions",
+            "/channels/{channel_id}/messages/{message_id}/reactions",
             get(handlers::reactions::list_reactions),
         )
         .route(
-            "/channels/:channel_id/messages/:message_id/reactions/:emoji",
+            "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
             axum::routing::put(handlers::reactions::add_reaction),
         )
         .route(
-            "/channels/:channel_id/messages/:message_id/reactions/:emoji",
+            "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
             delete(handlers::reactions::remove_reaction),
         )
         // Pin routes (protected, requires MANAGE_MESSAGES permission)
         .route(
-            "/channels/:channel_id/pinned-messages",
+            "/channels/{channel_id}/pinned-messages",
             get(handlers::pins::list_pinned_messages),
         )
         .route(
-            "/channels/:channel_id/messages/:message_id/pin",
+            "/channels/{channel_id}/messages/{message_id}/pin",
             post(handlers::pins::pin_message),
         )
         .route(
-            "/channels/:channel_id/messages/:message_id/pin",
+            "/channels/{channel_id}/messages/{message_id}/pin",
             delete(handlers::pins::unpin_message),
         )
         // Read-state / ack routes
         .route(
-            "/channels/:channel_id/ack",
+            "/channels/{channel_id}/ack",
             post(handlers::read_states::ack_channel),
         )
         // Bot management routes (user-scoped, protected)
@@ -461,128 +460,128 @@ async fn main() {
         // NOTE: /bots/connect must be registered before /bots/:id so the literal
         // path segment "connect" is not consumed by the :id parameter capture.
         .route("/bots/connect", post(handlers::bots::bot_connect))
-        .route("/bots/:id", get(handlers::bots::get_bot))
-        .route("/bots/:id", patch(handlers::bots::update_bot))
-        .route("/bots/:id", delete(handlers::bots::revoke_bot))
-        .route("/bots/:id/logs", get(handlers::bots::bot_logs))
+        .route("/bots/{id}", get(handlers::bots::get_bot))
+        .route("/bots/{id}", patch(handlers::bots::update_bot))
+        .route("/bots/{id}", delete(handlers::bots::revoke_bot))
+        .route("/bots/{id}/logs", get(handlers::bots::bot_logs))
         .route(
-            "/bots/:id/token/regenerate",
+            "/bots/{id}/token/regenerate",
             post(handlers::bots::regenerate_bot_token),
         )
         // DM routes (protected, user-scoped)
         .route("/dm-channels", post(handlers::dm::open_dm_channel))
         .route("/dm-channels", get(handlers::dm::list_dm_channels))
         .route(
-            "/dm-channels/:id/messages",
+            "/dm-channels/{id}/messages",
             post(handlers::dm::send_dm_message),
         )
         .route(
-            "/dm-channels/:id/messages",
+            "/dm-channels/{id}/messages",
             get(handlers::dm::list_dm_messages),
         )
         .route(
-            "/dm-channels/:id/ack",
+            "/dm-channels/{id}/ack",
             post(handlers::read_states::ack_dm_channel),
         )
         // Attachment routes (protected, nested under message)
         .route(
-            "/messages/:message_id/attachments",
+            "/messages/{message_id}/attachments",
             post(handlers::attachments::upload_attachments)
                 .layer(axum::extract::DefaultBodyLimit::max(52_428_800 + 65_536)), // 50 MB + multipart overhead
         )
         .route(
-            "/messages/:message_id/attachments",
+            "/messages/{message_id}/attachments",
             get(handlers::attachments::list_attachments),
         )
         // Authenticated file serving (auth + membership checked before serving)
         .route(
-            "/files/:message_id/*filepath",
+            "/files/{message_id}/{*filepath}",
             get(handlers::attachments::serve_file),
         )
         // Poll routes (protected, nested under channel)
         .route(
-            "/channels/:channel_id/polls",
+            "/channels/{channel_id}/polls",
             post(handlers::polls::create_poll),
         )
-        .route("/polls/:poll_id", get(handlers::polls::get_poll))
-        .route("/polls/:poll_id/vote", post(handlers::polls::cast_vote))
+        .route("/polls/{poll_id}", get(handlers::polls::get_poll))
+        .route("/polls/{poll_id}/vote", post(handlers::polls::cast_vote))
         // Event routes (protected, nested under channel or server)
         .route(
-            "/channels/:channel_id/events",
+            "/channels/{channel_id}/events",
             post(handlers::events::create_event),
         )
-        .route("/servers/:id/events", get(handlers::events::list_events))
+        .route("/servers/{id}/events", get(handlers::events::list_events))
         // Custom emoji routes (protected, nested under server)
         .route(
-            "/servers/:id/emojis",
+            "/servers/{id}/emojis",
             get(handlers::custom_emojis::list_custom_emojis)
                 .post(handlers::custom_emojis::upload_custom_emoji),
         )
         .route(
-            "/servers/:id/emojis/:emoji_id",
+            "/servers/{id}/emojis/{emoji_id}",
             delete(handlers::custom_emojis::delete_custom_emoji),
         )
         .route(
-            "/emojis/:emoji_id",
+            "/emojis/{emoji_id}",
             get(handlers::custom_emojis::serve_custom_emoji_image),
         )
         // Invite routes (protected, permission-gated)
         .route(
-            "/servers/:id/invites",
+            "/servers/{id}/invites",
             get(handlers::invites::list_invites).post(handlers::invites::create_invite),
         )
         .route(
-            "/servers/:id/invites/:invite_id",
+            "/servers/{id}/invites/{invite_id}",
             delete(handlers::invites::delete_invite),
         )
-        .route("/invites/:code", get(handlers::invites::preview_invite))
+        .route("/invites/{code}", get(handlers::invites::preview_invite))
         .route(
-            "/invites/:code/accept",
+            "/invites/{code}/accept",
             post(handlers::invites::accept_invite),
         )
         // Webhook routes (protected, admin/owner only)
         .route(
-            "/servers/:id/webhooks",
+            "/servers/{id}/webhooks",
             get(handlers::webhooks::list_webhooks).post(handlers::webhooks::create_webhook),
         )
         .route(
-            "/servers/:id/webhooks/:webhook_id",
+            "/servers/{id}/webhooks/{webhook_id}",
             get(handlers::webhooks::get_webhook)
                 .patch(handlers::webhooks::update_webhook)
                 .delete(handlers::webhooks::delete_webhook),
         )
         .route(
-            "/servers/:id/webhooks/:webhook_id/test",
+            "/servers/{id}/webhooks/{webhook_id}/test",
             post(handlers::webhooks::test_webhook),
         )
         // Voice routes (protected, nested under channel)
         .route(
-            "/channels/:channel_id/voice",
+            "/channels/{channel_id}/voice",
             post(handlers::voice::join_voice_channel),
         )
         .route(
-            "/channels/:channel_id/voice",
+            "/channels/{channel_id}/voice",
             delete(handlers::voice::leave_voice_channel),
         )
         .route(
-            "/channels/:channel_id/voice",
+            "/channels/{channel_id}/voice",
             patch(handlers::voice::update_voice_state),
         )
         .route(
-            "/channels/:channel_id/voice",
+            "/channels/{channel_id}/voice",
             get(handlers::voice::list_voice_participants),
         )
         // Go Live routes (protected, nested under channel)
         .route(
-            "/channels/:channel_id/go-live",
+            "/channels/{channel_id}/go-live",
             post(handlers::go_live::start_go_live),
         )
         .route(
-            "/channels/:channel_id/go-live",
+            "/channels/{channel_id}/go-live",
             delete(handlers::go_live::stop_go_live),
         )
         .route(
-            "/channels/:channel_id/go-live",
+            "/channels/{channel_id}/go-live",
             get(handlers::go_live::get_go_live),
         )
         // ICE servers for WebRTC (protected, returns TURN credentials)
