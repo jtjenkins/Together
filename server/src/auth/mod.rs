@@ -66,43 +66,34 @@ impl Claims {
 pub fn create_access_token(user_id: Uuid, username: String, secret: &str) -> AppResult<String> {
     let claims = Claims::new(user_id, username, 15, TokenType::Access);
 
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
-    )
-    .map_err(|e| {
-        tracing::error!("Failed to create access token: {:?}", e);
-        AppError::Auth("Failed to create token".into())
-    })
+    EncodingKey::from_secret(secret.as_bytes())
+        .and_then(|key| encode(&Header::default(), &claims, &key))
+        .map_err(|e| {
+            tracing::error!("Failed to create access token: {:?}", e);
+            AppError::Auth("Failed to create token".into())
+        })
 }
 
 pub fn create_refresh_token(user_id: Uuid, username: String, secret: &str) -> AppResult<String> {
     let claims = Claims::new(user_id, username, 10080, TokenType::Refresh); // 7 days
 
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
-    )
-    .map_err(|e| {
-        tracing::error!("Failed to create refresh token: {:?}", e);
-        AppError::Auth("Failed to create refresh token".into())
-    })
+    EncodingKey::from_secret(secret.as_bytes())
+        .and_then(|key| encode(&Header::default(), &claims, &key))
+        .map_err(|e| {
+            tracing::error!("Failed to create refresh token: {:?}", e);
+            AppError::Auth("Failed to create refresh token".into())
+        })
 }
 
 pub fn validate_token(token: &str, secret: &str) -> AppResult<Claims> {
     let validation = Validation::new(jsonwebtoken::Algorithm::HS256);
-    decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &validation,
-    )
-    .map(|data| data.claims)
-    .map_err(|e| {
-        tracing::warn!("Token validation failed: {:?}", e);
-        AppError::Auth("Invalid or expired token".into())
-    })
+    DecodingKey::from_secret(secret.as_bytes())
+        .and_then(|key| decode::<Claims>(token, &key, &validation))
+        .map(|data| data.claims)
+        .map_err(|e| {
+            tracing::warn!("Token validation failed: {:?}", e);
+            AppError::Auth("Invalid or expired token".into())
+        })
 }
 
 // ============================================================================
@@ -116,7 +107,11 @@ pub fn validate_token(token: &str, secret: &str) -> AppResult<Claims> {
 pub fn hash_refresh_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 // ============================================================================

@@ -191,7 +191,7 @@ pub async fn list_users(
              ORDER BY {order_clause}
              LIMIT $2 OFFSET $3"
         );
-        sqlx::query_as::<_, AdminUserDto>(&q)
+        sqlx::query_as::<_, AdminUserDto>(sqlx::AssertSqlSafe(q))
             .bind(pattern)
             .bind(per_page)
             .bind(offset)
@@ -207,7 +207,7 @@ pub async fn list_users(
              ORDER BY {order_clause}
              LIMIT $1 OFFSET $2"
         );
-        sqlx::query_as::<_, AdminUserDto>(&q)
+        sqlx::query_as::<_, AdminUserDto>(sqlx::AssertSqlSafe(q))
             .bind(per_page)
             .bind(offset)
             .fetch_all(&state.pool)

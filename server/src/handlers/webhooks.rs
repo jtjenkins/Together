@@ -109,7 +109,11 @@ fn generate_webhook_secret() -> String {
     let mut hasher = Sha256::new();
     hasher.update(a.as_bytes());
     hasher.update(b.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 const VALID_EVENT_TYPES: &[&str] = &[

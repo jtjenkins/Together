@@ -20,7 +20,11 @@ pub fn generate_bot_token() -> String {
     let mut hasher = Sha256::new();
     hasher.update(a.as_bytes());
     hasher.update(b.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// Hash a plaintext bot token with SHA-256 for deterministic DB storage.
@@ -31,7 +35,11 @@ pub fn generate_bot_token() -> String {
 pub fn hash_bot_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 // ============================================================================

@@ -77,7 +77,7 @@ async fn get_current_user_wrong_secret() {
             "username": "x",
             "token_type": "access"
         }),
-        &EncodingKey::from_secret(b"wrong-secret-wrong-secret-wrong!!"),
+        &EncodingKey::from_secret(b"wrong-secret-wrong-secret-wrong!!").unwrap(),
     )
     .unwrap();
 
