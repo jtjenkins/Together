@@ -6,9 +6,9 @@ Monolithic Rust backend for Together - a private Discord alternative.
 
 ### Prerequisites
 
-- Rust 1.75+ (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+- Rust 1.94+ (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
 - Docker and Docker Compose
-- sqlx-cli (`cargo install sqlx-cli --no-default-features --features postgres`)
+- sqlx-cli (`cargo install sqlx-cli --version ~0.9 --no-default-features --features postgres`)
 
 ### Quick Start
 

@@ -447,7 +447,7 @@ export interface ReadyEvent {
   channel_overrides?: Record<string, ChannelPermissionOverride[]>;
 }
 
-export interface DmChannelCreateEvent extends DirectMessageChannel {}
+export type DmChannelCreateEvent = DirectMessageChannel;
 
 export interface ReactionEvent {
   message_id: string;

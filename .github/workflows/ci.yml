@@ -81,18 +81,18 @@ jobs:
           workspaces: "server -> target"
 
       # Cache the compiled sqlx-cli binary. Bump the version suffix when
-      # upgrading sqlx (currently 0.8). The cache is keyed per OS.
+      # upgrading sqlx (currently 0.9). The cache is keyed per OS.
       - name: Cache sqlx-cli
         id: cache-sqlx
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/sqlx
-          key: sqlx-cli-v0.8-${{ runner.os }}
+          key: sqlx-cli-v0.9-${{ runner.os }}
 
       - name: Install sqlx-cli
         if: steps.cache-sqlx.outputs.cache-hit != 'true'
         run: |
-          cargo install sqlx-cli \
+          cargo install sqlx-cli --version ~0.9 \
             --no-default-features \
             --features postgres,native-tls \
             --locked
@@ -610,12 +610,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/sqlx
-          key: sqlx-cli-v0.8-${{ runner.os }}
+          key: sqlx-cli-v0.9-${{ runner.os }}
 
       - name: Install sqlx-cli
         if: steps.cache-sqlx.outputs.cache-hit != 'true'
         run: |
-          cargo install sqlx-cli \
+          cargo install sqlx-cli --version ~0.9 \
             --no-default-features \
             --features postgres,native-tls \
             --locked

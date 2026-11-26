@@ -21,7 +21,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
 use tokio::sync::mpsc::{self, Receiver, Sender};

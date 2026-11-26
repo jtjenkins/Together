@@ -33,6 +33,7 @@ import type {
   ReactionCount,
 } from "../../types";
 import { useCustomEmojiStore } from "../../stores/customEmojiStore";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./MessageItem.module.css";
 
 interface RenderedContent {
@@ -320,14 +321,14 @@ export const MessageItem = memo(function MessageItem({
   const user = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
   const activeServerId = useServerStore((s) => s.activeServerId);
-  const customEmojis = useCustomEmojiStore((s) =>
-    activeServerId ? s.getEmojis(activeServerId) : [],
+  const customEmojis = useCustomEmojiStore(
+    useShallow((s) => (activeServerId ? s.getEmojis(activeServerId) : [])),
   );
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
   const setReplyingTo = useMessageStore((s) => s.setReplyingTo);
   const attachments = useMessageStore(
-    (s) => s.attachmentCache[message.id] ?? [],
+    useShallow((s) => s.attachmentCache[message.id] ?? []),
   );
   const updateMessagePoll = useMessageStore((s) => s.updateMessagePoll);
   const highlightedMessageId = useMessageStore((s) => s.highlightedMessageId);
@@ -426,7 +427,6 @@ export const MessageItem = memo(function MessageItem({
     }
   }, [channelId, message.id, message.pinned]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   // `members` is intentionally omitted from the dep array to avoid re-rendering
   // all messages whenever anyone joins/leaves. Mention highlighting can be
   // slightly stale, which is acceptable.

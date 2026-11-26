@@ -5,7 +5,7 @@
 
 use axum::{extract::State, Json};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 
 use utoipa::ToSchema;

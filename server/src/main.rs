@@ -226,9 +226,7 @@ async fn main() {
             post(handlers::auth::forgot_password),
         )
         .route("/auth/reset-password", post(handlers::auth::reset_password))
-        .route_layer(GovernorLayer {
-            config: auth_governor_conf,
-        });
+        .route_layer(GovernorLayer::new(auth_governor_conf));
 
     // Health check routes are intentionally outside the rate-limit layer so
     // that monitoring and orchestration probes are never throttled.
@@ -589,9 +587,7 @@ async fn main() {
         // WebSocket gateway
         .route("/ws", get(websocket::websocket_handler))
         // ── Global rate limit ──────────────────────────────────────────────
-        .layer(GovernorLayer {
-            config: governor_conf,
-        })
+        .layer(GovernorLayer::new(governor_conf))
         // ── Security response headers ──────────────────────────────────────
         .layer(SetResponseHeaderLayer::if_not_present(
             header::HeaderName::from_static("x-content-type-options"),

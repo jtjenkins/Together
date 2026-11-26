@@ -149,29 +149,29 @@ server/
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| axum | 0.7 | Web framework (ws, macros, multipart) |
+| axum | 0.8 | Web framework (ws, macros, multipart) |
 | tokio | 1 | Async runtime |
-| sqlx | 0.7 | PostgreSQL driver (with migrate, uuid, chrono, json) |
+| sqlx | 0.9 | PostgreSQL driver (with migrate, uuid, chrono, json) |
 | serde / serde_json | 1 | Serialization |
-| tower / tower-http | 0.4 / 0.5 | Middleware (CORS, tracing, static files) |
-| governor / tower_governor | 0.6 / 0.4 | Rate limiting (DashMap-backed) |
-| jsonwebtoken | 9 | JWT authentication |
-| bcrypt | 0.15 | Password hashing |
+| tower / tower-http | 0.5 / 0.7 | Middleware (CORS, tracing, static files) |
+| governor / tower_governor | 0.10 / 0.8 | Rate limiting (DashMap-backed) |
+| jsonwebtoken | 12 | JWT authentication |
+| bcrypt | 0.19 | Password hashing |
 | uuid | 1 | UUID generation and serde support |
 | chrono | 0.4 | Date/time handling |
-| reqwest | 0.11 | HTTP client (link previews, Giphy) |
-| scraper | 0.19 | HTML parsing for OG tag extraction |
-| validator | 0.16 | Input validation with derive macros |
+| reqwest | 0.13 | HTTP client (link previews, Giphy) |
+| scraper | 0.29 | HTML parsing for OG tag extraction |
+| validator | 0.21 | Input validation with derive macros |
 | tracing / tracing-subscriber | 0.1 / 0.3 | Structured logging |
-| axum-prometheus | 0.7 | Prometheus metrics |
-| hmac / sha1 | 0.12 / 0.10 | TURN credential generation |
-| sha2 | 0.10 | SHA-256 for refresh token hashing |
-| zip | 2 | Server data export archives |
-| infer | 0.16 | MIME type detection for uploads |
+| axum-prometheus | 0.10 | Prometheus metrics |
+| hmac / sha1 | 0.13 / 0.11 | TURN credential generation |
+| sha2 | 0.11 | SHA-256 for refresh token hashing |
+| zip | 9 | Server data export archives |
+| infer | 0.22 | MIME type detection for uploads |
 
 ## Web Client (`clients/web/`)
 
-React 18 SPA built with Vite. CSS Modules for styling. Zustand for state management.
+React 19 SPA built with Vite. CSS Modules for styling. Zustand for state management.
 
 ```
 clients/web/

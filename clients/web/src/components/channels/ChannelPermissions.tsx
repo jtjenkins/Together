@@ -3,6 +3,7 @@ import { useRoleStore } from "../../stores/roleStore";
 import { api } from "../../api/client";
 import { PERMISSIONS } from "../../types";
 import type { RoleDto, ChannelPermissionOverride } from "../../types";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./ChannelPermissions.module.css";
 
 interface PermissionDef {
@@ -113,7 +114,7 @@ export function ChannelPermissions({
   serverId,
   onClose,
 }: ChannelPermissionsProps) {
-  const roles = useRoleStore((s) => s.roles[serverId] || []);
+  const roles = useRoleStore(useShallow((s) => s.roles[serverId] || []));
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<ChannelPermissionOverride[]>([]);
   const [localAllow, setLocalAllow] = useState(0);

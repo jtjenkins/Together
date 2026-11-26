@@ -3,6 +3,7 @@ import { useRoleStore } from "../../stores/roleStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useServerStore } from "../../stores/serverStore";
 import type { MemberRoleInfo } from "../../types";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./RoleAssignmentMenu.module.css";
 
 interface RoleAssignmentMenuProps {
@@ -23,7 +24,7 @@ export function RoleAssignmentMenu({
   onClose,
 }: RoleAssignmentMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const roles = useRoleStore((s) => s.roles[serverId] || []);
+  const roles = useRoleStore(useShallow((s) => s.roles[serverId] || []));
   const assignRole = useRoleStore((s) => s.assignRole);
   const removeRole = useRoleStore((s) => s.removeRole);
   const currentUserId = useAuthStore((s) => s.user?.id);

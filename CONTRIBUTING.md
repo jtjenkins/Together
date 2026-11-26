@@ -41,8 +41,8 @@ You do not need to write code to contribute. The project benefits from:
 
 ### Requirements
 
-- **Rust** 1.75+ (`rustup` is the recommended installer: https://rustup.rs)
-- **Node.js** 20+ and **npm** 10+
+- **Rust** 1.94+ (`rustup` is the recommended installer: https://rustup.rs)
+- **Node.js** 20.19+ and **npm** 10+
 - **Docker** with the Compose v2 plugin (`docker compose`)
 
 ### Clone and start the dev database
