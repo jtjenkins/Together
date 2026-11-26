@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { EMOJI_CATEGORIES, searchEmoji } from "../../utils/emoji";
 import { useCustomEmojiStore } from "../../stores/customEmojiStore";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./EmojiPicker.module.css";
 
 interface EmojiPickerProps {
@@ -10,8 +11,8 @@ interface EmojiPickerProps {
 }
 
 export function EmojiPicker({ onSelect, onClose, serverId }: EmojiPickerProps) {
-  const customEmojis = useCustomEmojiStore((s) =>
-    serverId ? s.getEmojis(serverId) : [],
+  const customEmojis = useCustomEmojiStore(
+    useShallow((s) => (serverId ? s.getEmojis(serverId) : [])),
   );
   const hasCustom = customEmojis.length > 0;
 

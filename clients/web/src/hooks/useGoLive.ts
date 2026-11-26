@@ -428,7 +428,6 @@ export function useGoLive({
       displayStream.current?.getTracks().forEach((t) => t.stop());
       goLivePeers.current.forEach((pc) => pc.close());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

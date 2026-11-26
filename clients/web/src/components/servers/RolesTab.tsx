@@ -3,6 +3,7 @@ import { useRoleStore } from "../../stores/roleStore";
 import { RoleEditor } from "./RoleEditor";
 import type { RoleDto } from "../../types";
 import { PERMISSIONS } from "../../types";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./RolesTab.module.css";
 
 interface RolesTabProps {
@@ -18,7 +19,7 @@ function countPermissions(perms: number): number {
 }
 
 export function RolesTab({ serverId }: RolesTabProps) {
-  const roles = useRoleStore((s) => s.roles[serverId] || []);
+  const roles = useRoleStore(useShallow((s) => s.roles[serverId] || []));
   const fetchRoles = useRoleStore((s) => s.fetchRoles);
   const deleteRole = useRoleStore((s) => s.deleteRole);
   const error = useRoleStore((s) => s.error);

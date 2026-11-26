@@ -1,5 +1,6 @@
 import { useCustomEmojiStore } from "../../stores/customEmojiStore";
 import { searchAllEmoji } from "../../utils/emoji";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./EmojiAutocomplete.module.css";
 
 interface EmojiAutocompleteProps {
@@ -16,8 +17,8 @@ export function EmojiAutocomplete({
   activeIndex,
   serverId,
 }: EmojiAutocompleteProps) {
-  const customEmojis = useCustomEmojiStore((s) =>
-    serverId ? s.getEmojis(serverId) : [],
+  const customEmojis = useCustomEmojiStore(
+    useShallow((s) => (serverId ? s.getEmojis(serverId) : [])),
   );
   const results = searchAllEmoji(query, customEmojis, 8);
 

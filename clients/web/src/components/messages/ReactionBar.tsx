@@ -4,6 +4,7 @@ import { api } from "../../api/client";
 import type { ReactionCount } from "../../types";
 import { EmojiPicker } from "./EmojiPicker";
 import { useCustomEmojiStore } from "../../stores/customEmojiStore";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./ReactionBar.module.css";
 
 interface ReactionBarProps {
@@ -21,8 +22,8 @@ function EmojiDisplay({
   emoji: string;
   serverId?: string;
 }) {
-  const customEmojis = useCustomEmojiStore((s) =>
-    serverId ? s.getEmojis(serverId) : [],
+  const customEmojis = useCustomEmojiStore(
+    useShallow((s) => (serverId ? s.getEmojis(serverId) : [])),
   );
   if (emoji.startsWith("c:")) {
     const id = emoji.slice(2);
